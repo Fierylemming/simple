@@ -104,7 +104,7 @@ public class ColonyCommand {
                                             ctx.getSource().sendSuccess(() -> Component.literal("Gave " + count + "x " + item + " to colony #" + id), true);
                                             return 1;
                                         }))
-                        ))
+                        )))
                 .then(Commands.literal("unlock")
                         .then(Commands.argument("upgradeId", StringArgumentType.string())
                                 .executes(ctx -> {
@@ -121,7 +121,7 @@ public class ColonyCommand {
                                     if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("No colony #" + id)); return 0; }
                                     return forceUnlock(ctx.getSource(), colony.get(), uid);
                                 }))
-                        )
+                        ))
                 .then(Commands.literal("buy")
                         .then(Commands.argument("upgradeId", StringArgumentType.string())
                                 .executes(ctx -> {
@@ -139,7 +139,7 @@ public class ColonyCommand {
                                     ServerPlayer p = null; try { p = ctx.getSource().getPlayerOrException(); } catch (Exception ignored) {}
                                     return tryBuy(ctx.getSource(), colony.get(), uid, p);
                                 }))
-                        )
+                        ))
                 .then(Commands.literal("tickprogress")
                         .executes(ctx -> {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
@@ -206,7 +206,7 @@ public class ColonyCommand {
                             if (colony == null) { ctx.getSource().sendFailure(Component.literal("Failed to create colony (limit?)")); return 0; }
                             ctx.getSource().sendSuccess(() -> Component.literal("Spawned " + culture.displayName + " colony #" + colony.getId() + " at " + colony.getCenter().toShortString() + " with starter cobble/wood — test with /colony warehouse, /colony research, /colony buy TOOL_STONE"), true);
                             return 1;
-                        }))
+                        })))
                 .then(Commands.literal("repair").requires(src -> src.hasPermission(2))
                         .then(Commands.argument("id", IntegerArgumentType.integer(1))
                                 .executes(ctx -> repair(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "id"), false))
@@ -228,7 +228,7 @@ public class ColonyCommand {
                             ctx.getSource().sendSuccess(() -> Component.literal("Deleted colony #" + id), true);
                             return 1;
                         })))
-        )))));
+        );
     }
 
     private static int sendWorkStatus(CommandSourceStack src, Colony colony) {
