@@ -71,14 +71,14 @@ public class BuildingMarkerScreen extends AbstractContainerScreen<BuildingMarker
 
         int x=x0+12, y=y0+26;
         g.drawString(font, "Marker "+menu.markerPos.toShortString(), x,y, C_TEXT,false);
-        String cur = menu.currentType==null? "Not designated — pick a type below": "Now: "+menu.currentType.displayName+" ✓";
+        String cur = menu.currentType==null? "Not designated - pick a type below": "Now: "+menu.currentType.displayName+" OK";
         g.drawString(font, cur, x,y+10, menu.currentType==null?C_RED:C_GREEN,false);
-        g.drawString(font, "Colony "+menu.colony.getCulture().displayName+" #"+menu.colony.getId()+" • Leader: "+(menu.colony.isLeader(menu.player)?"You":menu.colony.getLeaderId()!=null?"Other":"none"), x,y+20, C_MUTED,false);
-        g.drawString(font, "Choose what your build counts as — villagers use chests near marker.", x0+12, y0+50, C_MID,false);
+        g.drawString(font, "Colony "+menu.colony.getCulture().displayName+" #"+menu.colony.getId()+" - Leader: "+(menu.colony.isLeader(menu.player)?"You":menu.colony.getLeaderId()!=null?"Other":"none"), x,y+20, C_MUTED,false);
+        g.drawString(font, "Choose what your build counts as - villagers use chests near marker.", x0+12, y0+50, C_MID,false);
         // help footer
         int fx=x0+12, fy=y0+168;
         g.drawString(font, "Houses: 4 beds each. Warehouse (many chests) = courier hub. Farm hut needs farmland.", fx,fy, C_MUTED,false);
-        g.drawString(font, "Tip: Put chests near work sites — couriers bulk-move to warehouse faster.", fx,fy+10, C_MUTED,false);
+        g.drawString(font, "Tip: Put chests near work sites - couriers bulk-move to warehouse faster.", fx,fy+10, C_MUTED,false);
         g.drawString(font, "Leader or 20 rep required to designate. Right-click again to change.", fx,fy+20, C_MUTED,false);
         // selected description card
         if(menu.currentType!=null){
@@ -94,7 +94,7 @@ public class BuildingMarkerScreen extends AbstractContainerScreen<BuildingMarker
                 default->"Designates area for job. Villagers path to marker.";
             };
             g.fill(x0+12, y0+186, x1-12, y0+206, 0xFFF7F0DE); g.fill(x0+12, y0+186, x0+14, y0+206, C_GOLD);
-            g.drawString(font, icon(menu.currentType)+" "+menu.currentType.displayName+" — "+desc, x0+18, y0+192, C_TEXT,false);
+            g.drawString(font, icon(menu.currentType)+" "+menu.currentType.displayName+" - "+desc, x0+18, y0+192, C_TEXT,false);
         }
     }
     @Override protected void renderLabels(GuiGraphics g,int mx,int my){ g.drawString(font, "⧉ Designate Building", 12,6, 0xFFF5E6A3,true); }
