@@ -45,8 +45,10 @@ public class VillagerInteractionScreen extends AbstractContainerScreen<VillagerI
         for(int i=0;i<labels.length;i++){
             int col=i%4, row=i/4;
             int bx=x+8+col*66, by=y+78+row*22;
-            Component lbl=Component.literal(icons[i]+" "+labels[i]);
-            addRenderableWidget(Button.builder(lbl,b->sendBtn(ids[i])).bounds(bx,by,64,18).build());
+            final int idx=i;
+            Component lbl=Component.literal(icons[idx]+" "+labels[idx]);
+            int id = ids[idx];
+            addRenderableWidget(Button.builder(lbl,b->sendBtn(id)).bounds(bx,by,64,18).build());
         }
         addRenderableWidget(Button.builder(Component.literal("◐ Trade (vanilla)"), b->sendBtn(VillagerInteractionMenu.BTN_TRADE)).bounds(x+8,y+126, 130,18).build());
         addRenderableWidget(Button.builder(Component.literal("⚑ Follow Me"), b->sendBtn(VillagerInteractionMenu.BTN_COMMAND_FOLLOW)).bounds(x+142,y+126, 130,18).build());
