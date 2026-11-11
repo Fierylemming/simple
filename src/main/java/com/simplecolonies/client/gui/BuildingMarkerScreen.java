@@ -9,80 +9,93 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 
 /**
- * Building Marker GUI — the "town setter you right click then select what building it is"
- * Shows all building types as buttons, current designation, and explains what villagers will do with it.
+ * Building Marker — v2 Parchment Edition
+ * Same wood/parchment/gold palette as TownHall, so all GUIs feel like one ancient set.
  */
 public class BuildingMarkerScreen extends AbstractContainerScreen<BuildingMarkerMenu> {
+    private static final int C_FRAME_DARK = 0xFF1A1207;
+    private static final int C_FRAME_MID  = 0xFF3B2A14;
+    private static final int C_HEADER_BG  = 0xFF2C1E0F;
+    private static final int C_GOLD       = 0xFFB8952A;
+    private static final int C_GOLD_DIM   = 0xFFD9B86A;
+    private static final int C_PARCH      = 0xFFFFF8E7;
+    private static final int C_PARCH_SH   = 0xFFE8DCC6;
+    private static final int C_PANEL      = 0xFFFFFDF0;
+    private static final int C_DIV        = 0xFFD4C4A8;
+    private static final int C_TEXT       = 0xFF2B1B0E;
+    private static final int C_MID        = 0xFF5A3E2B;
+    private static final int C_MUTED      = 0xFF8B7355;
+    private static final int C_GREEN      = 0xFF1B6B2E;
+    private static final int C_RED        = 0xFFB91C1C;
+
     public BuildingMarkerScreen(BuildingMarkerMenu menu, Inventory inv, Component title) {
         super(menu, inv, title);
-        this.imageWidth = 260;
-        this.imageHeight = 220;
+        this.imageWidth = 300;
+        this.imageHeight = 235;
+        this.inventoryLabelY = 999;
     }
 
-    @Override
-    protected void init() {
+    @Override protected void init() {
         super.init();
-        int x = leftPos;
-        int y = topPos;
-
-        // Building type buttons — grid 4x3
-        BuildingType[] types = {
-                BuildingType.HOUSE, BuildingType.FARM, BuildingType.LUMBERJACK_HUT, BuildingType.MINE,
-                BuildingType.WAREHOUSE, BuildingType.BARRACKS, BuildingType.BLACKSMITH, BuildingType.BAKERY,
-                BuildingType.BUTCHER_HUT, BuildingType.LEATHER_SHOP, BuildingType.TEMPLE, BuildingType.MARKET
-        };
-        int[] btnIds = {
-                BuildingMarkerMenu.BTN_SET_HOUSE, BuildingMarkerMenu.BTN_SET_FARM, BuildingMarkerMenu.BTN_SET_LUMBER, BuildingMarkerMenu.BTN_SET_MINE,
-                BuildingMarkerMenu.BTN_SET_WAREHOUSE, BuildingMarkerMenu.BTN_SET_BARRACKS, BuildingMarkerMenu.BTN_SET_BLACKSMITH, BuildingMarkerMenu.BTN_SET_BAKERY,
-                BuildingMarkerMenu.BTN_SET_BUTCHER, BuildingMarkerMenu.BTN_SET_LEATHER, BuildingMarkerMenu.BTN_SET_TEMPLE, 15 // market uses barracks id for demo
-        };
-        for (int i = 0; i < types.length; i++) {
-            int col = i % 4;
-            int row = i / 4;
-            int bx = x + 8 + col * 62;
-            int by = y + 50 + row * 22;
-            BuildingType t = types[i];
-            int id = btnIds[i];
-            Button b = Button.builder(Component.literal(t.displayName), btn -> send(id))
-                    .bounds(bx, by, 60, 18)
-                    .build();
+        int x = leftPos, y = topPos;
+        BuildingType[] types = {BuildingType.HOUSE, BuildingType.FARM, BuildingType.LUMBERJACK_HUT, BuildingType.MINE, BuildingType.WAREHOUSE, BuildingType.BARRACKS, BuildingType.BLACKSMITH, BuildingType.BAKERY, BuildingType.BUTCHER_HUT, BuildingType.LEATHER_SHOP, BuildingType.TEMPLE, BuildingType.MARKET};
+        int[] ids = {BuildingMarkerMenu.BTN_SET_HOUSE, BuildingMarkerMenu.BTN_SET_FARM, BuildingMarkerMenu.BTN_SET_LUMBER, BuildingMarkerMenu.BTN_SET_MINE, BuildingMarkerMenu.BTN_SET_WAREHOUSE, BuildingMarkerMenu.BTN_SET_BARRACKS, BuildingMarkerMenu.BTN_SET_BLACKSMITH, BuildingMarkerMenu.BTN_SET_BAKERY, BuildingMarkerMenu.BTN_SET_BUTCHER, BuildingMarkerMenu.BTN_SET_LEATHER, BuildingMarkerMenu.BTN_SET_TEMPLE, 15};
+        for (int i=0;i<types.length;i++) {
+            int col=i%4, row=i/4;
+            int bx = x+8 + col*72;
+            int by = y+68 + row*24;
+            BuildingType t=types[i]; int id=ids[i];
+            boolean sel = menu.currentType!=null && menu.currentType==t;
+            Component lbl = Component.literal((sel?"◆ ":"◇ ")+icon(t)+" "+t.displayName);
+            Button b = Button.builder(lbl, bt->send(id)).bounds(bx,by,70,18).build();
             addRenderableWidget(b);
         }
-
-        addRenderableWidget(Button.builder(Component.literal("Clear"), btn -> send(BuildingMarkerMenu.BTN_CLEAR))
-                .bounds(x + 8, y + 124, 60, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("Done"), btn -> onClose())
-                .bounds(x + imageWidth - 68, y + 124, 60, 18).build());
+        addRenderableWidget(Button.builder(Component.literal("✕ Clear"), b->send(BuildingMarkerMenu.BTN_CLEAR)).bounds(x+8, y+142, 70,18).build());
+        addRenderableWidget(Button.builder(Component.literal("✔ Done"), b->onClose()).bounds(x+imageWidth-78, y+142, 70,18).build());
     }
+    private String icon(BuildingType t){ return switch(t){ case HOUSE->"⌂"; case FARM->"⚘"; case LUMBERJACK_HUT->"♠"; case MINE->"⛏"; case WAREHOUSE->"▣"; case BARRACKS->"⚔"; case BLACKSMITH->"🔨"; case BAKERY->"◯"; case BUTCHER_HUT->"🥩"; case LEATHER_SHOP->"⬢"; case TEMPLE->"☥"; case MARKET->"⚖"; }; }
+    private void send(int id){ if(minecraft!=null && minecraft.gameMode!=null) minecraft.gameMode.handleInventoryButtonClick(menu.containerId, id); }
 
-    private void send(int id) {
-        if (minecraft != null && minecraft.gameMode != null) minecraft.gameMode.handleInventoryButtonClick(menu.containerId, id);
+    @Override protected void renderBg(GuiGraphics g,float pt,int mx,int my){
+        int x0=leftPos, y0=topPos, x1=x0+imageWidth, y1=y0+imageHeight;
+        g.fill(x0-1,y0-1,x1+1,y1+1, C_FRAME_DARK); g.fill(x0,y0,x1,y1, C_FRAME_MID);
+        g.fill(x0+3,y0+3,x1-3,y1-3, C_PARCH); g.fillGradient(x0+3,y0+3,x1-3,y0+12, C_PARCH_SH, 0x00E8DCC6);
+        g.fill(x0+3,y0+3,x1-3,y0+20, C_HEADER_BG); g.fill(x0+3,y0+20,x1-3,y0+22, C_GOLD);
+        // info panel
+        g.fill(x0+6,y0+24,x1-6,y0+64, C_PANEL); g.fill(x0+6,y0+24,x0+7,y0+64, C_DIV); g.fill(x1-7,y0+24,x1-6,y0+64, C_DIV); g.fill(x0+6,y0+64,x1-6,y0+65, C_DIV);
+        // grid panel
+        g.fill(x0+6,y0+66,y0+140==y0+66?y0+66:x1-6, y0+140, C_PANEL);
+        // footer hints
+        g.fill(x0+6,y0+164,x1-6,y1-14, C_PANEL);
+        g.fill(x0+3,y1-14,x1-3,y1-3, 0xFFEBE2C8); g.fill(x0+3,y1-14,x1-3,y1-13, C_DIV);
+
+        int x=x0+12, y=y0+26;
+        g.drawString(font, "Marker "+menu.markerPos.toShortString(), x,y, C_TEXT,false);
+        String cur = menu.currentType==null? "Not designated — pick a type below": "Now: "+menu.currentType.displayName+" ✓";
+        g.drawString(font, cur, x,y+10, menu.currentType==null?C_RED:C_GREEN,false);
+        g.drawString(font, "Colony "+menu.colony.getCulture().displayName+" #"+menu.colony.getId()+" • Leader: "+(menu.colony.isLeader(menu.player)?"You":menu.colony.getLeaderId()!=null?"Other":"none"), x,y+20, C_MUTED,false);
+        g.drawString(font, "Choose what your build counts as — villagers use chests near marker.", x0+12, y0+50, C_MID,false);
+        // help footer
+        int fx=x0+12, fy=y0+168;
+        g.drawString(font, "Houses: 4 beds each. Warehouse (many chests) = courier hub. Farm hut needs farmland.", fx,fy, C_MUTED,false);
+        g.drawString(font, "Tip: Put chests near work sites — couriers bulk-move to warehouse faster.", fx,fy+10, C_MUTED,false);
+        g.drawString(font, "Leader or 20 rep required to designate. Right-click again to change.", fx,fy+20, C_MUTED,false);
+        // selected description card
+        if(menu.currentType!=null){
+            String desc = switch(menu.currentType){
+                case HOUSE->"Housing: +4 beds, +1 pop. Build more houses to grow.";
+                case FARM->"Farmer: tills, plants, harvests. Needs farmland + water.";
+                case LUMBERJACK_HUT->"Woodcutter: fells trees, replants saplings.";
+                case MINE->"Miner: digs stone/ore, needs pickaxe tier.";
+                case WAREHOUSE->"Hub: all couriers deliver here. Many chests = faster.";
+                case BARRACKS->"Soldier: guards & follows Command Staff when rallied.";
+                case BLACKSMITH->"Smith: makes tools, needs ingots + coal.";
+                case BAKERY->"Baker: turns wheat → bread for colony food.";
+                default->"Designates area for job. Villagers path to marker.";
+            };
+            g.fill(x0+12, y0+186, x1-12, y0+206, 0xFFF7F0DE); g.fill(x0+12, y0+186, x0+14, y0+206, C_GOLD);
+            g.drawString(font, icon(menu.currentType)+" "+menu.currentType.displayName+" — "+desc, x0+18, y0+192, C_TEXT,false);
+        }
     }
-
-    @Override
-    protected void renderBg(GuiGraphics gfx, float partialTick, int mouseX, int mouseY) {
-        gfx.fill(leftPos, topPos, leftPos + imageWidth, topPos + imageHeight, 0xFF2B2316);
-        gfx.fill(leftPos + 2, topPos + 2, leftPos + imageWidth - 2, topPos + imageHeight - 2, 0xFFEEE0C8);
-        gfx.fill(leftPos + 2, topPos + 2, leftPos + imageWidth - 2, topPos + 18, 0xFF3A2F1F);
-        gfx.fill(leftPos + 6, topPos + 22, leftPos + imageWidth - 6, topPos + 46, 0xFFD8C49E);
-
-        int x = leftPos + 10;
-        int y = topPos + 24;
-        gfx.drawString(font, "Marker: " + menu.markerPos.toShortString(), x, y, 0x3A2F1F, false);
-        String current = menu.currentType == null ? "Not designated — pick below" : "Now: " + menu.currentType.displayName;
-        gfx.drawString(font, current, x, y + 12, menu.currentType == null ? 0xCC0000 : 0x2E7D32, false);
-
-        gfx.drawString(font, "Pick what your build should count as:", x, y + 26, 0x3A2F1F, false);
-
-        // Help text based on hover? For now static help at bottom
-        gfx.drawString(font, "Houses give 4 beds each. Warehouse (many chests) becomes courier hub.", x, topPos + 150, 0x6B5A3A, false);
-        gfx.drawString(font, "Farm/Farm-hut jobs will use chests near marker. Leader or 20 rep required.", x, topPos + 162, 0x6B5A3A, false);
-        gfx.drawString(font, "Tip: Place chests near work sites — couriers bulk-move to warehouse faster.", x, topPos + 174, 0x6B5A3A, false);
-        gfx.drawString(font, "Colony: " + menu.colony.getCulture().displayName + " #" + menu.colony.getId(), x, topPos + 190, 0x3A2F1F, false);
-    }
-
-    @Override
-    protected void renderLabels(GuiGraphics gfx, int mouseX, int mouseY) {
-        gfx.drawString(font, title.getString(), 8, 6, 0xFFFFFF, false);
-    }
+    @Override protected void renderLabels(GuiGraphics g,int mx,int my){ g.drawString(font, "⧉ Designate Building", 12,6, 0xFFF5E6A3,true); }
 }
