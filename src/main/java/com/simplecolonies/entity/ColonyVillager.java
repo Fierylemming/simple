@@ -104,7 +104,7 @@ public class ColonyVillager extends Villager {
             SoldierJob.attachGoals(this);
         }
         // Update custom name to show job icon
-        setCustomName(Component.literal(getName().getString().split(" \\[")[0] + " [" + newJob.displayName + "]"));
+        setCustomName(Component.literal(com.simplecolonies.villager.VillagerNames.withJob(getName().getString(), newJob.displayName)));
     }
 
     private AbstractJob createJobInstance(JobType type) {

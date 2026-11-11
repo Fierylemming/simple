@@ -20,6 +20,12 @@ public class ClientSetup {
     }
 
     @SubscribeEvent
+    public static void registerEntityRenderers(net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterRenderers event) {
+        event.registerEntityRenderer(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(),
+                net.minecraft.client.renderer.entity.VillagerRenderer::new);
+    }
+
+    @SubscribeEvent
     public static void registerScreens(RegisterMenuScreensEvent event) {
         event.register(ModMenuTypes.TOWN_HALL.get(), TownHallScreen::new);
         event.register(ModMenuTypes.VILLAGER.get(), VillagerInteractionScreen::new);

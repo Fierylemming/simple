@@ -36,54 +36,59 @@ public class ColonyEventHandler {
         }
     }
 
+    private record FoundVillage(BlockPos anchor, CultureType culture) {}
+
     private static void trySpawnNaturalColonies(ServerLevel level) {
         if (!level.dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) return;
         for (var player : level.players()) {
             BlockPos playerPos = player.blockPosition();
             if (ColonyManager.getInstance().getColonyAt(playerPos).isPresent()) continue;
-            BlockPos target = findNearbyVillageStructure(level, playerPos, 32);
-            if (target == null || ColonyManager.getInstance().getColonyAt(target).isPresent()) continue;
-            var biome = level.getBiome(target);
-            var culture = CultureType.fromBiomeTemperature(biome.value().getBaseTemperature(), biome);
-            var colony = ColonyManager.getInstance().createColony(level, culture, target);
+            FoundVillage found = findNearbyVillageStructure(level, playerPos, 32);
+            if (found == null) continue;
+            // The anchor is stable even when a different player approaches the same structure.
+            boolean alreadyKnown = ColonyManager.getInstance().getAll().stream().anyMatch(c -> {
+                long dx = c.getCenter().getX() - found.anchor().getX();
+                long dz = c.getCenter().getZ() - found.anchor().getZ();
+                return dx * dx + dz * dz < 96L * 96L;
+            });
+            if (alreadyKnown) continue;
+            BlockPos target = ColonyManager.getInstance().findNaturalColonyCenter(level, found.anchor());
+            if (target == null) {
+                player.displayClientMessage(net.minecraft.network.chat.Component.literal(
+                        "§eVillage structure found, but no safe loaded land for its starter buildings yet."), true);
+                continue;
+            }
+            var colony = ColonyManager.getInstance().createColony(level, found.culture(), target);
             if (colony != null) {
                 player.displayClientMessage(net.minecraft.network.chat.Component.literal(
-                        "§aDiscovered " + culture.displayName + " colony #" + colony.getId()), false);
+                        "§aDiscovered " + found.culture().displayName + " colony #" + colony.getId()
+                                + " at " + target.toShortString() + " (" + colony.citizenCount() + " citizens, "
+                                + colony.getBuildings().size() + " buildings)"), false);
             }
         }
     }
 
-    /**
-     * Structure-based: check for any SimpleColony village structure in range.
-     * Uses StructureManager#getAllStructuresAt — true villager villages regardless of block palette.
-     */
-    private static BlockPos findNearbyVillageStructure(ServerLevel level, BlockPos from, int radius) {
-        try {
-            // Check centre and ring every 8 blocks to catch structure piece nearby
-            for (int dx = -radius; dx <= radius; dx += 8) {
-                for (int dz = -radius; dz <= radius; dz += 8) {
-                    BlockPos check = from.offset(dx, 0, dz);
-                    // Clamp y to surface
-                    check = new BlockPos(check.getX(), level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, check.getX(), check.getZ()), check.getZ());
-                    var all = level.structureManager().getAllStructuresAt(check);
-                    if (all.isEmpty()) continue;
-                    for (var entry : all.entrySet()) {
-                        var structure = entry.getKey();
-                        // Resolve registry id for this structure
-                        var reg = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
-                        ResourceLocation id = reg.getKey(structure);
-                        if (id == null) continue;
-                        if (!id.getNamespace().equals("simplecolonies")) continue;
-                        if (id.getPath().contains("village_center")) {
-                            // Use surface pos as colony centre
-                            return check.immutable();
-                        }
-                    }
+    /** References alone cover entire chunks and do not prove a village is present there. */
+    private static FoundVillage findNearbyVillageStructure(ServerLevel level, BlockPos from, int radius) {
+        var registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        for (int dx = -radius; dx <= radius; dx += 8) for (int dz = -radius; dz <= radius; dz += 8) {
+            BlockPos sample = from.offset(dx, 0, dz);
+            if (!level.isLoaded(sample)) continue;
+            int surface = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, sample.getX(), sample.getZ());
+            BlockPos column = new BlockPos(sample.getX(), surface, sample.getZ());
+            for (var entry : level.structureManager().getAllStructuresAt(column).entrySet()) {
+                var structure = entry.getKey();
+                ResourceLocation id = registry.getKey(structure);
+                if (id == null || !id.getNamespace().equals("simplecolonies") || !id.getPath().endsWith("/village_center")) continue;
+                for (int dy = -6; dy <= 2; dy += 2) {
+                    var start = level.structureManager().getStructureAt(column.offset(0, dy, 0), structure);
+                    if (!start.isValid()) continue;
+                    var middle = start.getBoundingBox().getCenter();
+                    BlockPos anchor = new BlockPos(middle.getX(), middle.getY(), middle.getZ());
+                    String culture = id.getPath().substring(0, id.getPath().indexOf('/'));
+                    return new FoundVillage(anchor, CultureType.byId(culture));
                 }
             }
-        } catch (Exception e) {
-            // Fallback to block scan if API differs
-            SimpleColonies.LOGGER.debug("Structure scan fallback: {}", e.getMessage());
         }
         return null;
     }

@@ -182,6 +182,11 @@ public class ColonyCommand {
                             ctx.getSource().sendSuccess(() -> Component.literal("Spawned " + culture.displayName + " colony #" + colony.getId() + " at " + colony.getCenter().toShortString() + " with starter cobble/wood — test with /colony warehouse, /colony research, /colony buy TOOL_STONE"), true);
                             return 1;
                         }))
+                .then(Commands.literal("repair").requires(src -> src.hasPermission(2))
+                        .then(Commands.argument("id", IntegerArgumentType.integer(1))
+                                .executes(ctx -> repair(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "id"), false))
+                                .then(Commands.literal("reset_citizens")
+                                        .executes(ctx -> repair(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "id"), true)))))
                 .then(Commands.literal("tp").then(Commands.argument("id", IntegerArgumentType.integer()).executes(ctx -> {
                     int id = IntegerArgumentType.getInteger(ctx, "id");
                     var colony = ColonyManager.getInstance().getColony(id);
@@ -199,6 +204,32 @@ public class ColonyCommand {
                             return 1;
                         })))
         )))));
+    }
+
+    private static int repair(CommandSourceStack src, int id, boolean resetCitizens) {
+        Colony colony = ColonyManager.getInstance().getColony(id).orElse(null);
+        if (colony == null) { src.sendFailure(Component.literal("No colony #" + id)); return 0; }
+        ServerLevel level = src.getServer().overworld();
+        if (!level.isLoaded(colony.getCenter())) {
+            src.sendFailure(Component.literal("Visit the colony first so its center is loaded."));
+            return 0;
+        }
+        if (resetCitizens) {
+            // Refuse to discard records of currently loaded living villagers. This
+            // explicit option can still duplicate villagers in unloaded chunks.
+            if (colony.getCitizens().stream().anyMatch(c -> level.getEntity(c.uuid) != null)) {
+                src.sendFailure(Component.literal("Loaded citizens exist; refusing to reset them."));
+                return 0;
+            }
+            for (var citizen : java.util.List.copyOf(colony.getCitizens())) colony.removeCitizen(citizen.uuid);
+        }
+        ColonyManager.getInstance().repairStarters(level, colony);
+        src.sendSuccess(() -> Component.literal("Colony #" + id + " repair: " + colony.citizenCount()
+                + " citizen records, " + colony.getBuildings().size() + " buildings; center " + colony.getCenter().toShortString()), false);
+        if (!resetCitizens && colony.citizenCount() > 0) {
+            src.sendSuccess(() -> Component.literal("Existing citizen records were kept. See the repair documentation before resetting missing records."), false);
+        }
+        return 1;
     }
 
     private static int sendInfo(CommandSourceStack src, Colony c, ServerPlayer p) {

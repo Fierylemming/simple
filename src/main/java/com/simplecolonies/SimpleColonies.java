@@ -40,12 +40,17 @@ public class SimpleColonies {
         modContainer.registerConfig(ModConfig.Type.CLIENT, ColonyConfig.CLIENT_SPEC, "simplecolonies-client.toml");
 
         modEventBus.addListener(this::commonSetup);
+        modEventBus.addListener(this::registerEntityAttributes);
 
         NeoForge.EVENT_BUS.addListener(this::onServerStarting);
         NeoForge.EVENT_BUS.addListener(this::onServerStopping);
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
 
         LOGGER.info("[SimpleColonies] All registries (blocks, entities, menus, worldgen) queued.");
+    }
+
+    private void registerEntityAttributes(net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent event) {
+        event.put(ModEntities.COLONY_VILLAGER.get(), net.minecraft.world.entity.npc.Villager.createAttributes().build());
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {
