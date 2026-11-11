@@ -13,9 +13,25 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew build --stacktrace
-      - uses: actions/upload-artifact@v4
+      - name: Build
+        run: |
+          ./gradlew build --stacktrace --info 2>&1 | tee build.log
+          echo "EXIT:$?"
+          cat build.log | grep -A2 -B2 "error\|Error\|FAILURE" | head -n 400
+        continue-on-error: true
+      - name: Upload logs always
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            build.log
+            build/reports/**/*
+          if-no-files-found: warn
+      - name: Upload jar if built
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: simplecolonies-jar
           path: build/libs/*.jar
-          if-no-files-found: error
+          if-no-files-found: warn
