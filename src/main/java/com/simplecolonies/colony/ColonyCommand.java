@@ -198,7 +198,7 @@ public class ColonyCommand {
                             ctx.getSource().sendSuccess(() -> Component.literal("Deleted colony #" + id), true);
                             return 1;
                         })))
-        );
+        )))));
     }
 
     private static int sendInfo(CommandSourceStack src, Colony c, ServerPlayer p) {
