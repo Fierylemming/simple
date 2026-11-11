@@ -13,19 +13,23 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: true
       - name: Build jar
-        run: ./gradlew build --stacktrace
-      - name: Create Prism release
+        run: ./gradlew build --no-configuration-cache --rerun-tasks --stacktrace
+      - name: Upload Prism jar
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simplecolonies-prism-jar
+          path: build/libs/*.jar
+          if-no-files-found: error
+      - name: Create Release
         if: success()
         uses: softprops/action-gh-release@v2
         with:
           tag_name: prism-${{ github.sha }}
-          name: SimpleColonies Prism build ${{ github.sha }}
-          body: |
-            Prism-ready jar for branch arena/957b7435-simple
-            Commit: ${{ github.sha }}
-            Download simplecolonies-prism.jar below and drop in Prism mods folder.
-            Requires: NeoForge 1.21.1 (21.1.265), Java 21. Optional: Create 6.x + Create Aeronautics.
+          name: Prism build ${{ github.sha }}
+          body: "Drop in Prism mods folder. NeoForge 1.21.1 + optional Create."
           files: build/libs/*.jar
           prerelease: true
-          generate_release_notes: false
