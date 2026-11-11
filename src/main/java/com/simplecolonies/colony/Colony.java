@@ -140,6 +140,9 @@ public class Colony {
                 }
             }
 
+            // Vanilla-like breeding: if housed + fed, consume 3 bread per baby and spawn near a House
+            tryBreed(level);
+
             daysSinceExpansion++;
             if (com.simplecolonies.config.ColonyConfig.ENABLE_NATURAL_EXPANSION.get() &&
                     daysSinceExpansion >= com.simplecolonies.config.ColonyConfig.EXPANSION_CHECK_DAYS.get() &&
@@ -263,6 +266,76 @@ public class Colony {
 
     public void removeCitizen(UUID villagerUuid) {
         citizens.remove(villagerUuid);
+    }
+
+    // Vanilla-like breeding with costs → populates empty houses and drives expansion
+    private void tryBreed(ServerLevel level) {
+        int housingSlots = buildings.stream().filter(b -> b.getType() == BuildingType.HOUSE).mapToInt(Building::getHousingCapacity).sum();
+        if (housingSlots <= citizens.size()) return; // no empty beds
+        if (citizens.size() < 2) return; // need pair
+        if (daysWithoutFood > 0) return; // must be well-fed
+        int neededFood = (int) Math.ceil(citizens.size() * com.simplecolonies.config.ColonyConfig.FOOD_CONSUMPTION_MULTIPLIER.get());
+        int availableFood = countFoodInWarehouse(level);
+        // Need surplus of 2 days + 3 bread breeding cost, and at least 3% chance per day per empty bed (vanilla ~5%)
+        if (availableFood < neededFood * 2 + 3) return;
+        int emptyBeds = housingSlots - citizens.size();
+        double chance = 0.25 + 0.08 * emptyBeds; // 25% base + more beds = faster growth, cap below
+        if (level.random.nextDouble() > Math.min(chance, 0.65)) return;
+
+        // Pay breeding cost: 3 bread (vanilla) — consume from warehouse/chests
+        int breadHave = getWarehouseCount(level, "minecraft:bread") + warehouse.getOrDefault("minecraft:bread", 0);
+        String costId = breadHave >= 3 ? "minecraft:bread" : null;
+        if (costId == null) {
+            // fallback to wheat/carrots if no bread
+            int wheatHave = getWarehouseCount(level, "minecraft:wheat");
+            if (wheatHave >= 12) costId = "minecraft:wheat";
+            else return;
+        }
+        int cost = costId.equals("minecraft:bread") ? 3 : 12;
+        // consume
+        if (!consumeBreedCost(level, costId, cost)) return;
+
+        // Spawn baby near a random House building (so it populates empty houses)
+        var houses = buildings.stream().filter(b -> b.getType() == BuildingType.HOUSE).toList();
+        BlockPos spawnAt = houses.isEmpty() ? center : houses.get(level.random.nextInt(houses.size())).getPos().above();
+        // find ground
+        for (int dy = 2; dy >= -2; dy--) {
+            BlockPos p = spawnAt.offset(0, dy, 0);
+            if (level.getBlockState(p).isAir() && level.getBlockState(p.below()).isSolid()) { spawnAt = p; break; }
+        }
+        try {
+            var type = com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get();
+            var baby = type.create(level);
+            if (baby == null) return;
+            baby.moveTo(spawnAt.getX() + 0.5, spawnAt.getY(), spawnAt.getZ() + 0.5, level.random.nextFloat() * 360, 0);
+            baby.setBaby(true);
+            // Persist age so it grows naturally like vanilla (20min)
+            baby.finalizeSpawn(level, level.getCurrentDifficultyAt(spawnAt), net.minecraft.world.entity.MobSpawnType.BREEDING, null);
+            // Link to colony — finalizeSpawn will also assign if inside radius, but force
+            baby.setColony(this);
+            baby.setJob(com.simplecolonies.villager.job.JobType.UNEMPLOYED);
+            level.addFreshEntity(baby);
+            // Also create CitizenData placeholder now (villager will duplicate on setColony finalize, but we use UUID)
+            // Let villager's setColony handle it on next tick to avoid double
+            broadcast(Component.literal("§aColony #" + id + " bred a new villager at " + spawnAt.toShortString() + " — cost " + cost + "x " + costId + " (beds " + housingSlots + " pop " + citizenCount() + "→" + (citizenCount() + 1) + ")"));
+        } catch (Exception ignored) {}
+    }
+
+    private boolean consumeBreedCost(ServerLevel level, String itemId, int amount) {
+        int chestHave = 0;
+        try { chestHave = warehouseManager.count(itemId); } catch (Exception ignored) {}
+        if (chestHave >= amount) {
+            warehouseManager.extract(level, center, itemId, amount, false);
+            return true;
+        }
+        int abstractHave = warehouse.getOrDefault(itemId, 0);
+        if (abstractHave + chestHave < amount) return false;
+        // partial from chests then abstract
+        if (chestHave > 0) warehouseManager.extract(level, center, itemId, chestHave, false);
+        int remaining = amount - chestHave;
+        warehouse.merge(itemId, -remaining, Integer::sum);
+        if (warehouse.getOrDefault(itemId, 0) <= 0) warehouse.remove(itemId);
+        return true;
     }
 
     /** Deposit: try chests first, fallback to abstract map. Returns true if any deposited. */
