@@ -89,7 +89,7 @@ public abstract class AbstractJob {
     }
 
     protected boolean requestFromColony(ServerLevel level, String itemId, int count) {
-        return colony.consumeStock(level, itemId, count);
+        return colony.getWarehouseCount(level, itemId) >= count;
     }
 
     // Legacy overload

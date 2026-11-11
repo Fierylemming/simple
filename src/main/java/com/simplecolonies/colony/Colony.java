@@ -181,8 +181,11 @@ public class Colony {
     private int countFoodInWarehouse() { return countFoodInWarehouse(null); }
 
     private boolean isFood(String itemId) {
-        return itemId.contains("bread") || itemId.contains("wheat") || itemId.contains("carrot") || itemId.contains("potato")
-                || itemId.contains("cooked_") || itemId.contains("apple") || itemId.contains("stew") || itemId.contains("bread");
+        return switch (itemId) {
+            case "minecraft:bread", "minecraft:cooked_beef", "minecraft:cooked_porkchop",
+                 "minecraft:carrot", "minecraft:potato", "minecraft:wheat", "minecraft:apple" -> true;
+            default -> false;
+        };
     }
 
     private void consumeFood(ServerLevel level, int amount) {

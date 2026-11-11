@@ -148,6 +148,7 @@ public class TownHallMenu extends AbstractContainerMenu {
         }
         // Research buttons: 100 + ordinal
         if (id >= BTN_RESEARCH_BASE && id < BTN_RESEARCH_BASE + 50) {
+            if (!isLeader) { deny(player); return true; }
             int ordinal = id - BTN_RESEARCH_BASE;
             ColonyUpgrade[] all = ColonyUpgrade.values();
             if (ordinal >= 0 && ordinal < all.length) {

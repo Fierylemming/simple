@@ -10,13 +10,11 @@ public class ButcherJob extends AbstractJob {
     @Override
     protected void doWork(ServerLevel level) {
         state = JobState.WORKING;
-        if (colony.getWarehouseManager().has("minecraft:wheat", 2) || colony.getWarehouseCount("minecraft:wheat") >= 2) {
-            // consume wheat from chests
-            if (level != null) colony.getWarehouseManager().extract(level, villager.blockPosition(), "minecraft:wheat", 2, false);
+        if (colony.consumeStock(level, "minecraft:wheat", 2)) {
             depositToColony(level, "minecraft:beef", 2);
             depositToColony(level, "minecraft:leather", 1);
         } else {
-            requestFromColony(level, "minecraft:wheat", 4);
+            state = JobState.NEEDS_RESOURCE;
         }
         ticksUntilNextWork = 200;
     }

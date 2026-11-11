@@ -1,4 +1,4 @@
-# Living-village overhaul: foundation (0.1.18)
+# Living-village overhaul: foundation (0.1.19)
 
 The original goal is a self-sustaining, expanding village with five historical
 cultures, meaningful trades, leadership, soldiers and diplomacy. This build is

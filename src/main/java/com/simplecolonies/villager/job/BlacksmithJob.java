@@ -10,24 +10,14 @@ public class BlacksmithJob extends AbstractJob {
     @Override
     protected void doWork(ServerLevel level) {
         state = JobState.WORKING;
-        int iron = level != null ? colony.getWarehouseManager().count("minecraft:raw_iron") : colony.getWarehouseCount("minecraft:raw_iron");
-        int coal = level != null ? colony.getWarehouseManager().count("minecraft:coal") : colony.getWarehouseCount("minecraft:coal");
-        if (iron >= 3 && coal >= 1) {
-            if (level != null) {
-                colony.getWarehouseManager().extract(level, villager.blockPosition(), "minecraft:raw_iron", 3, false);
-                colony.getWarehouseManager().extract(level, villager.blockPosition(), "minecraft:coal", 1, false);
-            } else {
-                colony.depositToWarehouse("minecraft:raw_iron", -3);
-                colony.depositToWarehouse("minecraft:coal", -1);
-            }
+        int iron = colony.getWarehouseCount(level, "minecraft:raw_iron");
+        int coal = colony.getWarehouseCount(level, "minecraft:coal");
+        if (iron >= 3 && coal >= 1 && colony.consumeStock(level, "minecraft:raw_iron", 3)
+                && colony.consumeStock(level, "minecraft:coal", 1)) {
+            // Smelting is a conversion; no free tools are created from the same ingots.
             depositToColony(level, "minecraft:iron_ingot", 3);
-            int picks = level != null ? colony.getWarehouseManager().count("minecraft:iron_pickaxe") : colony.getWarehouseCount("minecraft:iron_pickaxe");
-            int swords = level != null ? colony.getWarehouseManager().count("minecraft:iron_sword") : colony.getWarehouseCount("minecraft:iron_sword");
-            if (picks < 2) depositToColony(level, "minecraft:iron_pickaxe", 1);
-            else if (swords < 4) depositToColony(level, "minecraft:iron_sword", 1);
         } else {
-            if (iron < 3) requestFromColony(level, "minecraft:raw_iron", 3 - iron);
-            if (coal < 1) requestFromColony(level, "minecraft:coal", 1);
+            state = JobState.NEEDS_RESOURCE;
         }
         ticksUntilNextWork = 180;
     }
