@@ -82,7 +82,7 @@ public class VillagerInteractionScreen extends AbstractContainerScreen<VillagerI
         if(menu.citizen.isSoldier) { g.fill(x0+50,y0+62, x1-10, y0+72, 0xFFFFE8E8); g.fill(x0+50,y0+62, x0+52,y0+72, C_RED); g.drawString(font,"⚔ Soldier — follows leader with Command Staff when rallied", x0+56,y0+64, C_RED,false); }
 
         g.drawString(font, "Assign job — needs 30 rep (soldier 50):", x0+12,y0+76, C_TEXT,false);
-        g.drawString(font, "Jobs respect research: Farmer & Lumberjack free, others need unlocks via Town Hall.", x0+12,y1-10, C_MUTED,false);
+        g.drawString(font, "Jobs respect research: Farmer, Lumberjack & Builder free; others need unlocks via Town Hall.", x0+12,y1-10, C_MUTED,false);
     }
     @Override protected void renderLabels(GuiGraphics g,int mx,int my){ g.drawString(font, "☺ "+title.getString(), 12,6, 0xFFF5E6A3,true); }
 }

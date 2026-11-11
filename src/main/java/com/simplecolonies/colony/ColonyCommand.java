@@ -172,6 +172,31 @@ public class ColonyCommand {
                             return 1;
                         }))
                 )
+                .then(Commands.literal("status")
+                        .executes(ctx -> {
+                            ServerPlayer p = ctx.getSource().getPlayerOrException();
+                            var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
+                            if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony.")); return 0; }
+                            return sendWorkStatus(ctx.getSource(), colony.get());
+                        })
+                        .then(Commands.argument("id", IntegerArgumentType.integer(1)).executes(ctx -> {
+                            var colony = ColonyManager.getInstance().getColony(IntegerArgumentType.getInteger(ctx, "id"));
+                            if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("No such colony.")); return 0; }
+                            return sendWorkStatus(ctx.getSource(), colony.get());
+                        })))
+                .then(Commands.literal("build").requires(src -> src.hasPermission(2))
+                        .then(Commands.literal("house").executes(ctx -> {
+                            ServerPlayer p = ctx.getSource().getPlayerOrException();
+                            var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
+                            if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Stand inside a colony first.")); return 0; }
+                            if (!p.serverLevel().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) {
+                                ctx.getSource().sendFailure(Component.literal("Colonies currently build only in the overworld.")); return 0;
+                            }
+                            var building = colony.get().queueHouse(p.serverLevel());
+                            if (building == null) { ctx.getSource().sendFailure(Component.literal("No safe flat site, or another building is unfinished. Use /colony status.")); return 0; }
+                            ctx.getSource().sendSuccess(() -> Component.literal("Queued house at " + building.getPos().toShortString() + "; use /colony status for progress."), false);
+                            return 1;
+                        })))
                 .then(Commands.literal("spawn")
                         .then(Commands.argument("culture", StringArgumentType.string()).executes(ctx -> {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
@@ -204,6 +229,39 @@ public class ColonyCommand {
                             return 1;
                         })))
         )))));
+    }
+
+    private static int sendWorkStatus(CommandSourceStack src, Colony colony) {
+        ServerLevel level = src.getServer().overworld();
+        if (!level.isLoaded(colony.getCenter())) {
+            src.sendFailure(Component.literal("Visit the colony so its center is loaded."));
+            return 0;
+        }
+        colony.getWarehouseManager().scan(level);
+        boolean builder = colony.getCitizens().stream().anyMatch(c -> c.job == com.simplecolonies.villager.job.JobType.BUILDER);
+        src.sendSuccess(() -> Component.literal("Colony #" + colony.getId() + " construction: builder assigned " + builder
+                + ", oak logs " + colony.getWarehouseCount(level, "minecraft:oak_log")
+                + ", food " + colony.getFoodCount(level) + " (expansion needs " + colony.citizenCount() * 2 + ")"), false);
+        if (com.simplecolonies.config.ColonyConfig.ENABLE_NATURAL_EXPANSION.get()) {
+            src.sendSuccess(() -> Component.literal("Next natural expansion check in " + colony.getDaysUntilExpansion()
+                    + " in-game day(s), while the colony is loaded. Checks also require food, a builder and a clear site."), false);
+        } else src.sendSuccess(() -> Component.literal("Natural expansion is disabled in config."), false);
+        for (var citizen : colony.getCitizens()) {
+            if (citizen.job != com.simplecolonies.villager.job.JobType.BUILDER) continue;
+            var entity = level.getEntity(citizen.uuid);
+            String status = entity instanceof com.simplecolonies.entity.ColonyVillager cv ? cv.getWorkStatus() : "NOT LOADED OR MISSING";
+            src.sendSuccess(() -> Component.literal("Builder " + citizen.name + ": " + status), false);
+        }
+        boolean unfinished = false;
+        for (var building : colony.getBuildings()) {
+            if (building.getState() == com.simplecolonies.building.BuildingState.COMPLETE) continue;
+            unfinished = true;
+            var next = building.getNextPlacement();
+            src.sendSuccess(() -> Component.literal(building.getType().displayName + " at " + building.getPos().toShortString()
+                    + ": " + building.getState() + (next == null ? "" : "; next block " + next.pos.toShortString() + " needs " + next.itemId)), false);
+        }
+        if (!unfinished) src.sendSuccess(() -> Component.literal("No construction is queued."), false);
+        return 1;
     }
 
     private static int repair(CommandSourceStack src, int id, boolean resetCitizens) {

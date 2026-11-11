@@ -11,7 +11,7 @@ import java.util.Set;
  * so a village left alone can walk the whole tree miner→builder→iron without player hand-holding.
  *
  * Tier 0 (free): wood-tier only, villagers use wooden tools (1.0×)
- *  - TOOL_WOOD, PROF_FARMER, PROF_LUMBERJACK
+ *  - TOOL_WOOD, PROF_FARMER, PROF_LUMBERJACK, UNLOCK_BUILDER
  *
  * Tier 1 — Stone Age (needs only wood/cobble/coal/wheat/string/wool — all from Tier0 farmer/lumberjack):
  *  - TOOL_STONE [32 cobble,16 planks,4 coal] → 1.3×, lets miner actually mine iron/stone tier
@@ -20,7 +20,6 @@ import java.util.Set;
  *  - UNLOCK_FISHERMAN [8 string,8 planks] → coastal food
  *  - Then after TOOL_STONE:
  *     - UNLOCK_MINER [16 cobble,8 coal] → quarry (now with stone pick, can mine iron/redstone later)
- *     - UNLOCK_BUILDER [32 planks,16 cobble] → enables expansion & building upgrades
  *     - EFFICIENCY_1 [4 wheat*8→emeralds? but village can trade: cost 16 wheat,8 planks,4 coal] → +15%
  *     - HOUSING_EFFICIENT [8 wool,16 planks] → +2 beds/house
  *
@@ -75,10 +74,9 @@ public enum ColonyUpgrade {
             Map.of("minecraft:cobblestone", 16, "minecraft:coal", 8),
             Set.of(TOOL_STONE), UpgradeCategory.PROFESSION,
             "Needs stone tools, mines tier2 resources"),
-    UNLOCK_BUILDER("Builder", "Unlocks Builder (constructs blueprints & upgrades)", 1,
-            Map.of("minecraft:oak_planks", 32, "minecraft:cobblestone", 16),
-            Set.of(TOOL_STONE), UpgradeCategory.PROFESSION,
-            "Essential for expansion & building upgrades"),
+    UNLOCK_BUILDER("Builder", "Constructs house blueprints", 0,
+            Map.of(), Set.of(), UpgradeCategory.PROFESSION,
+            "Available from the start"),
     EFFICIENCY_1("Efficiency I", "+15% work speed (all jobs)", 1,
             Map.of("minecraft:wheat", 16, "minecraft:oak_planks", 16, "minecraft:coal", 4),
             Set.of(TOOL_STONE), UpgradeCategory.BUFF,
@@ -166,6 +164,6 @@ public enum ColonyUpgrade {
     }
 
     public static Set<ColonyUpgrade> defaultsUnlocked() {
-        return Set.of(TOOL_WOOD, PROF_FARMER, PROF_LUMBERJACK);
+        return Set.of(TOOL_WOOD, PROF_FARMER, PROF_LUMBERJACK, UNLOCK_BUILDER);
     }
 }

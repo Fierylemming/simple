@@ -219,7 +219,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
         drawBar(g,x+164,y, 150, "Bread stock", bread(c), Math.max(needFood(c)*3, 8), bread(c)>=needFood(c)?C_GREEN:C_RED);
         y+=14;
 
-        drawHintBox(g,x,y, "Unlocked "+r.getUnlocked().size()+"/"+ColonyUpgrade.values().length+" • Farmer & Lumberjack free. Open Research to progress. Place Town Hall in new biomes to found villages.");
+        drawHintBox(g,x,y, "Unlocked "+r.getUnlocked().size()+"/"+ColonyUpgrade.values().length+" • Farmer, Lumberjack & Builder free. Open Research to progress. Place Town Hall in new biomes to found villages.");
     }
 
     // ── Citizens ──
@@ -250,7 +250,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
         g.drawString(font, "["+cd.job.displayName+"] Lv"+cd.level, x+24,y+12, ok?C_TEXT_MID:C_RED,false);
         g.drawString(font, "♥"+cd.health+"  \uD83D\uDD52 "+cd.daysEmployed+"d", x+170,y+4, C_TEXT_MUTED,false);
         if(!ok) g.drawString(font, "LOCKED — research "+cd.job.displayName, x+24,y+22, C_RED,false);
-        else g.drawString(font, "Works "+ (cd.daysEmployed>0?"since "+cd.daysEmployed+"d":"fresh"), x+24,y+22, C_TEXT_MUTED,false);
+        else g.drawString(font, "Assigned (see /colony status)", x+24,y+22, C_TEXT_MUTED,false);
     }
 
     // ── Buildings ──

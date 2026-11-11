@@ -75,6 +75,10 @@ public class ColonyVillager extends Villager {
 
     public int getColonyId() { return colonyId; }
     public JobType getColonyJob() { return job; }
+    public String getWorkStatus() {
+        if (isBaby()) return "CHILD";
+        return jobInstance == null ? "IDLE" : jobInstance.getState().name();
+    }
     public boolean isColonyCitizen() { return colonyId != -1; }
 
     public void setColony(Colony colony) {

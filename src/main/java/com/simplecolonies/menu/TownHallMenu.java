@@ -182,28 +182,12 @@ public class TownHallMenu extends AbstractContainerMenu {
             player.displayClientMessage(net.minecraft.network.chat.Component.literal("Only house construction is implemented yet; designate existing buildings with a marker."), false);
             return;
         }
-        BlockPos site = null;
-        for (int r = 16; r < colony.getRadius(); r += 8) {
-            for (int a = 0; a < 360; a+= 45) {
-                double rad = Math.toRadians(a);
-                BlockPos raw = colony.getCenter().offset((int)(Math.cos(rad)*r), 0, (int)(Math.sin(rad)*r));
-                if (!sl.isLoaded(raw)) continue;
-                BlockPos test = new BlockPos(raw.getX(), sl.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, raw.getX(), raw.getZ()), raw.getZ());
-                if (colony.isClearBuildSite(sl, test)) { site = test; break; }
-            }
-            if (site != null) break;
+        Building building = colony.queueHouse(sl);
+        if (building == null) {
+            player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cA building is unfinished or no clear, flat site was found."), false);
+        } else {
+            player.displayClientMessage(net.minecraft.network.chat.Component.literal("§aQueued House at " + building.getPos().toShortString()), false);
         }
-        if (site == null) { player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cNo build site found"), true); return; }
-        var b = new com.simplecolonies.building.Building(type, site, colony.getCulture());
-        b.setState(com.simplecolonies.building.BuildingState.BLUEPRINT);
-        try {
-            var f = Colony.class.getDeclaredField("buildings");
-            f.setAccessible(true);
-            var list = (java.util.List<com.simplecolonies.building.Building>) f.get(colony);
-            list.add(b);
-            ColonyManager.getInstance().markDirty(colony);
-            player.displayClientMessage(net.minecraft.network.chat.Component.literal("§aQueued " + type.displayName + " at " + site.toShortString()), false);
-        } catch (Exception e) { player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cFailed to queue: " + e.getMessage()), true); }
     }
 
     @Override

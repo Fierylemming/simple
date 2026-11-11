@@ -234,14 +234,26 @@ public class Colony {
             return;
         }
 
-        BlockPos buildPos = findBuildSite(level, next);
-        if (buildPos == null) return;
+        Building blueprint = queueHouse(level);
+        if (blueprint != null) {
+            broadcast(Component.literal("§aColony #" + id + " is expanding: new house at " + blueprint.getPos().toShortString()));
+        }
+    }
 
-        Building blueprint = new Building(next, buildPos, culture);
-        blueprint.setState(com.simplecolonies.building.BuildingState.BLUEPRINT);
-        buildings.add(blueprint);
-        broadcast(Component.literal("§aColony #" + id + " (" + culture.displayName + ") is expanding: new " + next.displayName + " at " + buildPos.toShortString()));
+    /** Queues a house only when there is no unfinished construction and a safe site exists. */
+    public Building queueHouse(ServerLevel level) {
+        if (buildings.stream().anyMatch(b -> b.getState() != com.simplecolonies.building.BuildingState.COMPLETE)) return null;
+        BlockPos site = findBuildSite(level, BuildingType.HOUSE);
+        if (site == null) return null;
+        Building building = new Building(BuildingType.HOUSE, site, culture);
+        buildings.add(building);
         ColonyManager.getInstance().markDirty(this);
+        return building;
+    }
+
+    public int getFoodCount(ServerLevel level) { return countFoodInWarehouse(level); }
+    public int getDaysUntilExpansion() {
+        return Math.max(0, com.simplecolonies.config.ColonyConfig.EXPANSION_CHECK_DAYS.get() - daysSinceExpansion);
     }
 
     private boolean canLevelUp() {
@@ -257,8 +269,8 @@ public class Colony {
 
     private BlockPos findBuildSite(ServerLevel level, BuildingType type) {
         BlockPos center = this.center;
-        for (int r = 16; r < radius; r += 8) {
-            for (int angle = 0; angle < 360; angle += 30) {
+        for (int r = 12; r < radius; r += 4) {
+            for (int angle = 0; angle < 360; angle += 15) {
                 double rad = Math.toRadians(angle);
                 BlockPos candidate = center.offset((int)(Math.cos(rad)*r), 0, (int)(Math.sin(rad)*r));
                 if (!level.isLoaded(candidate)) continue;
@@ -273,10 +285,13 @@ public class Colony {
         if (buildings.stream().anyMatch(b -> b.getPos().distSqr(pos) < 144)) return false;
         for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
             BlockPos ground = pos.offset(x, -1, z);
-            if (!level.isLoaded(ground) || !level.getBlockState(ground).isSolid()) return false;
+            if (!level.isLoaded(ground)) return false;
+            var soil = level.getBlockState(ground);
+            if (!(soil.is(net.minecraft.tags.BlockTags.DIRT) || soil.is(net.minecraft.world.level.block.Blocks.SAND)
+                    || soil.is(net.minecraft.world.level.block.Blocks.RED_SAND) || soil.is(net.minecraft.world.level.block.Blocks.GRAVEL))) return false;
             for (int y = 0; y <= 3; y++) {
                 var block = level.getBlockState(pos.offset(x, y, z));
-                if (!block.isAir() && !block.canBeReplaced()) return false;
+                if ((!block.isAir() && !block.canBeReplaced()) || !block.getFluidState().isEmpty()) return false;
             }
         }
         return true;

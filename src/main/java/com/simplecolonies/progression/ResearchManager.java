@@ -161,7 +161,8 @@ public class ResearchManager {
         for (int i = 0; i < list.size(); i++) {
             try { unlocked.add(ColonyUpgrade.valueOf(list.getString(i))); } catch (Exception ignored) {}
         }
-        if (unlocked.isEmpty()) unlocked.addAll(ColonyUpgrade.defaultsUnlocked());
+        // Existing colonies also get the free starter professions on upgrade.
+        unlocked.addAll(ColonyUpgrade.defaultsUnlocked());
         autoProgressCooldown = tag.getInt("autoCooldown");
     }
 }

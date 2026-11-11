@@ -16,7 +16,7 @@ public class BuilderJob extends AbstractJob {
         if (currentJob == null || currentJob.getState() == BuildingState.COMPLETE) {
             currentJob = colony.getBuildings().stream()
                 .filter(Building::hasSupportedPlan)
-                .filter(b -> b.getState() == BuildingState.BLUEPRINT || b.getState() == BuildingState.UNDER_CONSTRUCTION || b.getState() == BuildingState.NEEDS_RESOURCES)
+                .filter(b -> b.getState() == BuildingState.BLUEPRINT || b.getState() == BuildingState.UNDER_CONSTRUCTION || b.getState() == BuildingState.NEEDS_RESOURCES || b.getState() == BuildingState.BLOCKED)
                 .findFirst().orElse(null);
         }
         if (currentJob == null) { state = JobState.IDLE; return; }
@@ -36,9 +36,15 @@ public class BuilderJob extends AbstractJob {
                 currentJob.markPlaced(next); // already present, do not charge twice
             } else {
                 // Never demolish somebody's building or a solid obstruction.
-                if (!existing.isAir() && !existing.canBeReplaced()) { state = JobState.STUCK; return; }
+                if (!existing.isAir() && !existing.canBeReplaced()) {
+                    currentJob.setState(BuildingState.BLOCKED);
+                    ColonyManager.getInstance().markDirty(colony);
+                    state = JobState.STUCK;
+                    return;
+                }
                 if (!colony.consumeStock(level, next.itemId, 1)) {
                     currentJob.setState(BuildingState.NEEDS_RESOURCES);
+                    ColonyManager.getInstance().markDirty(colony);
                     state = JobState.NEEDS_RESOURCE;
                     return;
                 }
