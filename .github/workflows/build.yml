@@ -14,9 +14,18 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - name: Build jar
+        run: ./gradlew build
+      - name: Publish to Prism branch
+        if: success()
         run: |
-          ./gradlew build --stacktrace 2>&1 | tee /tmp/build.log
-          echo "===== TAIL ====="
-          tail -n 200 /tmp/build.log
-          echo "===== ERRORS ====="
-          grep -n "error" /tmp/build.log | head -n 100
+          JAR=$(ls build/libs/*.jar | head -n1)
+          echo "Built $JAR"
+          ls -lh build/libs/
+          git config user.name "arena-agent"
+          git config user.email "arena-agent@users.noreply.github.com"
+          git fetch origin dist-jar 2>&1 || true
+          git checkout -B dist-jar
+          cp "$JAR" ./simplecolonies-prism.jar
+          git add -f simplecolonies-prism.jar
+          git commit -m "jar $GITHUB_SHA" || true
+          git push -f origin dist-jar
