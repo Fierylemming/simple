@@ -48,6 +48,8 @@ public class TownHallBlock extends Block implements EntityBlock {
             if (player instanceof ServerPlayer sp) {
                 sp.displayClientMessage(net.minecraft.network.chat.Component.literal("§aCreated new " + culture.displayName + " colony #" + colony.getId()), false);
                 colony.addReputation(sp, 10, "founded town hall");
+                colony.setLeader(sp); // crafter automatically becomes leader of their colony
+                sp.displayClientMessage(net.minecraft.network.chat.Component.literal("§6You are now Leader of Colony #" + colony.getId() + " — starter villagers & buildings spawning!"), false);
             }
         }
 
