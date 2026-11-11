@@ -8,6 +8,8 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.storage.DimensionDataStorage;
 import org.jetbrains.annotations.NotNull;
@@ -72,8 +74,6 @@ public class ColonyManager {
         if (colonies.size() >= com.simplecolonies.config.ColonyConfig.MAX_COLONIES_PER_DIMENSION.get()) return null;
         int id = nextId++;
         Colony colony = new Colony(id, culture, center);
-        // Starter buildings — villages spawn with wood-tier houses and farm, using local resources that match style
-        // Greek wood at lvl1 → stone bases lvl2 → terracotta etc as described
         var starterHouse = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.HOUSE, center.offset(6,0,0), culture, true);
         var starterFarm = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.FARM, center.offset(-8,0,0), culture, true);
         try {
@@ -82,22 +82,18 @@ public class ColonyManager {
             var list = (java.util.List<com.simplecolonies.building.Building>) f.get(colony);
             list.add(starterHouse);
             list.add(starterFarm);
-            // Starter warehouse chest hub with wood + starter cobble/coal so Farmer+Lumberjack can bootstrap Stone tier without Miner
-            // Fixes: with only Farmer+Woodcutter, how does village get cobble for Stone tools? Answer: starter stash + foraging
             colony.depositToWarehouse("minecraft:oak_planks", 32);
             colony.depositToWarehouse("minecraft:oak_log", 16);
             colony.depositToWarehouse("minecraft:bread", 16);
-            colony.depositToWarehouse("minecraft:cobblestone", 32); // starter rocks for Stone tools → Miner
+            colony.depositToWarehouse("minecraft:cobblestone", 32);
             colony.depositToWarehouse("minecraft:coal", 8);
             colony.depositToWarehouse("minecraft:stick", 16);
-            // Culture-specific starter mats: Greek wood, Egyptian sandstone, etc at tier 1
             var tier = com.simplecolonies.building.MaterialProgression.get(culture, 1);
             String primaryItem = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(tier.primary().get(0).asItem()).toString();
             colony.depositToWarehouse(primaryItem, 24);
         } catch (Exception ignored) {}
         colonies.put(id, colony);
         markDirty(colony);
-        // Spawn initial villagers so village can progress immediately
         if (level == null && server != null) level = server.getLevel(Level.OVERWORLD);
         if (level != null) {
             placeStarterStructures(level, colony);
@@ -110,9 +106,10 @@ public class ColonyManager {
     private void spawnInitialVillagers(ServerLevel level, Colony colony) {
         if (colony.citizenCount() > 0) return;
         BlockPos c = colony.getCenter();
-        // Spawn just outside buildings so they don't suffocate in walls — door positions
-        spawnVillagerAt(level, c.offset(6, 0, -4), colony, com.simplecolonies.villager.job.JobType.LUMBERJACK);
-        spawnVillagerAt(level, c.offset(-8, 0, 4), colony, com.simplecolonies.villager.job.JobType.FARMER);
+        // Fixed: spawn OUTSIDE buildings/farm water trench so they don't spawn in water or walls
+        // House door at +6,0,-3 -> spawn 2 south at -5, farm centre water at x=0 -> spawn 2 north of fence
+        spawnVillagerAt(level, c.offset(6, 0, -5), colony, com.simplecolonies.villager.job.JobType.LUMBERJACK);
+        spawnVillagerAt(level, c.offset(-8, 0, 6), colony, com.simplecolonies.villager.job.JobType.FARMER);
         spawnVillagerAt(level, c.offset(0, 0, 5), colony, com.simplecolonies.villager.job.JobType.UNEMPLOYED);
     }
 
@@ -132,21 +129,51 @@ public class ColonyManager {
     }
 
     private BlockPos findSafeSpawn(ServerLevel level, BlockPos pos) {
-        // Try exact, then heightmap, then search 5x5
-        if (level.getBlockState(pos).isAir() && level.getBlockState(pos.below()).isSolidRender(level, pos.below())) return pos;
-        int y = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, pos.getX(), pos.getZ());
+        // Try exact
+        if (isSpawnable(level, pos)) return pos;
+        // Heightmap top
+        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, pos.getX(), pos.getZ());
         BlockPos h = new BlockPos(pos.getX(), y, pos.getZ());
-        if (level.getBlockState(h).isAir() && level.getBlockState(h.below()).isSolidRender(level, h.below())) return h;
-        for (int dx = -3; dx <= 3; dx++) for (int dz = -3; dz <= 3; dz++) for (int dy = -2; dy <= 4; dy++) {
+        if (isSpawnable(level, h)) return h;
+        // Also check WORLD_SURFACE for water case (your beach farm over water)
+        int wy = level.getHeight(Heightmap.Types.WORLD_SURFACE, pos.getX(), pos.getZ());
+        BlockPos wh = new BlockPos(pos.getX(), wy + 1, pos.getZ());
+        if (isSpawnable(level, wh)) return wh;
+        // Search 7x7x 8
+        for (int dx = -3; dx <= 3; dx++) for (int dz = -3; dz <= 3; dz++) for (int dy = -3; dy <= 4; dy++) {
             BlockPos p = pos.offset(dx, dy, dz);
-            if (level.getBlockState(p).isAir() && level.getBlockState(p.below()).isSolidRender(level, p.below())) return p;
+            if (isSpawnable(level, p)) return p;
         }
-        return pos.above();
+        // Last resort: create a 3x3 dirt platform so villager doesn't spawn in water/void (fixes your beach over-water farm)
+        BlockPos fallback = new BlockPos(pos.getX(), level.getHeight(Heightmap.Types.WORLD_SURFACE, pos.getX(), pos.getZ()) + 1, pos.getZ());
+        // Build platform 3x3
+        for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
+            BlockPos plat = fallback.below().offset(dx, 0, dz);
+            if (level.getBlockState(plat).isAir() || level.getBlockState(plat).getFluidState().isSource() || !level.getBlockState(plat).isSolidRender(level, plat)) {
+                level.setBlock(plat, Blocks.DIRT.defaultBlockState(), 3);
+            }
+        }
+        if (level.getBlockState(fallback).canBeReplaced()) level.setBlock(fallback, Blocks.AIR.defaultBlockState(), 3);
+        return fallback;
+    }
+
+    private boolean isSpawnable(ServerLevel level, BlockPos pos) {
+        var below = level.getBlockState(pos.below());
+        var at = level.getBlockState(pos);
+        // Need air at pos, solid below (or farmland/dirt), not water
+        if (!at.isAir() && !at.canBeReplaced()) return false;
+        if (below.getFluidState().isSource()) return false;
+        return below.isSolidRender(level, pos.below()) || below.is(Blocks.FARMLAND) || below.is(Blocks.DIRT) || below.is(Blocks.GRASS_BLOCK) || below.is(Blocks.SAND) || below.is(Blocks.SANDSTONE);
     }
 
     private void placeTownHallIfNeeded(ServerLevel level, Colony colony) {
         BlockPos p = colony.getCenter();
-        if (level.getBlockState(p).isAir() || level.getBlockState(p).canBeReplaced()) {
+        if (level.getBlockState(p).isAir() || level.getBlockState(p).canBeReplaced() || level.getBlockState(p).getFluidState().isSource()) {
+            // Ensure solid base
+            BlockPos below = p.below();
+            if (!level.getBlockState(below).isSolidRender(level, below)) {
+                level.setBlock(below, Blocks.DIRT.defaultBlockState(), 3);
+            }
             level.setBlock(p, com.simplecolonies.block.ModBlocks.TOWN_HALL.get().defaultBlockState(), 3);
             var be = level.getBlockEntity(p);
             if (be instanceof com.simplecolonies.block.entity.TownHallBlockEntity th) th.setColonyId(colony.getId());
@@ -155,71 +182,147 @@ public class ColonyManager {
 
     private void placeStarterStructures(ServerLevel level, Colony colony) {
         BlockPos c = colony.getCenter();
-        // House at +6,0,0 : 7x7 platform with walls, door, bed, chest — always visible
-        placeSimpleHouse(level, c.offset(6, 0, 0), colony.getCulture());
-        // Farm is already there via vanilla structure, but ensure our offset farm also has farmland if empty
-        // Only place if no farmland nearby (avoid overwriting vanilla farm)
-        BlockPos farmPos = c.offset(-8, 0, 0);
-        boolean hasFarm = false;
-        for (BlockPos p : BlockPos.betweenClosed(farmPos.offset(-4, -1, -4), farmPos.offset(4, 2, 4))) {
-            if (level.getBlockState(p).is(net.minecraft.world.level.block.Blocks.FARMLAND)) { hasFarm = true; break; }
+        // Recompute Y for each structure to match terrain height (fixes beach farm over water floating)
+        BlockPos houseRaw = c.offset(6, 0, 0);
+        int houseY = level.getHeight(Heightmap.Types.WORLD_SURFACE, houseRaw.getX(), houseRaw.getZ()) + 1;
+        BlockPos housePos = new BlockPos(houseRaw.getX(), houseY, houseRaw.getZ());
+        placeSimpleHouse(level, housePos, colony.getCulture());
+
+        BlockPos farmRaw = c.offset(-8, 0, 0);
+        int farmY = level.getHeight(Heightmap.Types.WORLD_SURFACE, farmRaw.getX(), farmRaw.getZ()) + 1;
+        BlockPos farmPos = new BlockPos(farmRaw.getX(), farmY, farmRaw.getZ());
+        // Always place/repair farm — old check skipped repairing weird vanilla farms over water
+        // If a vanilla farm already exists within 6 blocks, we still ensure our farm island is correct (don't leave fence in water)
+        boolean hasGoodFarm = hasValidFarmNearby(level, farmPos);
+        if (!hasGoodFarm) {
+            placeSimpleFarm(level, farmPos);
+        } else {
+            // Even if good, ensure fence not over water weirdness: ensure edge is solid
+            // We still run a light repair pass
+            repairFarmIfWeird(level, farmPos);
         }
-        if (!hasFarm) placeSimpleFarm(level, farmPos);
+    }
+
+    private boolean hasValidFarmNearby(ServerLevel level, BlockPos farmPos) {
+        // Look for farmland that is on solid ground, not floating over deep water
+        int farmlandCount = 0;
+        for (BlockPos p : BlockPos.betweenClosed(farmPos.offset(-4, -1, -4), farmPos.offset(4, -1, 4))) {
+            if (level.getBlockState(p).is(Blocks.FARMLAND)) {
+                // Check below is solid (not water)
+                var below = level.getBlockState(p.below());
+                if (below.isSolidRender(level, p.below()) || below.is(Blocks.DIRT)) farmlandCount++;
+            }
+        }
+        // If at least 9 farmland on solid, consider valid
+        return farmlandCount >= 9;
+    }
+
+    private void repairFarmIfWeird(ServerLevel level, BlockPos origin) {
+        // If fence is over water (your screenshot), fix it by placing dirt pillars
+        for (int x = -5; x <= 5; x++) for (int z = -5; z <= 5; z++) if (x == -5 || x == 5 || z == -5 || z == 5) {
+            BlockPos fencePos = origin.offset(x, 0, z);
+            BlockPos ground = fencePos.below();
+            var groundState = level.getBlockState(ground);
+            var fenceState = level.getBlockState(fencePos);
+            // If fence over water/air with no solid ground, place dirt pillar
+            if (fenceState.is(Blocks.OAK_FENCE) && !groundState.isSolidRender(level, ground)) {
+                level.setBlock(ground, Blocks.DIRT.defaultBlockState(), 3);
+                // Fill down to solid if over deep water
+                for (int dy = -2; dy >= -5; dy--) {
+                    BlockPos below = origin.offset(x, dy, z);
+                    var s = level.getBlockState(below);
+                    if (s.isAir() || s.getFluidState().isSource()) level.setBlock(below, Blocks.DIRT.defaultBlockState(), 3);
+                    else break;
+                }
+            }
+        }
     }
 
     private void placeSimpleHouse(ServerLevel level, BlockPos origin, com.simplecolonies.culture.CultureType culture) {
         var palette = com.simplecolonies.building.MaterialProgression.get(culture, 1).primary();
-        var wood = palette.isEmpty() ? net.minecraft.world.level.block.Blocks.OAK_PLANKS.defaultBlockState() : palette.get(0).defaultBlockState();
-        var cobble = net.minecraft.world.level.block.Blocks.COBBLESTONE.defaultBlockState();
-        // Clear 7x7 area to ground
+        var wood = palette.isEmpty() ? Blocks.OAK_PLANKS.defaultBlockState() : palette.get(0).defaultBlockState();
+        var cobble = Blocks.COBBLESTONE.defaultBlockState();
+        // Ensure solid 7x7 foundation — build dirt pillars down to solid if over water (your beach case house was on sand edge)
         for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) {
             BlockPos p = origin.offset(x, -1, z);
-            if (level.getBlockState(p).isAir() || level.getBlockState(p).canBeReplaced()) level.setBlock(p, cobble, 3);
+            // Always ensure ground, even over water
+            var state = level.getBlockState(p);
+            if (!state.isSolidRender(level, p)) {
+                level.setBlock(p, Blocks.DIRT.defaultBlockState(), 3);
+                // Pillars down if over water/air
+                for (int dy = -2; dy >= -6; dy--) {
+                    BlockPos below = origin.offset(x, dy, z);
+                    var bs = level.getBlockState(below);
+                    if (bs.isAir() || bs.getFluidState().isSource()) level.setBlock(below, Blocks.DIRT.defaultBlockState(), 3);
+                    else break;
+                }
+            }
+            // Clear above to air
             for (int y = 0; y < 4; y++) {
                 BlockPos pp = origin.offset(x, y, z);
-                if (level.getBlockState(pp).canBeReplaced()) level.setBlock(pp, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+                if (level.getBlockState(pp).canBeReplaced() || level.getBlockState(pp).getFluidState().isSource()) level.setBlock(pp, Blocks.AIR.defaultBlockState(), 3);
             }
         }
         // Floor
         for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) level.setBlock(origin.offset(x, -1, z), wood, 3);
         // Walls 3 high
         for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) if (x == -3 || x == 3 || z == -3 || z == 3) {
-            for (int y = 0; y < 3; y++) level.setBlock(origin.offset(x, y, z), y == 2 && (x == 0 && z == -3) ? net.minecraft.world.level.block.Blocks.AIR.defaultBlockState() : cobble, 3);
+            for (int y = 0; y < 3; y++) level.setBlock(origin.offset(x, y, z), y == 2 && (x == 0 && z == -3) ? Blocks.AIR.defaultBlockState() : cobble, 3);
         }
         // Door south
-        level.setBlock(origin.offset(0, 0, -3), net.minecraft.world.level.block.Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.SOUTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER), 3);
-        level.setBlock(origin.offset(0, 1, -3), net.minecraft.world.level.block.Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.SOUTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER), 3);
+        level.setBlock(origin.offset(0, 0, -3), Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.SOUTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER), 3);
+        level.setBlock(origin.offset(0, 1, -3), Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.SOUTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER), 3);
         // Beds
-        level.setBlock(origin.offset(-2, 0, 0), net.minecraft.world.level.block.Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.FOOT), 3);
-        level.setBlock(origin.offset(-1, 0, 0), net.minecraft.world.level.block.Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.HEAD), 3);
-        level.setBlock(origin.offset(-2, 0, 1), net.minecraft.world.level.block.Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.FOOT), 3);
-        level.setBlock(origin.offset(-1, 0, 1), net.minecraft.world.level.block.Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.HEAD), 3);
+        level.setBlock(origin.offset(-2, 0, 0), Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.FOOT), 3);
+        level.setBlock(origin.offset(-1, 0, 0), Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.HEAD), 3);
+        level.setBlock(origin.offset(-2, 0, 1), Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.FOOT), 3);
+        level.setBlock(origin.offset(-1, 0, 1), Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.HEAD), 3);
         // Chest + crafting + torch
-        level.setBlock(origin.offset(2, 0, 2), net.minecraft.world.level.block.Blocks.CHEST.defaultBlockState(), 3);
-        level.setBlock(origin.offset(2, 0, -2), net.minecraft.world.level.block.Blocks.CRAFTING_TABLE.defaultBlockState(), 3);
-        level.setBlock(origin.offset(0, 0, 2), net.minecraft.world.level.block.Blocks.TORCH.defaultBlockState(), 3);
-        // Roof — simple gable with stairs for better look
+        level.setBlock(origin.offset(2, 0, 2), Blocks.CHEST.defaultBlockState(), 3);
+        level.setBlock(origin.offset(2, 0, -2), Blocks.CRAFTING_TABLE.defaultBlockState(), 3);
+        level.setBlock(origin.offset(0, 0, 2), Blocks.TORCH.defaultBlockState(), 3);
+        // Roof — simple gable
         for (int x=-3;x<=3;x++) for (int z=-3;z<=3;z++) if (Math.abs(x)==3 || Math.abs(z)==3) {
-            // already walls, add roof cap at y=3
             level.setBlock(origin.offset(x,3,z), wood,3);
         }
-        for (int x=-2;x<=2;x++) level.setBlock(origin.offset(x,4,0), wood,3); // ridge
+        for (int x=-2;x<=2;x++) level.setBlock(origin.offset(x,4,0), wood,3);
         // Windows
-        level.setBlock(origin.offset(3,1,0), net.minecraft.world.level.block.Blocks.GLASS_PANE.defaultBlockState(),3);
-        level.setBlock(origin.offset(-3,1,0), net.minecraft.world.level.block.Blocks.GLASS_PANE.defaultBlockState(),3);
+        level.setBlock(origin.offset(3,1,0), Blocks.GLASS_PANE.defaultBlockState(),3);
+        level.setBlock(origin.offset(-3,1,0), Blocks.GLASS_PANE.defaultBlockState(),3);
     }
 
     private void placeSimpleFarm(ServerLevel level, BlockPos origin) {
+        // Build solid dirt base first — fixes your screenshot where fence floated over water
+        for (int x = -5; x <= 5; x++) for (int z = -5; z <= 5; z++) {
+            BlockPos ground = origin.offset(x, -1, z);
+            // Always ensure solid ground, overwriting water
+            level.setBlock(ground, Blocks.DIRT.defaultBlockState(), 3);
+            // Pillars down if over deep water — create island
+            for (int dy = -2; dy >= -6; dy--) {
+                BlockPos below = origin.offset(x, dy, z);
+                var bs = level.getBlockState(below);
+                if (bs.isAir() || bs.getFluidState().isSource() || bs.is(Blocks.WATER)) {
+                    level.setBlock(below, Blocks.DIRT.defaultBlockState(), 3);
+                } else break;
+            }
+            // Clear air above
+            BlockPos above = origin.offset(x, 0, z);
+            if (level.getBlockState(above).getFluidState().isSource() || level.getBlockState(above).canBeReplaced()) {
+                // Will be overwritten with crop/water later, but ensure air for now
+                level.setBlock(above, Blocks.AIR.defaultBlockState(), 3);
+            }
+        }
+        // Farmland + crops (9x9)
         for (int x = -4; x <= 4; x++) for (int z = -4; z <= 4; z++) {
             BlockPos p = origin.offset(x, -1, z);
-            if (level.getBlockState(p).isAir() || level.getBlockState(p).canBeReplaced()) level.setBlock(p, net.minecraft.world.level.block.Blocks.FARMLAND.defaultBlockState().setValue(net.minecraft.world.level.block.FarmBlock.MOISTURE, 7), 3);
+            level.setBlock(p, Blocks.FARMLAND.defaultBlockState().setValue(net.minecraft.world.level.block.FarmBlock.MOISTURE, 7), 3);
             BlockPos above = origin.offset(x, 0, z);
-            if (x == 0) level.setBlock(above, net.minecraft.world.level.block.Blocks.WATER.defaultBlockState(), 3);
-            else if (level.getBlockState(above).isAir()) level.setBlock(above, net.minecraft.world.level.block.Blocks.WHEAT.defaultBlockState().setValue(net.minecraft.world.level.block.CropBlock.AGE, 7), 3);
+            if (x == 0) level.setBlock(above, Blocks.WATER.defaultBlockState(), 3);
+            else level.setBlock(above, Blocks.WHEAT.defaultBlockState().setValue(net.minecraft.world.level.block.CropBlock.AGE, 7), 3);
         }
-        // Border fence
-        for (int x = -5; x <= 5; x++) for (int z = -5; z <= 5; z++) if (x == -5 || x == 5 || z == -5 || z == 5) level.setBlock(origin.offset(x, 0, z), net.minecraft.world.level.block.Blocks.OAK_FENCE.defaultBlockState(), 3);
-        level.setBlock(origin.offset(2, 0, 0), net.minecraft.world.level.block.Blocks.COMPOSTER.defaultBlockState(), 3);
+        // Border fence — now on solid dirt, not floating over water
+        for (int x = -5; x <= 5; x++) for (int z = -5; z <= 5; z++) if (x == -5 || x == 5 || z == -5 || z == 5) level.setBlock(origin.offset(x, 0, z), Blocks.OAK_FENCE.defaultBlockState(), 3);
+        level.setBlock(origin.offset(2, 0, 0), Blocks.COMPOSTER.defaultBlockState(), 3);
     }
 
     public Optional<Colony> getColony(int id) { return Optional.ofNullable(colonies.get(id)); }
@@ -237,7 +340,8 @@ public class ColonyManager {
 
     public void tickAll(ServerLevel level) {
         for (Colony c : colonies.values()) {
-            if (c.getCenter().distSqr(level.getSharedSpawnPos()) < 500_000) { // simple distance check; real uses loaded check
+            // Increased from 500k (~707 blocks) to 4M (~2000 blocks) so beach colonies far from spawn still tick
+            if (c.getCenter().distSqr(level.getSharedSpawnPos()) < 4_000_000) {
                 c.tick(level);
             }
         }
