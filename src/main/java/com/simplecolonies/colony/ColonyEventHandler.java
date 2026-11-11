@@ -30,9 +30,9 @@ public class ColonyEventHandler {
     }
 
     private static void ensureColoniesHaveVillagers(ServerLevel level) {
-        if (tickCounter % 200 != 0) return;
+        if (tickCounter % 100 != 0) return;
         for (Colony c : ColonyManager.getInstance().getAll()) {
-            if (c.getCenter().distSqr(level.getSharedSpawnPos()) > 500_000) continue;
+            // no distance filter — fix even far colonies like your Greek at 753,833
             if (c.citizenCount() == 0) {
                 SimpleColonies.LOGGER.info("Fixing colony #{} at {} with 0 citizens — spawning starters", c.getId(), c.getCenter().toShortString());
                 // Re-use spawn logic via reflection to avoid circular dep — or duplicate

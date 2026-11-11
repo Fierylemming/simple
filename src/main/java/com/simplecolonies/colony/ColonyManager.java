@@ -110,12 +110,10 @@ public class ColonyManager {
     private void spawnInitialVillagers(ServerLevel level, Colony colony) {
         if (colony.citizenCount() > 0) return;
         BlockPos c = colony.getCenter();
-        // House worker — Lumberjack
-        spawnVillagerAt(level, c.offset(6, 0, 0), colony, com.simplecolonies.villager.job.JobType.LUMBERJACK);
-        // Farm worker — Farmer
-        spawnVillagerAt(level, c.offset(-8, 0, 0), colony, com.simplecolonies.villager.job.JobType.FARMER);
-        // Center — Unemployed/Forager who will gather surface cobble before Miner unlocked
-        spawnVillagerAt(level, c.offset(2, 0, 2), colony, com.simplecolonies.villager.job.JobType.UNEMPLOYED);
+        // Spawn just outside buildings so they don't suffocate in walls — door positions
+        spawnVillagerAt(level, c.offset(6, 0, -4), colony, com.simplecolonies.villager.job.JobType.LUMBERJACK);
+        spawnVillagerAt(level, c.offset(-8, 0, 4), colony, com.simplecolonies.villager.job.JobType.FARMER);
+        spawnVillagerAt(level, c.offset(0, 0, 5), colony, com.simplecolonies.villager.job.JobType.UNEMPLOYED);
     }
 
     private void spawnVillagerAt(ServerLevel level, BlockPos pos, Colony colony, com.simplecolonies.villager.job.JobType job) {
@@ -188,18 +186,27 @@ public class ColonyManager {
         for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) if (x == -3 || x == 3 || z == -3 || z == 3) {
             for (int y = 0; y < 3; y++) level.setBlock(origin.offset(x, y, z), y == 2 && (x == 0 && z == -3) ? net.minecraft.world.level.block.Blocks.AIR.defaultBlockState() : cobble, 3);
         }
-        // Door
+        // Door south
         level.setBlock(origin.offset(0, 0, -3), net.minecraft.world.level.block.Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.SOUTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER), 3);
         level.setBlock(origin.offset(0, 1, -3), net.minecraft.world.level.block.Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.SOUTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER), 3);
-        // Beds (housingCapacity needs beds)
+        // Beds
         level.setBlock(origin.offset(-2, 0, 0), net.minecraft.world.level.block.Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.FOOT), 3);
         level.setBlock(origin.offset(-1, 0, 0), net.minecraft.world.level.block.Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.HEAD), 3);
         level.setBlock(origin.offset(-2, 0, 1), net.minecraft.world.level.block.Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.FOOT), 3);
         level.setBlock(origin.offset(-1, 0, 1), net.minecraft.world.level.block.Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.HEAD), 3);
-        // Chest + crafting
+        // Chest + crafting + torch
         level.setBlock(origin.offset(2, 0, 2), net.minecraft.world.level.block.Blocks.CHEST.defaultBlockState(), 3);
         level.setBlock(origin.offset(2, 0, -2), net.minecraft.world.level.block.Blocks.CRAFTING_TABLE.defaultBlockState(), 3);
         level.setBlock(origin.offset(0, 0, 2), net.minecraft.world.level.block.Blocks.TORCH.defaultBlockState(), 3);
+        // Roof — simple gable with stairs for better look
+        for (int x=-3;x<=3;x++) for (int z=-3;z<=3;z++) if (Math.abs(x)==3 || Math.abs(z)==3) {
+            // already walls, add roof cap at y=3
+            level.setBlock(origin.offset(x,3,z), wood,3);
+        }
+        for (int x=-2;x<=2;x++) level.setBlock(origin.offset(x,4,0), wood,3); // ridge
+        // Windows
+        level.setBlock(origin.offset(3,1,0), net.minecraft.world.level.block.Blocks.GLASS_PANE.defaultBlockState(),3);
+        level.setBlock(origin.offset(-3,1,0), net.minecraft.world.level.block.Blocks.GLASS_PANE.defaultBlockState(),3);
     }
 
     private void placeSimpleFarm(ServerLevel level, BlockPos origin) {
