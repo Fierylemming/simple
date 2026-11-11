@@ -34,7 +34,6 @@ public class Building {
         this.culture = culture;
         this.isPlayerPlaced = isPlayerPlaced;
         if (!isPlayerPlaced) {
-            this.requiredResources.putAll(type.baseCost);
             loadSchematicPlacements();
             this.state = BuildingState.BLUEPRINT;
         } else {
@@ -56,22 +55,30 @@ public class Building {
     public Map<String,Integer> getRequiredResources() { return Collections.unmodifiableMap(requiredResources); }
 
     private void loadSchematicPlacements() {
-        // For colony-generated buildings, placements are derived from requiredResources + culture tier mats
-        // For player-schematic via Create, placements come from schematic NBT (handled in integration)
+        // A deterministic plan makes partially completed construction resumable after reload.
+        // Only houses have an implemented plan; unsupported types must not become fake buildings.
         placements.clear();
-        int idx = 0;
-        // Include tier palette influence: add tier primary material for bigger, culturally accurate builds
-        var tier = MaterialProgression.get(culture, Math.max(1, level));
-        // We treat requiredResources as accurate for construction cost; placements are placeholders for builder to place
-        for (Map.Entry<String, Integer> e : requiredResources.entrySet()) {
-            for (int i = 0; i < e.getValue(); i++) {
-                BlockPos p = pos.offset(idx % 5, idx / 25, (idx / 5) % 5);
-                placements.add(BlockPlacement.dummy(p, e.getKey()));
-                idx++;
+        requiredResources.clear();
+        if (type != BuildingType.HOUSE) return;
+        BlockState timber = net.minecraft.world.level.block.Blocks.OAK_LOG.defaultBlockState();
+        for (int y = 0; y < 3; y++) {
+            for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
+                if (Math.abs(x) != 2 && Math.abs(z) != 2) continue;
+                if (x == 0 && z == -2 && y < 2) continue; // doorway
+                addPlacement(pos.offset(x, y, z), timber, "minecraft:oak_log");
             }
         }
-        // If Greek etc at higher level, builder will pick tier blocks when placing — simulated via dummy but cost already includes tier mats
+        for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
+            addPlacement(pos.offset(x, 3, z), timber, "minecraft:oak_log");
+        }
     }
+
+    private void addPlacement(BlockPos at, BlockState block, String item) {
+        placements.add(new BlockPlacement(at, block, item));
+        requiredResources.merge(item, 1, Integer::sum);
+    }
+
+    public boolean hasSupportedPlan() { return type == BuildingType.HOUSE && !isPlayerPlaced; }
 
     public void upgradeToNextLevel() {
         if (level >= 5) return;
@@ -116,7 +123,10 @@ public class Building {
     }
 
     public BlockPlacement getNextPlacement() { return placements.peek(); }
-    public void markPlaced(BlockPlacement p) { placements.poll(); completed.add(p); }
+    public void markPlaced(BlockPlacement p) {
+        placements.poll(); completed.add(p);
+        requiredResources.computeIfPresent(p.itemId, (key, value) -> value > 1 ? value - 1 : null);
+    }
     public void tick(ServerLevel level, Colony colony) {}
 
     public CompoundTag save() {
@@ -131,6 +141,7 @@ public class Building {
         requiredResources.forEach((k,v) -> req.putInt(k, v));
         tag.put("required", req);
         tag.putInt("remainingPlacements", placements.size());
+        tag.putInt("completedPlacements", completed.size());
         return tag;
     }
 
@@ -142,10 +153,11 @@ public class Building {
         Building b = new Building(type, pos, culture, isPlayer);
         b.state = BuildingState.valueOf(tag.getString("state"));
         b.level = tag.getInt("level");
-        // Regenerate placements if under construction
-        if (b.state == BuildingState.BLUEPRINT || b.state == BuildingState.UNDER_CONSTRUCTION) {
-            b.placements.clear();
+        // Regenerate the deterministic plan and discard exactly the completed prefix.
+        if (!isPlayer && b.state != BuildingState.COMPLETE) {
             b.loadSchematicPlacements();
+            int done = Math.max(0, tag.getInt("completedPlacements"));
+            while (done-- > 0 && b.getNextPlacement() != null) b.markPlaced(b.getNextPlacement());
         }
         return b;
     }

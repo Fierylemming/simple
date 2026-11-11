@@ -22,8 +22,9 @@ public class FarmerJob extends AbstractJob {
 
     @Override
     protected void doWork(ServerLevel level) {
-        if (workplacePos == null) {
-            workplacePos = findFarmlandNear(level, villager.blockPosition());
+        // AbstractJob resolves a building center, which is not itself farmland.
+        if (workplacePos == null || !level.getBlockState(workplacePos).is(Blocks.FARMLAND)) {
+            workplacePos = findFarmlandNear(level, workplacePos == null ? villager.blockPosition() : workplacePos);
             if (workplacePos == null) { state = JobState.STUCK; return; }
         }
         state = JobState.WORKING;

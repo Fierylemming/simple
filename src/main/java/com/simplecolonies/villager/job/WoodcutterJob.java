@@ -29,7 +29,7 @@ public class WoodcutterJob extends AbstractJob {
         int harvested = 0;
         for (BlockPos pos : BlockPos.betweenClosed(villager.blockPosition().offset(-10, -4, -10), villager.blockPosition().offset(10, 8, 10))) {
             BlockState bs = level.getBlockState(pos);
-            if (bs.is(BlockTags.LOGS)) {
+            if (bs.is(Blocks.OAK_LOG) && hasLeavesNearby(level, pos)) {
                 level.destroyBlock(pos, false);
                 depositToColony(level, "minecraft:oak_log", 1);
                 harvested++;
@@ -38,7 +38,7 @@ public class WoodcutterJob extends AbstractJob {
         }
 
         if (plantCooldown-- <= 0) {
-            plantCooldown = 200;
+            plantCooldown = 10;
             int treeCount = countLogsNearby(level, managedForestCenter, 20);
             if (treeCount < 10) {
                 BlockPos plantPos = findPlantSpot(level, managedForestCenter);
@@ -52,6 +52,13 @@ public class WoodcutterJob extends AbstractJob {
         ticksUntilNextWork = harvested > 0 ? 30 : 60;
     }
 
+    private boolean hasLeavesNearby(ServerLevel level, BlockPos log) {
+        for (BlockPos p : BlockPos.betweenClosed(log.offset(-3, 0, -3), log.offset(3, 6, 3))) {
+            if (level.getBlockState(p).is(BlockTags.LEAVES)) return true;
+        }
+        return false;
+    }
+
     private int countLogsNearby(ServerLevel level, BlockPos center, int radius) {
         int c = 0;
         for (BlockPos p : BlockPos.betweenClosed(center.offset(-radius, -5, -radius), center.offset(radius, 10, radius))) {
@@ -62,8 +69,10 @@ public class WoodcutterJob extends AbstractJob {
 
     private BlockPos findPlantSpot(ServerLevel level, BlockPos center) {
         for (int i = 0; i < 10; i++) {
-            BlockPos p = center.offset(level.random.nextInt(20)-10, 0, level.random.nextInt(20)-10);
-            if (level.getBlockState(p).isAir() && level.getBlockState(p.below()).isSolid()) return p;
+            BlockPos sample = center.offset(level.random.nextInt(20)-10, 0, level.random.nextInt(20)-10);
+            if (!level.isLoaded(sample)) continue;
+            BlockPos p = new BlockPos(sample.getX(), level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, sample.getX(), sample.getZ()), sample.getZ());
+            if (level.getBlockState(p).isAir() && (level.getBlockState(p.below()).is(Blocks.GRASS_BLOCK) || level.getBlockState(p.below()).is(Blocks.DIRT))) return p;
         }
         return null;
     }

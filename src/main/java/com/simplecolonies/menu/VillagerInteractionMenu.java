@@ -42,20 +42,10 @@ public class VillagerInteractionMenu extends AbstractContainerMenu {
     public static VillagerInteractionMenu fromNetwork(int containerId, Inventory inv, RegistryFriendlyByteBuf buf) {
         int entityId = buf.readInt();
         int colonyId = buf.readInt();
-        Colony c = ColonyManager.getInstance().getColony(colonyId).orElse(null);
-        CitizenData cd = null;
-        if (c != null) {
-            // Find citizen by entity UUID if possible; fallback to first
-            var ent = inv.player.level().getEntity(entityId);
-            if (ent != null) {
-                var uuid = ent.getUUID();
-                cd = c.getCitizens().stream().filter(x -> x.uuid.equals(uuid)).findFirst().orElse(null);
-            }
-            if (cd == null) cd = c.getCitizens().stream().findFirst().orElse(null);
-        }
-        if (cd == null) {
-            cd = new CitizenData(java.util.UUID.randomUUID(), "Villager", JobType.UNEMPLOYED);
-        }
+        var colonyData = buf.readNbt();
+        var citizenData = buf.readNbt();
+        Colony c = colonyData != null ? Colony.load(colonyData) : null;
+        CitizenData cd = citizenData != null ? CitizenData.load(citizenData) : new CitizenData(java.util.UUID.randomUUID(), "Villager", JobType.UNEMPLOYED);
         return new VillagerInteractionMenu(containerId, inv, entityId, c, cd);
     }
 

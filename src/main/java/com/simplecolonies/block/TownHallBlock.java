@@ -70,6 +70,7 @@ public class TownHallBlock extends Block implements EntityBlock {
                     buf -> {
                         buf.writeInt(fColony.getId());
                         buf.writeBlockPos(pos);
+                        buf.writeNbt(fColony.save());
                     }
             );
         }

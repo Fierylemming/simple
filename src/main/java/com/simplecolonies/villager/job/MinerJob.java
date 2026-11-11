@@ -22,9 +22,9 @@ public class MinerJob extends AbstractJob {
 
     @Override
     protected void doWork(ServerLevel level) {
-        if (workplacePos == null) {
-            workplacePos = colony.getCenter().offset(24, 0, 0);
-            quarryPos = workplacePos.below(4);
+        if (quarryPos == null) {
+            // Always initialise separately: AbstractJob already assigns workplacePos.
+            quarryPos = colony.getCenter().offset(24, -4, 0);
         }
         state = JobState.WORKING;
 

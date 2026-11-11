@@ -27,7 +27,7 @@ public class ForagerJob {
         BlockPos center = villager.blockPosition();
         for (BlockPos pos : BlockPos.betweenClosed(center.offset(-8, -2, -8), center.offset(8, 2, 8))) {
             BlockState bs = level.getBlockState(pos);
-            if (bs.is(Blocks.STONE) || bs.is(Blocks.COBBLESTONE) || bs.is(Blocks.ANDESITE) || bs.is(Blocks.GRANITE) || bs.is(Blocks.DIORITE)) {
+            if (bs.is(Blocks.STONE) || bs.is(Blocks.ANDESITE) || bs.is(Blocks.GRANITE) || bs.is(Blocks.DIORITE)) {
                 // Wooden tools can mine stone/cobble slowly
                 level.destroyBlock(pos, false);
                 // 80% cobble, 10% coal, 10% flint (from gravel nearby)

@@ -46,8 +46,8 @@ public abstract class AbstractJob {
         if (workplacePos == null) {
             workplacePos = findWorkplace(level);
         }
-        doWork(level);
         ticksUntilNextWork = getWorkInterval();
+        doWork(level);
     }
 
     protected BlockPos findWorkplace(ServerLevel level) {
@@ -89,32 +89,7 @@ public abstract class AbstractJob {
     }
 
     protected boolean requestFromColony(ServerLevel level, String itemId, int count) {
-        WarehouseManager wm = colony.getWarehouseManager();
-        if (level != null && wm.getChestCount() > 0) {
-            if (wm.has(itemId, count)) {
-                int extracted = wm.extract(level, villager.blockPosition(), itemId, count, false);
-                if (extracted >= count) return true;
-            }
-            // Fallback to abstract
-            int abstractHave = colony.getWarehouseCount(itemId);
-            if (abstractHave >= (count - wm.count(itemId))) {
-                wm.extract(level, villager.blockPosition(), itemId, wm.count(itemId), false);
-                colony.depositToWarehouse(itemId, -(count - wm.count(itemId))); // consume from abstract via negative deposit (or proper method)
-                // Better: add consume method — for now use warehouse map directly
-                // We'll call colony's internal map extraction via reflection? Simplify: use new helper
-                colony.depositToWarehouse(itemId, -(count - wm.count(itemId)));
-                return true;
-            }
-            // Post request for courier to handle
-            colony.broadcast(net.minecraft.network.chat.Component.literal(
-                    "§7[Request] " + type.displayName + " at " + workplacePos + " needs " + count + "x " + itemId + " (chests checked)"));
-            return false;
-        }
-        int have = colony.getWarehouseCount(itemId);
-        if (have >= count) return true;
-        colony.broadcast(net.minecraft.network.chat.Component.literal(
-                type.displayName + " at " + workplacePos + " needs " + count + "x " + itemId));
-        return false;
+        return colony.consumeStock(level, itemId, count);
     }
 
     // Legacy overload

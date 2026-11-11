@@ -134,8 +134,8 @@ public class ColonyVillager extends Villager {
             Colony colony = ColonyManager.getInstance().getColony(colonyId).orElse(null);
             if (colony == null) return;
 
-            // Job tick
-            if (jobInstance != null) jobInstance.tick(sl);
+            // Children should grow up before taking a job.
+            if (!isBaby() && jobInstance != null) jobInstance.tick(sl);
 
             // Hunger / health daily
             if (level().getGameTime() % 24000 == 0) {
@@ -182,6 +182,8 @@ public class ColonyVillager extends Villager {
                         buf -> {
                             buf.writeInt(getId());
                             buf.writeInt(fColony.getId());
+                            buf.writeNbt(fColony.save());
+                            buf.writeNbt(fCitizen.save());
                         });
             }
             return InteractionResult.SUCCESS;
@@ -211,6 +213,14 @@ public class ColonyVillager extends Villager {
         if (tag.contains("colonyJob")) job = JobType.valueOf(tag.getString("colonyJob"));
         hungerTicks = tag.getInt("hungerTicks");
         daysAlive = tag.getInt("daysAlive");
+    }
+
+    @Override
+    public void die(net.minecraft.world.damagesource.DamageSource source) {
+        if (!level().isClientSide) {
+            ColonyManager.getInstance().getColony(colonyId).ifPresent(c -> c.removeCitizen(getUUID()));
+        }
+        super.die(source);
     }
 
     @Override

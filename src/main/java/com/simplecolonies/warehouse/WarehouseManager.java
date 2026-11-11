@@ -32,7 +32,7 @@ public class WarehouseManager {
     private final Colony colony;
     private final Map<BlockPos, Container> cachedChests = new ConcurrentHashMap<>();
     private final Map<String, Integer> aggregatedCounts = new HashMap<>();
-    private long lastScanGameTime = 0;
+    private long lastScanGameTime = -200;
     private BlockPos warehouseCenter = null; // set when Warehouse building completed
     private int chestCount = 0;
 
@@ -53,7 +53,7 @@ public class WarehouseManager {
     /** Scan colony radius for containers (chests, barrels, trapped chests, shulkers, etc). Cheap — runs every 10s. */
     public void scan(ServerLevel level) {
         long gameTime = level.getGameTime();
-        if (gameTime - lastScanGameTime < 200 && !cachedChests.isEmpty()) return;
+        if (gameTime - lastScanGameTime < 200) return;
         lastScanGameTime = gameTime;
         cachedChests.clear();
         aggregatedCounts.clear();
@@ -63,47 +63,24 @@ public class WarehouseManager {
         int radius = colony.getRadius();
         int radiusSq = radius * radius;
 
-        // Brute force is okay for 64-112 radius every 10s (we sample every 2 blocks, check Y slice ±24)
-        // More efficient would be chunk-based, but this is simpler and matches "much simpler" brief.
-        // We iterate loaded chunks only.
-        int minX = center.getX() - radius;
-        int maxX = center.getX() + radius;
-        int minZ = center.getZ() - radius;
-        int maxZ = center.getZ() + radius;
-        int baseY = center.getY() - 12;
-        int topY = center.getY() + 24;
-
-        for (int x = minX; x <= maxX; x++) {
-            for (int z = minZ; z <= maxZ; z++) {
-                if (center.distSqr(new BlockPos(x, baseY, z)) > radiusSq) continue;
-                for (int y = baseY; y <= topY; y++) {
-                    BlockPos pos = new BlockPos(x, y, z);
-                    if (!level.isLoaded(pos)) continue;
-                    BlockEntity be = level.getBlockEntity(pos);
-                    // Check for Container capability
-                    if (be instanceof Container container) {
-                        // Double chests count as one entry but we treat both halves separately to avoid dupe
-                        // Skip second half of double chest by checking ChestBlock type
-                        BlockState state = level.getBlockState(pos);
-                        if (state.getBlock() instanceof ChestBlock) {
-                            // Only count one half to avoid double-count
-                            Direction facing = state.getValue(ChestBlock.FACING);
-                            // ChestBlock has TYPE property; we skip if it's the "second" half via ChestBlock logic
-                            // Easiest: only count if not already cached neighbor chest
-                            BlockPos neighbor = pos.relative(ChestBlock.getConnectedDirection(state));
-                            if (cachedChests.containsKey(neighbor)) continue;
-                        }
-                        cachedChests.put(pos, container);
-                        chestCount++;
-                        // Aggregate counts for quick has()
-                        for (int slot = 0; slot < container.getContainerSize(); slot++) {
-                            ItemStack stack = container.getItem(slot);
-                            if (!stack.isEmpty()) {
-                                String id = stack.getItem().toString(); // fallback, real uses registry key
-                                // Use item registry id
-                                String regId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-                                aggregatedCounts.merge(regId, stack.getCount(), Integer::sum);
-                            }
+        // Iterate existing block entities in loaded chunks rather than hundreds of
+        // thousands of individual block positions, and never load new chunks.
+        for (int cx = (center.getX() - radius) >> 4; cx <= (center.getX() + radius) >> 4; cx++) {
+            for (int cz = (center.getZ() - radius) >> 4; cz <= (center.getZ() + radius) >> 4; cz++) {
+                var chunk = level.getChunkSource().getChunkNow(cx, cz);
+                if (chunk == null) continue;
+                for (var entry : chunk.getBlockEntities().entrySet()) {
+                    BlockPos pos = entry.getKey();
+                    if (center.distSqr(pos) > radiusSq) continue;
+                    if (!(entry.getValue() instanceof Container container)) continue;
+                    // Each block entity is one half of a double chest, so count both.
+                    cachedChests.put(pos.immutable(), container);
+                    chestCount++;
+                    for (int slot = 0; slot < container.getContainerSize(); slot++) {
+                        ItemStack stack = container.getItem(slot);
+                        if (!stack.isEmpty()) {
+                            String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+                            aggregatedCounts.merge(id, stack.getCount(), Integer::sum);
                         }
                     }
                 }

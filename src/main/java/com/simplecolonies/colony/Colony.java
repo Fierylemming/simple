@@ -46,6 +46,7 @@ public class Colony {
     private int daysSinceExpansion = 0;
     private ColonyState state = ColonyState.ACTIVE;
     private long lastTickGameTime = 0;
+    private long lastSimulatedDay = -1;
 
     // For persistence
     private final UUID colonyUuid = UUID.randomUUID();
@@ -115,13 +116,17 @@ public class Colony {
         // Scan warehouse chests periodically
         warehouseManager.scan(level);
 
-        boolean isNewDay = gameTime % 24000 == 0;
+        long day = Math.floorDiv(level.getDayTime(), 24000L);
+        if (lastSimulatedDay < 0 || day < lastSimulatedDay) lastSimulatedDay = day;
+        boolean isNewDay = day > lastSimulatedDay;
         if (isNewDay) {
+            lastSimulatedDay = day;
             int neededFood = (int) Math.ceil(citizens.size() * com.simplecolonies.config.ColonyConfig.FOOD_CONSUMPTION_MULTIPLIER.get());
             int availableFood = countFoodInWarehouse(level);
             if (availableFood >= neededFood) {
                 consumeFood(level, neededFood);
                 daysWithoutFood = 0;
+                if (state == ColonyState.STARVING) state = ColonyState.ACTIVE;
             } else {
                 consumeFood(level, availableFood);
                 daysWithoutFood++;
@@ -159,18 +164,17 @@ public class Colony {
         }
 
         diplomacy.tick(this, level);
+        ColonyManager.getInstance().markDirty(this);
     }
 
     private int countFoodInWarehouse(ServerLevel level) {
-        // Prefer chest counts if any chests found, else fallback to abstract map
-        if (level != null && warehouseManager.getChestCount() > 0) {
-            int sum = 0;
+        int chestFood = 0;
+        if (level != null) {
             for (var e : warehouseManager.snapshot().entrySet()) {
-                if (isFood(e.getKey())) sum += e.getValue();
+                if (isFood(e.getKey())) chestFood += e.getValue();
             }
-            if (sum > 0) return sum;
         }
-        return warehouse.entrySet().stream()
+        return chestFood + warehouse.entrySet().stream()
                 .filter(e -> isFood(e.getKey()))
                 .mapToInt(Map.Entry::getValue).sum();
     }
@@ -217,6 +221,9 @@ public class Colony {
         if (!hasBuilder) return;
 
         BuildingType next = ColonyProgression.getNextBuilding(this);
+        // Do not advertise placeholder schematics as functional buildings.
+        if (next != null && next != BuildingType.HOUSE) return;
+        if (buildings.stream().anyMatch(b -> b.getState() != com.simplecolonies.building.BuildingState.COMPLETE)) return;
         if (next == null) {
             if (canLevelUp()) {
                 levelUp(level);
@@ -250,13 +257,26 @@ public class Colony {
         for (int r = 16; r < radius; r += 8) {
             for (int angle = 0; angle < 360; angle += 30) {
                 double rad = Math.toRadians(angle);
-                BlockPos pos = center.offset((int)(Math.cos(rad)*r), 0, (int)(Math.sin(rad)*r));
-                if (level.isLoaded(pos) && level.getBlockState(pos.below()).isSolid()) {
-                    return pos;
-                }
+                BlockPos candidate = center.offset((int)(Math.cos(rad)*r), 0, (int)(Math.sin(rad)*r));
+                if (!level.isLoaded(candidate)) continue;
+                BlockPos pos = new BlockPos(candidate.getX(), level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, candidate.getX(), candidate.getZ()), candidate.getZ());
+                if (isClearBuildSite(level, pos)) return pos;
             }
         }
         return null;
+    }
+
+    public boolean isClearBuildSite(ServerLevel level, BlockPos pos) {
+        if (buildings.stream().anyMatch(b -> b.getPos().distSqr(pos) < 144)) return false;
+        for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
+            BlockPos ground = pos.offset(x, -1, z);
+            if (!level.isLoaded(ground) || !level.getBlockState(ground).isSolid()) return false;
+            for (int y = 0; y <= 3; y++) {
+                var block = level.getBlockState(pos.offset(x, y, z));
+                if (!block.isAir() && !block.canBeReplaced()) return false;
+            }
+        }
+        return true;
     }
 
     public void addCitizen(CitizenData citizen) {
@@ -266,6 +286,7 @@ public class Colony {
 
     public void removeCitizen(UUID villagerUuid) {
         citizens.remove(villagerUuid);
+        ColonyManager.getInstance().markDirty(this);
     }
 
     // Vanilla-like breeding with costs → populates empty houses and drives expansion
@@ -283,7 +304,7 @@ public class Colony {
         if (level.random.nextDouble() > Math.min(chance, 0.65)) return;
 
         // Pay breeding cost: 3 bread (vanilla) — consume from warehouse/chests
-        int breadHave = getWarehouseCount(level, "minecraft:bread") + warehouse.getOrDefault("minecraft:bread", 0);
+        int breadHave = getWarehouseCount(level, "minecraft:bread");
         String costId = breadHave >= 3 ? "minecraft:bread" : null;
         if (costId == null) {
             // fallback to wheat/carrots if no bread
@@ -338,6 +359,18 @@ public class Colony {
         return true;
     }
 
+    /** Consume from chest and virtual stockpile, exactly once, or not at all. */
+    public boolean consumeStock(ServerLevel level, String itemId, int amount) {
+        if (amount <= 0) return true;
+        if (getWarehouseCount(level, itemId) < amount) return false;
+        int taken = level == null ? 0 : warehouseManager.extract(level, center, itemId, amount, false);
+        int remaining = amount - taken;
+        if (remaining > warehouse.getOrDefault(itemId, 0)) return false;
+        if (remaining > 0) depositToWarehouse(itemId, -remaining);
+        ColonyManager.getInstance().markDirty(this);
+        return true;
+    }
+
     /** Deposit: try chests first, fallback to abstract map. Returns true if any deposited. */
     public void depositToWarehouse(ServerLevel level, String itemId, int count) {
         if (level != null && warehouseManager.getChestCount() > 0) {
@@ -346,11 +379,14 @@ public class Colony {
             count -= deposited;
         }
         if (count > 0) warehouse.merge(itemId, count, Integer::sum);
+        ColonyManager.getInstance().markDirty(this);
     }
     public void depositToWarehouse(String itemId, int count) {
         // No level context: use abstract map (e.g. during NBT load or job tick without level)
         // Try to resolve level lazily via ColonyManager server - omitted for simplicity, use abstract
         warehouse.merge(itemId, count, Integer::sum);
+        if (warehouse.getOrDefault(itemId, 0) <= 0) warehouse.remove(itemId);
+        ColonyManager.getInstance().markDirty(this);
     }
 
     public int getWarehouseCount(ServerLevel level, String itemId) {
@@ -401,6 +437,7 @@ public class Colony {
         tag.putLong("center", center.asLong());
         tag.putInt("daysWithoutFood", daysWithoutFood);
         tag.putInt("daysSinceExpansion", daysSinceExpansion);
+        tag.putLong("lastSimulatedDay", lastSimulatedDay);
         tag.putString("state", state.name());
         if (leaderId != null) tag.putUUID("leader", leaderId);
         if (warehouseManager.getWarehouseCenter() != null) tag.putLong("warehouseCenter", warehouseManager.getWarehouseCenter().asLong());
@@ -430,6 +467,7 @@ public class Colony {
         c.radius = tag.getInt("radius");
         c.daysWithoutFood = tag.getInt("daysWithoutFood");
         c.daysSinceExpansion = tag.getInt("daysSinceExpansion");
+        c.lastSimulatedDay = tag.contains("lastSimulatedDay") ? tag.getLong("lastSimulatedDay") : -1;
         c.state = ColonyState.valueOf(tag.getString("state"));
         if (tag.hasUUID("leader")) c.leaderId = tag.getUUID("leader");
         if (tag.contains("warehouseCenter")) c.warehouseManager.setWarehouseCenter(BlockPos.of(tag.getLong("warehouseCenter")));

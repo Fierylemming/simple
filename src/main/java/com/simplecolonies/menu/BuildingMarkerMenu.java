@@ -51,10 +51,9 @@ public class BuildingMarkerMenu extends AbstractContainerMenu {
         BlockPos pos = buf.readBlockPos();
         int colonyId = buf.readInt();
         String typeStr = buf.readUtf();
-        Colony c = ColonyManager.getInstance().getColony(colonyId).orElse(null);
-        if (c == null) c = ColonyManager.getInstance().getColonyAt(pos).orElse(null);
+        var snapshot = buf.readNbt();
+        Colony c = snapshot != null ? Colony.load(snapshot) : new Colony(colonyId, com.simplecolonies.culture.CultureType.ROMAN, pos);
         BuildingType t = typeStr.equals("NONE") ? null : BuildingType.valueOf(typeStr);
-        if (c == null) c = new Colony(-1, com.simplecolonies.culture.CultureType.ROMAN, pos); // dummy
         return new BuildingMarkerMenu(containerId, inv, c, pos, t);
     }
 

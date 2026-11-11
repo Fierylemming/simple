@@ -74,14 +74,7 @@ public class ColonyManager {
         if (colonies.size() >= com.simplecolonies.config.ColonyConfig.MAX_COLONIES_PER_DIMENSION.get()) return null;
         int id = nextId++;
         Colony colony = new Colony(id, culture, center);
-        var starterHouse = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.HOUSE, center.offset(6,0,0), culture, true);
-        var starterFarm = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.FARM, center.offset(-8,0,0), culture, true);
-        try {
-            var f = Colony.class.getDeclaredField("buildings");
-            f.setAccessible(true);
-            var list = (java.util.List<com.simplecolonies.building.Building>) f.get(colony);
-            list.add(starterHouse);
-            list.add(starterFarm);
+        {
             colony.depositToWarehouse("minecraft:oak_planks", 32);
             colony.depositToWarehouse("minecraft:oak_log", 16);
             colony.depositToWarehouse("minecraft:bread", 16);
@@ -91,7 +84,7 @@ public class ColonyManager {
             var tier = com.simplecolonies.building.MaterialProgression.get(culture, 1);
             String primaryItem = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(tier.primary().get(0).asItem()).toString();
             colony.depositToWarehouse(primaryItem, 24);
-        } catch (Exception ignored) {}
+        }
         colonies.put(id, colony);
         markDirty(colony);
         if (level == null && server != null) level = server.getLevel(Level.OVERWORLD);
@@ -110,7 +103,7 @@ public class ColonyManager {
         // House door at +6,0,-3 -> spawn 2 south at -5, farm centre water at x=0 -> spawn 2 north of fence
         spawnVillagerAt(level, c.offset(6, 0, -5), colony, com.simplecolonies.villager.job.JobType.LUMBERJACK);
         spawnVillagerAt(level, c.offset(-8, 0, 6), colony, com.simplecolonies.villager.job.JobType.FARMER);
-        spawnVillagerAt(level, c.offset(0, 0, 5), colony, com.simplecolonies.villager.job.JobType.UNEMPLOYED);
+        spawnVillagerAt(level, c.offset(0, 0, 5), colony, com.simplecolonies.villager.job.JobType.BUILDER);
     }
 
     private void spawnVillagerAt(ServerLevel level, BlockPos pos, Colony colony, com.simplecolonies.villager.job.JobType job) {
@@ -175,32 +168,51 @@ public class ColonyManager {
                 level.setBlock(below, Blocks.DIRT.defaultBlockState(), 3);
             }
             level.setBlock(p, com.simplecolonies.block.ModBlocks.TOWN_HALL.get().defaultBlockState(), 3);
-            var be = level.getBlockEntity(p);
-            if (be instanceof com.simplecolonies.block.entity.TownHallBlockEntity th) th.setColonyId(colony.getId());
         }
+        var be = level.getBlockEntity(p);
+        if (be instanceof com.simplecolonies.block.entity.TownHallBlockEntity th) th.setColonyId(colony.getId());
     }
 
     private void placeStarterStructures(ServerLevel level, Colony colony) {
-        BlockPos c = colony.getCenter();
-        // Recompute Y for each structure to match terrain height (fixes beach farm over water floating)
-        BlockPos houseRaw = c.offset(6, 0, 0);
-        int houseY = level.getHeight(Heightmap.Types.WORLD_SURFACE, houseRaw.getX(), houseRaw.getZ()) + 1;
-        BlockPos housePos = new BlockPos(houseRaw.getX(), houseY, houseRaw.getZ());
-        placeSimpleHouse(level, housePos, colony.getCulture());
-
-        BlockPos farmRaw = c.offset(-8, 0, 0);
-        int farmY = level.getHeight(Heightmap.Types.WORLD_SURFACE, farmRaw.getX(), farmRaw.getZ()) + 1;
-        BlockPos farmPos = new BlockPos(farmRaw.getX(), farmY, farmRaw.getZ());
-        // Always place/repair farm — old check skipped repairing weird vanilla farms over water
-        // If a vanilla farm already exists within 6 blocks, we still ensure our farm island is correct (don't leave fence in water)
-        boolean hasGoodFarm = hasValidFarmNearby(level, farmPos);
-        if (!hasGoodFarm) {
+        BlockPos housePos = findStarterSite(level, colony, 3, 8);
+        if (housePos != null) {
+            placeSimpleHouse(level, housePos, colony.getCulture());
+            colony.registerPlayerBuilding(new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.HOUSE, housePos, colony.getCulture(), true));
+        } else SimpleColonies.LOGGER.warn("No safe starter house site for colony #{}", colony.getId());
+        BlockPos farmPos = findStarterSite(level, colony, 5, 14);
+        if (farmPos != null) {
             placeSimpleFarm(level, farmPos);
-        } else {
-            // Even if good, ensure fence not over water weirdness: ensure edge is solid
-            // We still run a light repair pass
-            repairFarmIfWeird(level, farmPos);
+            colony.registerPlayerBuilding(new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.FARM, farmPos, colony.getCulture(), true));
+        } else SimpleColonies.LOGGER.warn("No safe starter farm site for colony #{}", colony.getId());
+    }
+
+    /** Find level ground without overwriting existing structures, trees, water or unloaded chunks. */
+    private BlockPos findStarterSite(ServerLevel level, Colony colony, int halfSize, int minRadius) {
+        BlockPos center = colony.getCenter();
+        for (int radius = minRadius; radius <= 36; radius += 6) {
+            for (int angle = 0; angle < 360; angle += 45) {
+                double rad = Math.toRadians(angle);
+                int x = center.getX() + (int)(Math.cos(rad) * radius);
+                int z = center.getZ() + (int)(Math.sin(rad) * radius);
+                BlockPos probe = new BlockPos(x, center.getY(), z);
+                if (!level.isLoaded(probe)) continue;
+                int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+                BlockPos candidate = new BlockPos(x, y, z);
+                if (colony.getBuildings().stream().anyMatch(b -> b.getPos().distSqr(candidate) < 225)) continue;
+                boolean clear = true;
+                for (int dx = -halfSize; dx <= halfSize && clear; dx++) for (int dz = -halfSize; dz <= halfSize && clear; dz++) {
+                    BlockPos ground = candidate.offset(dx, -1, dz);
+                    if (!level.isLoaded(ground) || !level.getBlockState(ground).isSolidRender(level, ground)) { clear = false; break; }
+                    for (int dy = 0; dy <= 4; dy++) {
+                        var block = level.getBlockState(candidate.offset(dx, dy, dz));
+                        if (!block.isAir() && !block.canBeReplaced()) { clear = false; break; }
+                        if (!block.getFluidState().isEmpty()) { clear = false; break; }
+                    }
+                }
+                if (clear) return candidate;
+            }
         }
+        return null;
     }
 
     private boolean hasValidFarmNearby(ServerLevel level, BlockPos farmPos) {
@@ -270,8 +282,8 @@ public class ColonyManager {
             for (int y = 0; y < 3; y++) level.setBlock(origin.offset(x, y, z), y == 2 && (x == 0 && z == -3) ? Blocks.AIR.defaultBlockState() : cobble, 3);
         }
         // Door south
-        level.setBlock(origin.offset(0, 0, -3), Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.SOUTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER), 3);
-        level.setBlock(origin.offset(0, 1, -3), Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.SOUTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER), 3);
+        level.setBlock(origin.offset(0, 0, -3), Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.NORTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER), 3);
+        level.setBlock(origin.offset(0, 1, -3), Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.NORTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER), 3);
         // Beds
         level.setBlock(origin.offset(-2, 0, 0), Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.FOOT), 3);
         level.setBlock(origin.offset(-1, 0, 0), Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.HEAD), 3);
@@ -281,11 +293,10 @@ public class ColonyManager {
         level.setBlock(origin.offset(2, 0, 2), Blocks.CHEST.defaultBlockState(), 3);
         level.setBlock(origin.offset(2, 0, -2), Blocks.CRAFTING_TABLE.defaultBlockState(), 3);
         level.setBlock(origin.offset(0, 0, 2), Blocks.TORCH.defaultBlockState(), 3);
-        // Roof — simple gable
-        for (int x=-3;x<=3;x++) for (int z=-3;z<=3;z++) if (Math.abs(x)==3 || Math.abs(z)==3) {
+        // Solid roof: rain and hostile mobs cannot enter through the ceiling.
+        for (int x=-3;x<=3;x++) for (int z=-3;z<=3;z++) {
             level.setBlock(origin.offset(x,3,z), wood,3);
         }
-        for (int x=-2;x<=2;x++) level.setBlock(origin.offset(x,4,0), wood,3);
         // Windows
         level.setBlock(origin.offset(3,1,0), Blocks.GLASS_PANE.defaultBlockState(),3);
         level.setBlock(origin.offset(-3,1,0), Blocks.GLASS_PANE.defaultBlockState(),3);
@@ -315,14 +326,20 @@ public class ColonyManager {
         // Farmland + crops (9x9)
         for (int x = -4; x <= 4; x++) for (int z = -4; z <= 4; z++) {
             BlockPos p = origin.offset(x, -1, z);
-            level.setBlock(p, Blocks.FARMLAND.defaultBlockState().setValue(net.minecraft.world.level.block.FarmBlock.MOISTURE, 7), 3);
             BlockPos above = origin.offset(x, 0, z);
-            if (x == 0) level.setBlock(above, Blocks.WATER.defaultBlockState(), 3);
-            else level.setBlock(above, Blocks.WHEAT.defaultBlockState().setValue(net.minecraft.world.level.block.CropBlock.AGE, 7), 3);
+            if (x == 0) {
+                // Irrigation is level with the soil, not above it where it floods crops.
+                level.setBlock(p, Blocks.WATER.defaultBlockState(), 3);
+            } else {
+                level.setBlock(p, Blocks.FARMLAND.defaultBlockState().setValue(net.minecraft.world.level.block.FarmBlock.MOISTURE, 7), 3);
+                level.setBlock(above, Blocks.WHEAT.defaultBlockState().setValue(net.minecraft.world.level.block.CropBlock.AGE, 7), 3);
+            }
         }
         // Border fence — now on solid dirt, not floating over water
         for (int x = -5; x <= 5; x++) for (int z = -5; z <= 5; z++) if (x == -5 || x == 5 || z == -5 || z == 5) level.setBlock(origin.offset(x, 0, z), Blocks.OAK_FENCE.defaultBlockState(), 3);
-        level.setBlock(origin.offset(2, 0, 0), Blocks.COMPOSTER.defaultBlockState(), 3);
+        // Gate gives villagers access without stepping on crops.
+        level.setBlock(origin.offset(0, 0, -5), Blocks.OAK_FENCE_GATE.defaultBlockState(), 3);
+        level.setBlock(origin.offset(5, 0, 0), Blocks.COMPOSTER.defaultBlockState(), 3);
     }
 
     public Optional<Colony> getColony(int id) { return Optional.ofNullable(colonies.get(id)); }
@@ -340,8 +357,9 @@ public class ColonyManager {
 
     public void tickAll(ServerLevel level) {
         for (Colony c : colonies.values()) {
-            // Increased from 500k (~707 blocks) to 4M (~2000 blocks) so beach colonies far from spawn still tick
-            if (c.getCenter().distSqr(level.getSharedSpawnPos()) < 4_000_000) {
+            // Colonies are currently overworld-only; never tick them in another dimension
+            // or force-load chunks far from any player.
+            if (level.dimension().equals(Level.OVERWORLD) && level.isLoaded(c.getCenter())) {
                 c.tick(level);
             }
         }

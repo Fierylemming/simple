@@ -65,6 +65,7 @@ public class BuildingUpgrade {
     }
 
     public static boolean canUpgrade(Colony colony, Building building, net.minecraft.server.level.ServerLevel level) {
+        if (!building.isPlayerPlaced) return false; // visual upgrade plans not implemented
         if (building.getLevel() >= maxLevel(building.getType())) return false;
         if (building.getState() != BuildingState.COMPLETE) return false; // only upgrade finished buildings
         Map<String, Integer> cost = costForUpgrade(building);

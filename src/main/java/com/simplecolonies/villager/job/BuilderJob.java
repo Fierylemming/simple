@@ -3,71 +3,50 @@ package com.simplecolonies.villager.job;
 import com.simplecolonies.building.Building;
 import com.simplecolonies.building.BuildingState;
 import com.simplecolonies.colony.Colony;
-import net.minecraft.core.BlockPos;
+import com.simplecolonies.colony.ColonyManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.npc.Villager;
-import net.minecraft.world.level.block.state.BlockState;
 
+/** Constructs implemented plans one block at a time, using real resources. */
 public class BuilderJob extends AbstractJob {
     private Building currentJob;
+    public BuilderJob(Villager villager, Colony colony) { super(villager, colony, JobType.BUILDER); }
 
-    public BuilderJob(Villager villager, Colony colony) {
-        super(villager, colony, JobType.BUILDER);
-    }
-
-    @Override
-    protected void doWork(ServerLevel level) {
-        // First, check for Create schematic job — if schematic in warehouse chests, Builder pastes it for player
+    @Override protected void doWork(ServerLevel level) {
         if (currentJob == null || currentJob.getState() == BuildingState.COMPLETE) {
-            var schematicTask = com.simplecolonies.integration.CreateSchematicIntegration.tryCreateSchematicTask(colony, level, villager.blockPosition());
-            if (schematicTask != null) {
-                // Queue schematic as Building — uses Create paste logic (stub picks tier mats)
-                try {
-                    var f = com.simplecolonies.colony.Colony.class.getDeclaredField("buildings");
-                    f.setAccessible(true);
-                    var list = (java.util.List<Building>) f.get(colony);
-                    list.add(schematicTask);
-                    com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
-                } catch (Exception ignored) {}
-            }
-
             currentJob = colony.getBuildings().stream()
-                    .filter(b -> b.getState() == BuildingState.BLUEPRINT || b.getState() == BuildingState.UNDER_CONSTRUCTION)
-                    .findFirst().orElse(null);
-            if (currentJob == null) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
+                .filter(Building::hasSupportedPlan)
+                .filter(b -> b.getState() == BuildingState.BLUEPRINT || b.getState() == BuildingState.UNDER_CONSTRUCTION || b.getState() == BuildingState.NEEDS_RESOURCES)
+                .findFirst().orElse(null);
         }
-
+        if (currentJob == null) { state = JobState.IDLE; return; }
         state = JobState.WORKING;
-        if (!currentJob.hasResources(colony)) {
-            currentJob.setState(BuildingState.NEEDS_RESOURCES);
-            for (var entry : currentJob.getMissingResources(colony).entrySet()) {
-                requestFromColony(level, entry.getKey(), entry.getValue());
-            }
-            ticksUntilNextWork = 100;
-            return;
-        }
-
-        currentJob.setState(BuildingState.UNDER_CONSTRUCTION);
-        int maxPerTick = com.simplecolonies.config.ColonyConfig.MAX_BUILDER_BLOCKS_PER_TICK.get();
-        for (int i = 0; i < maxPerTick; i++) {
+        for (int i = 0; i < com.simplecolonies.config.ColonyConfig.MAX_BUILDER_BLOCKS_PER_TICK.get(); i++) {
             Building.BlockPlacement next = currentJob.getNextPlacement();
             if (next == null) {
                 currentJob.setState(BuildingState.COMPLETE);
-                colony.broadcast(net.minecraft.network.chat.Component.literal("§aBuilder finished " + currentJob.getType().displayName + " at " + currentJob.getPos().toShortString()));
+                colony.broadcast(net.minecraft.network.chat.Component.literal("Builder completed " + currentJob.getType().displayName));
+                ColonyManager.getInstance().markDirty(colony);
                 currentJob = null;
-                break;
+                return;
             }
-            // Try to consume from chests first
-            int chestHave = colony.getWarehouseManager().count(next.itemId);
-            if (chestHave > 0) colony.getWarehouseManager().extract(level, currentJob.getPos(), next.itemId, 1, false);
-            else colony.depositToWarehouse(next.itemId, -1);
-            BlockPos placePos = next.pos;
-            BlockState toPlace = next.state;
-            if (level.getBlockState(placePos).isAir() || level.getBlockState(placePos).canBeReplaced()) {
-                level.setBlock(placePos, toPlace, 3);
+            if (!level.isLoaded(next.pos)) return;
+            var existing = level.getBlockState(next.pos);
+            if (existing.equals(next.state)) {
+                currentJob.markPlaced(next); // already present, do not charge twice
+            } else {
+                // Never demolish somebody's building or a solid obstruction.
+                if (!existing.isAir() && !existing.canBeReplaced()) { state = JobState.STUCK; return; }
+                if (!colony.consumeStock(level, next.itemId, 1)) {
+                    currentJob.setState(BuildingState.NEEDS_RESOURCES);
+                    state = JobState.NEEDS_RESOURCE;
+                    return;
+                }
+                level.setBlock(next.pos, next.state, 3);
+                currentJob.markPlaced(next);
             }
-            currentJob.markPlaced(next);
+            currentJob.setState(BuildingState.UNDER_CONSTRUCTION);
+            ColonyManager.getInstance().markDirty(colony);
         }
-        ticksUntilNextWork = 10;
     }
 }

@@ -59,11 +59,8 @@ public class TownHallMenu extends AbstractContainerMenu {
     public static TownHallMenu fromNetwork(int containerId, Inventory inv, RegistryFriendlyByteBuf buf) {
         int colonyId = buf.readInt();
         BlockPos pos = buf.readBlockPos();
-        Colony c = ColonyManager.getInstance().getColony(colonyId).orElse(null);
-        if (c == null) {
-            c = ColonyManager.getInstance().getColonyAt(pos).orElse(null);
-            if (c == null) c = new Colony(colonyId, com.simplecolonies.culture.CultureType.ROMAN, pos);
-        }
+        var snapshot = buf.readNbt();
+        Colony c = snapshot != null ? Colony.load(snapshot) : new Colony(colonyId, com.simplecolonies.culture.CultureType.ROMAN, pos);
         return new TownHallMenu(containerId, inv, c, pos);
     }
 
@@ -180,12 +177,18 @@ public class TownHallMenu extends AbstractContainerMenu {
     private void queueBuilding(Colony colony, com.simplecolonies.building.BuildingType type, Player player) {
         var level = player.level();
         if (!(level instanceof net.minecraft.server.level.ServerLevel sl)) return;
+        if (type != com.simplecolonies.building.BuildingType.HOUSE) {
+            player.displayClientMessage(net.minecraft.network.chat.Component.literal("Only house construction is implemented yet; designate existing buildings with a marker."), false);
+            return;
+        }
         BlockPos site = null;
         for (int r = 16; r < colony.getRadius(); r += 8) {
             for (int a = 0; a < 360; a+= 45) {
                 double rad = Math.toRadians(a);
-                BlockPos test = colony.getCenter().offset((int)(Math.cos(rad)*r), 0, (int)(Math.sin(rad)*r));
-                if (sl.isLoaded(test) && sl.getBlockState(test.below()).isSolid() && sl.getBlockState(test).isAir()) { site = test; break; }
+                BlockPos raw = colony.getCenter().offset((int)(Math.cos(rad)*r), 0, (int)(Math.sin(rad)*r));
+                if (!sl.isLoaded(raw)) continue;
+                BlockPos test = new BlockPos(raw.getX(), sl.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, raw.getX(), raw.getZ()), raw.getZ());
+                if (colony.isClearBuildSite(sl, test)) { site = test; break; }
             }
             if (site != null) break;
         }

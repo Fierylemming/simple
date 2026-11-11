@@ -67,6 +67,7 @@ public class BuildingMarkerBlock extends Block implements EntityBlock {
             buf.writeBlockPos(pos);
             buf.writeInt(colony.getId());
             buf.writeUtf(fMarker.getBuildingType() != null ? fMarker.getBuildingType().name() : "NONE");
+            buf.writeNbt(colony.save());
         });
 
         return InteractionResult.SUCCESS;
