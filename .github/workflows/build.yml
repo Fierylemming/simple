@@ -16,22 +16,13 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - name: Build jar
-        run: |
-          set +e
-          ./gradlew build --stacktrace 2>&1 | tee /tmp/build.log
-          EC=${PIPESTATUS[0]}
-          echo "----TAIL 200---"
-          tail -n 200 /tmp/build.log
-          echo "----ERRORS---"
-          grep -n "error:" /tmp/build.log | head -n 100 || true
-          grep "FAILED" /tmp/build.log | head -n 20 || true
-          exit $EC
-      - name: Upload log on failure
+        run: ./gradlew build --stacktrace 2>&1 | tee /tmp/build.log
+      - name: Push log to branch on failure
         if: failure()
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: build-log-${{ github.sha }}
-          name: Build log ${{ github.sha }}
-          body: "Build failed — see log asset"
-          files: /tmp/build.log
-          prerelease: true
+        run: |
+          cp /tmp/build.log ./build.log
+          git config user.name "bot"
+          git config user.email "bot@bot.com"
+          git add build.log
+          git commit -m "build log ${{ github.sha }}" || true
+          git push origin HEAD:build-log --force
