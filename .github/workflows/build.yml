@@ -17,6 +17,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Build jar
         run: ./gradlew build --info 2>&1 | tee build.log; test ${PIPESTATUS[0]} -eq 0
+      - name: Report failure details
+        if: failure()
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          lines = Path('build.log').read_text(errors='replace').splitlines()[-100:]
+          text = '\n'.join(lines).replace('%', '%25').replace('\n', '%0A').replace('\r', '%0D')
+          print('::error title=Build log tail::' + text)
+          PYCODE
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4

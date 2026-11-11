@@ -5,7 +5,7 @@ records and then fail while assigning a job, before adding the villager to the
 world. A missing entity-attribute registration and renderer also affected custom
 villagers. An overly strict flat-site search could skip starter buildings.
 
-Install 0.1.20, visit the colony's center and run `/colony list` to get its ID.
+Install 0.1.21, visit the colony's center and run `/colony list` to get its ID.
 In a cheats-enabled world (or as a server operator), run `/colony repair <id>`.
 This tries to add a missing starter house and farm on safe terrain, and creates
 starter villagers only if there are no citizen records. It does not delete the
