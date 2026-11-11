@@ -14,24 +14,12 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - name: Build jar
-        run: ./gradlew build --stacktrace 2>&1 | tee /tmp/build.log; tail -n 200 /tmp/build.log
-      - name: Upload Prism jar
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: simplecolonies-prism-jar
-          path: build/libs/*.jar
-          if-no-files-found: error
-      - name: Create GitHub Release
-        if: success()
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: prism-${{ github.sha }}
-          name: SimpleColonies Prism ${{ github.sha }}
-          body: |
-            Drop `simplecolonies-0.1.0.jar` into Prism `mods/` folder.
-            Requires: NeoForge 1.21.1 (21.1.265), Java 21. Optional: Create 6.x + Create Aeronautics.
-            Branch: arena/957b7435-simple, commit ${{ github.sha }}
-          files: build/libs/*.jar
-          prerelease: true
-          generate_release_notes: false
+        run: |
+          ./gradlew build --stacktrace > /tmp/build.log 2>&1; EC=$?
+          cat /tmp/build.log
+          # publish log to summary for debugging
+          echo "EXIT=$EC" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -n 200 /tmp/build.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          exit $EC
