@@ -40,7 +40,7 @@ public class VillagerInteractionScreen extends AbstractContainerScreen<VillagerI
         super.init();
         int x=leftPos, y=topPos;
         String[] labels={"Wheat Farmer","Lumberjack","Miner","Builder","Soldier","Butcher","Leather","Smith"};
-        String[] icons = {"⚘","♠","⛏","⚒","⚔","🥩","⬢","🔨"};
+        String[] icons = {"⚘","♠","⛏","⚒","⚔","B","⬢","H"};
         int[] ids={VillagerInteractionMenu.BTN_SET_FARMER,VillagerInteractionMenu.BTN_SET_LUMBERJACK,VillagerInteractionMenu.BTN_SET_MINER,VillagerInteractionMenu.BTN_SET_BUILDER,VillagerInteractionMenu.BTN_SET_SOLDIER,VillagerInteractionMenu.BTN_SET_BUTCHER,VillagerInteractionMenu.BTN_SET_LEATHERWORKER,VillagerInteractionMenu.BTN_SET_BLACKSMITH};
         for(int i=0;i<labels.length;i++){
             int col=i%4, row=i/4;

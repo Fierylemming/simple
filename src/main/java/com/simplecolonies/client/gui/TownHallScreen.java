@@ -276,7 +276,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
         String up = b.getLevel()>=5?"★ MAX":"↑ Upgrade — next: +"+ (b.getWorkerSlots()+1)+" workers";
         g.drawString(font, up, x+24,y+22, b.getLevel()>=5?C_GOLD:C_TEXT_MID,false);
     }
-    private String BuildingIcon(BuildingType t){ return switch(t){ case HOUSE->"⌂"; case FARM->"⚘"; case LUMBERJACK_HUT->"♠"; case MINE->"⛏"; case WAREHOUSE->"▣"; case BARRACKS->"⚔"; case BLACKSMITH->"🔨"; case BAKERY->"◯"; default->"⬢"; }; }
+    private String BuildingIcon(BuildingType t){ return switch(t){ case HOUSE->"⌂"; case FARM->"⚘"; case LUMBERJACK_HUT->"♠"; case MINE->"⛏"; case WAREHOUSE->"▣"; case BARRACKS->"⚔"; case BLACKSMITH->"⚒"; case BAKERY->"◯"; default->"⬢"; }; }
 
     // ── Warehouse ──
     private void drawWarehouse(GuiGraphics g,int x,int y, com.simplecolonies.colony.Colony c){

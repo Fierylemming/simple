@@ -53,7 +53,7 @@ public class BuildingMarkerScreen extends AbstractContainerScreen<BuildingMarker
         addRenderableWidget(Button.builder(Component.literal("✕ Clear"), b->send(BuildingMarkerMenu.BTN_CLEAR)).bounds(x+8, y+142, 70,18).build());
         addRenderableWidget(Button.builder(Component.literal("✔ Done"), b->onClose()).bounds(x+imageWidth-78, y+142, 70,18).build());
     }
-    private String icon(BuildingType t){ return switch(t){ case HOUSE->"⌂"; case FARM->"⚘"; case LUMBERJACK_HUT->"♠"; case MINE->"⛏"; case WAREHOUSE->"▣"; case BARRACKS->"⚔"; case BLACKSMITH->"🔨"; case BAKERY->"◯"; case BUTCHER_HUT->"🥩"; case LEATHER_SHOP->"⬢"; case TEMPLE->"☥"; case MARKET->"⚖"; }; }
+    private String icon(BuildingType t){ return switch(t){ case HOUSE->"⌂"; case FARM->"⚘"; case LUMBERJACK_HUT->"♠"; case MINE->"⛏"; case WAREHOUSE->"▣"; case BARRACKS->"⚔"; case BLACKSMITH->"⚒"; case BAKERY->"◯"; case BUTCHER_HUT->"B"; case LEATHER_SHOP->"L"; case TEMPLE->"☥"; case MARKET->"⚖"; }; }
     private void send(int id){ if(minecraft!=null && minecraft.gameMode!=null) minecraft.gameMode.handleInventoryButtonClick(menu.containerId, id); }
 
     @Override protected void renderBg(GuiGraphics g,float pt,int mx,int my){
