@@ -177,7 +177,7 @@ public class ColonyCommand {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
                             String cultStr = StringArgumentType.getString(ctx, "culture");
                             var culture = com.simplecolonies.culture.CultureType.byId(cultStr);
-                            var colony = ColonyManager.getInstance().createColony(culture, p.blockPosition());
+                            var colony = ColonyManager.getInstance().createColony(p.serverLevel(), culture, p.blockPosition());
                             if (colony == null) { ctx.getSource().sendFailure(Component.literal("Failed to create colony (limit?)")); return 0; }
                             ctx.getSource().sendSuccess(() -> Component.literal("Spawned " + culture.displayName + " colony #" + colony.getId() + " at " + colony.getCenter().toShortString() + " with starter cobble/wood — test with /colony warehouse, /colony research, /colony buy TOOL_STONE"), true);
                             return 1;

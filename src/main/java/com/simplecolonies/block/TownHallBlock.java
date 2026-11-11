@@ -40,7 +40,7 @@ public class TownHallBlock extends Block implements EntityBlock {
         if (colony == null) {
             // Create new colony here if player places/activates in wilderness
             var culture = com.simplecolonies.culture.CultureType.fromBiomeTemperature(level.getBiome(pos).value().getBaseTemperature(), level.getBiome(pos));
-            colony = mgr.createColony(culture, pos);
+            colony = mgr.createColony(level instanceof net.minecraft.server.level.ServerLevel sl ? sl : null, culture, pos);
             if (colony == null) {
                 if (player instanceof ServerPlayer sp) sp.displayClientMessage(net.minecraft.network.chat.Component.literal("§cToo many colonies in this dimension!"), true);
                 return InteractionResult.FAIL;

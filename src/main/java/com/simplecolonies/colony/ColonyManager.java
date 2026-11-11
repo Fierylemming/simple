@@ -1,5 +1,6 @@
 package com.simplecolonies.colony;
 
+import com.simplecolonies.SimpleColonies;
 import com.simplecolonies.culture.CultureType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -64,6 +65,10 @@ public class ColonyManager {
     public int colonyCount() { return colonies.size(); }
 
     public Colony createColony(CultureType culture, BlockPos center) {
+        return createColony(null, culture, center);
+    }
+
+    public Colony createColony(ServerLevel level, CultureType culture, BlockPos center) {
         if (colonies.size() >= com.simplecolonies.config.ColonyConfig.MAX_COLONIES_PER_DIMENSION.get()) return null;
         int id = nextId++;
         Colony colony = new Colony(id, culture, center);
@@ -92,7 +97,52 @@ public class ColonyManager {
         } catch (Exception ignored) {}
         colonies.put(id, colony);
         markDirty(colony);
+        // Spawn initial villagers so village can progress immediately
+        if (level == null && server != null) level = server.getLevel(Level.OVERWORLD);
+        if (level != null) {
+            spawnInitialVillagers(level, colony);
+            placeTownHallIfNeeded(level, colony);
+        }
         return colony;
+    }
+
+    private void spawnInitialVillagers(ServerLevel level, Colony colony) {
+        if (colony.citizenCount() > 0) return;
+        BlockPos c = colony.getCenter();
+        // House worker — Lumberjack
+        spawnVillagerAt(level, c.offset(6, 0, 0), colony, com.simplecolonies.villager.job.JobType.LUMBERJACK);
+        // Farm worker — Farmer
+        spawnVillagerAt(level, c.offset(-8, 0, 0), colony, com.simplecolonies.villager.job.JobType.FARMER);
+        // Center — Unemployed/Forager who will gather surface cobble before Miner unlocked
+        spawnVillagerAt(level, c.offset(2, 0, 2), colony, com.simplecolonies.villager.job.JobType.UNEMPLOYED);
+    }
+
+    private void spawnVillagerAt(ServerLevel level, BlockPos pos, Colony colony, com.simplecolonies.villager.job.JobType job) {
+        try {
+            var type = com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get();
+            var villager = type.create(level);
+            if (villager == null) return;
+            // Find ground
+            BlockPos spawnPos = pos;
+            for (int dy = 5; dy >= -5; dy--) {
+                BlockPos check = pos.offset(0, dy, 0);
+                if (level.getBlockState(check.below()).isSolid() && level.getBlockState(check).isAir()) { spawnPos = check; break; }
+            }
+            villager.moveTo(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5, level.random.nextFloat() * 360, 0);
+            villager.finalizeSpawn(level, level.getCurrentDifficultyAt(spawnPos), net.minecraft.world.entity.MobSpawnType.STRUCTURE, null);
+            villager.setColony(colony);
+            villager.setJob(job);
+            level.addFreshEntity(villager);
+        } catch (Exception e) { SimpleColonies.LOGGER.warn("Failed to spawn villager for colony #{}: {}", colony.getId(), e.getMessage()); }
+    }
+
+    private void placeTownHallIfNeeded(ServerLevel level, Colony colony) {
+        BlockPos p = colony.getCenter();
+        if (level.getBlockState(p).isAir() || level.getBlockState(p).canBeReplaced()) {
+            level.setBlock(p, com.simplecolonies.block.ModBlocks.TOWN_HALL.get().defaultBlockState(), 3);
+            var be = level.getBlockEntity(p);
+            if (be instanceof com.simplecolonies.block.entity.TownHallBlockEntity th) th.setColonyId(colony.getId());
+        }
     }
 
     public Optional<Colony> getColony(int id) { return Optional.ofNullable(colonies.get(id)); }
