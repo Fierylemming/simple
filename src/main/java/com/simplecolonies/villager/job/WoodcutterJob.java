@@ -9,8 +9,8 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * Woodcutter (Lumberjack): plants trees nearby and harvests wood.
- * Plants saplings in a managed zone to be self-renewing.
+ * Woodcutter — chops logs in radius and replants saplings. Deposits to nearest chest.
+ * Vanilla lumberjack doesn't exist; this is fully custom real work.
  */
 public class WoodcutterJob extends AbstractJob {
     private BlockPos managedForestCenter;
@@ -26,32 +26,25 @@ public class WoodcutterJob extends AbstractJob {
         if (managedForestCenter == null) managedForestCenter = workplacePos.offset(16, 0, 16);
         state = JobState.WORKING;
 
-        // 1. Try harvest a log nearby (max 3 per cycle to not grief)
         int harvested = 0;
         for (BlockPos pos : BlockPos.betweenClosed(villager.blockPosition().offset(-10, -4, -10), villager.blockPosition().offset(10, 8, 10))) {
             BlockState bs = level.getBlockState(pos);
             if (bs.is(BlockTags.LOGS)) {
                 level.destroyBlock(pos, false);
-                // Chop leaves too simplified
-                depositToColony("minecraft:oak_log", 1);
+                depositToColony(level, "minecraft:oak_log", 1);
                 harvested++;
                 if (harvested >= 2) break;
             }
         }
 
-        // 2. Replant phase - maintain 10 trees in managed area
         if (plantCooldown-- <= 0) {
             plantCooldown = 200;
             int treeCount = countLogsNearby(level, managedForestCenter, 20);
             if (treeCount < 10) {
                 BlockPos plantPos = findPlantSpot(level, managedForestCenter);
-                if (plantPos != null) {
-                    // Take sapling from colony stock or use oak sapling
-                    level.setBlock(plantPos, Blocks.OAK_SAPLING.defaultBlockState(), 3);
-                }
+                if (plantPos != null) level.setBlock(plantPos, Blocks.OAK_SAPLING.defaultBlockState(), 3);
             }
         }
-
         ticksUntilNextWork = harvested > 0 ? 30 : 60;
     }
 

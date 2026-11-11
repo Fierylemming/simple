@@ -1,6 +1,7 @@
 package com.simplecolonies.block;
 
 import com.simplecolonies.SimpleColonies;
+import com.simplecolonies.block.entity.BuildingMarkerBlockEntity;
 import com.simplecolonies.block.entity.TownHallBlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.Block;
@@ -24,6 +25,13 @@ public class ModBlocks {
     public static final Supplier<Block> WAREHOUSE_CHEST = BLOCKS.register("warehouse_chest",
             () -> new WarehouseBlock(BlockBehaviour.Properties.of().mapColor(MapColor.WOOD).strength(2.5f)));
 
+    // Building Marker — place in your own builds to designate them as colony buildings
+    public static final Supplier<Block> BUILDING_MARKER = BLOCKS.register("building_marker",
+            () -> new BuildingMarkerBlock(BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_YELLOW).strength(2.0f).noOcclusion()));
+
     public static final Supplier<BlockEntityType<TownHallBlockEntity>> TOWN_HALL_BE = BLOCK_ENTITIES.register("town_hall",
             () -> BlockEntityType.Builder.of(TownHallBlockEntity::new, TOWN_HALL.get()).build(null));
+
+    public static final Supplier<BlockEntityType<BuildingMarkerBlockEntity>> BUILDING_MARKER_BE = BLOCK_ENTITIES.register("building_marker",
+            () -> BlockEntityType.Builder.of(BuildingMarkerBlockEntity::new, BUILDING_MARKER.get()).build(null));
 }

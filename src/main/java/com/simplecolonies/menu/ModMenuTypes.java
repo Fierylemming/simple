@@ -16,4 +16,7 @@ public class ModMenuTypes {
 
     public static final Supplier<MenuType<VillagerInteractionMenu>> VILLAGER = MENUS.register("villager_interaction",
             () -> IMenuTypeExtension.create(VillagerInteractionMenu::fromNetwork));
+
+    public static final Supplier<MenuType<BuildingMarkerMenu>> BUILDING_MARKER = MENUS.register("building_marker",
+            () -> IMenuTypeExtension.create(BuildingMarkerMenu::fromNetwork));
 }

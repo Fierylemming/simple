@@ -4,25 +4,22 @@ import com.simplecolonies.colony.Colony;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.npc.Villager;
 
-/**
- * Leatherworker <-> Butcher supply chain example user requested:
- * "village with a leather worker may ask the butcher for leather from their cows which then allows them to make armour"
- * Leatherworker checks warehouse for leather; if not, requests from colony board which butcher fulfills.
- */
 public class LeatherworkerJob extends AbstractJob {
     public LeatherworkerJob(Villager villager, Colony colony) { super(villager, colony, JobType.LEATHERWORKER); }
 
     @Override
     protected void doWork(ServerLevel level) {
         state = JobState.WORKING;
-        int leather = colony.getWarehouseCount("minecraft:leather");
-        if (leather >= 4) {
-            // Make one leather chestplate
-            depositToColony("minecraft:leather_chestplate", 1);
-            // consume 4 leather - handled by colony.tryTake in real impl
-            colony.depositToWarehouse("minecraft:leather", -4);
+        int leather = colony.getWarehouseManager().has("minecraft:leather", 4) ? 4 : colony.getWarehouseCount("minecraft:leather");
+        // Check chests first
+        int chestLeather = level != null ? colony.getWarehouseManager().count("minecraft:leather") : 0;
+        int total = Math.max(chestLeather, colony.getWarehouseCount("minecraft:leather"));
+        if (total >= 4) {
+            if (level != null) colony.getWarehouseManager().extract(level, villager.blockPosition(), "minecraft:leather", 4, false);
+            else colony.depositToWarehouse("minecraft:leather", -4);
+            depositToColony(level, "minecraft:leather_chestplate", 1);
         } else {
-            requestFromColony("minecraft:leather", 4 - leather);
+            requestFromColony(level, "minecraft:leather", 4 - total);
         }
         ticksUntilNextWork = 150;
     }

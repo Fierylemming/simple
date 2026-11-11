@@ -20,7 +20,9 @@ public class ModCreativeTabs {
                 output.accept(ModBlocks.TOWN_HALL.get());
                 output.accept(ModBlocks.WAREHOUSE_CHEST.get());
                 output.accept(ModBlocks.COLONY_BANNER.get());
+                output.accept(ModBlocks.BUILDING_MARKER.get());
                 output.accept(ModItems.COMMAND_STAFF.get());
+                output.accept(ModItems.BUILDING_TOOL.get());
                 output.accept(ModItems.TOWN_HALL_ITEM.get());
                 output.accept(ModItems.COLONY_BANNER_ITEM.get());
             }).build());

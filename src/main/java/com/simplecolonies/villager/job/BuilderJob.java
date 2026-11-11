@@ -8,17 +8,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.level.block.state.BlockState;
 
-/**
- * Builder: constructs buildings from blueprints.
- * Workflow:
- *  1. Find blueprint building in colony with state BLUEPRINT or NEEDS_RESOURCES
- *  2. Check colony warehouse has required resources; if not, request them (posts to supply board)
- *  3. Place blocks one by one, consuming resources
- * Mirrors MineColonies but with simpler NBT schematics stored per culture.
- */
 public class BuilderJob extends AbstractJob {
     private Building currentJob;
-    private int blocksPlacedThisTick = 0;
 
     public BuilderJob(Villager villager, Colony colony) {
         super(villager, colony, JobType.BUILDER);
@@ -34,20 +25,16 @@ public class BuilderJob extends AbstractJob {
         }
 
         state = JobState.WORKING;
-        // Verify resources
         if (!currentJob.hasResources(colony)) {
             currentJob.setState(BuildingState.NEEDS_RESOURCES);
-            // Request missing
             for (var entry : currentJob.getMissingResources(colony).entrySet()) {
-                requestFromColony(entry.getKey(), entry.getValue());
+                requestFromColony(level, entry.getKey(), entry.getValue());
             }
             ticksUntilNextWork = 100;
             return;
         }
 
         currentJob.setState(BuildingState.UNDER_CONSTRUCTION);
-
-        // Place up to N blocks per tick (config to avoid lag)
         int maxPerTick = com.simplecolonies.config.ColonyConfig.MAX_BUILDER_BLOCKS_PER_TICK.get();
         for (int i = 0; i < maxPerTick; i++) {
             Building.BlockPlacement next = currentJob.getNextPlacement();
@@ -57,8 +44,10 @@ public class BuilderJob extends AbstractJob {
                 currentJob = null;
                 break;
             }
-            // Consume resource
-            // colony.tryTake(next.itemId, 1) - simplified
+            // Try to consume from chests first
+            int chestHave = colony.getWarehouseManager().count(next.itemId);
+            if (chestHave > 0) colony.getWarehouseManager().extract(level, currentJob.getPos(), next.itemId, 1, false);
+            else colony.depositToWarehouse(next.itemId, -1);
             BlockPos placePos = next.pos;
             BlockState toPlace = next.state;
             if (level.getBlockState(placePos).isAir() || level.getBlockState(placePos).canBeReplaced()) {

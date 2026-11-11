@@ -21,4 +21,13 @@ public class ModItems {
 
     public static final Supplier<Item> COLONY_BANNER_ITEM = ITEMS.register("colony_banner",
             () -> new BlockItem(com.simplecolonies.block.ModBlocks.COLONY_BANNER.get(), new Item.Properties()));
+
+    public static final Supplier<Item> BUILDING_MARKER_ITEM = ITEMS.register("building_marker",
+            () -> new BlockItem(com.simplecolonies.block.ModBlocks.BUILDING_MARKER.get(), new Item.Properties()));
+
+    public static final Supplier<Item> BUILDING_TOOL = ITEMS.register("building_tool",
+            () -> new BuildingToolItem(new Item.Properties().stacksTo(1)));
+
+    public static final Supplier<Item> WAREHOUSE_CHEST_ITEM = ITEMS.register("warehouse_chest",
+            () -> new BlockItem(com.simplecolonies.block.ModBlocks.WAREHOUSE_CHEST.get(), new Item.Properties()));
 }

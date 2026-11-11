@@ -1,0 +1,1 @@
+{ "type": "minecraft:crafting_shaped", "pattern": ["SSS","SRS","SSS"], "key": { "S": { "item": "minecraft:stick" }, "R": { "item": "minecraft:red_dye" } }, "result": { "id": "simplecolonies:building_marker", "count": 4 } }
