@@ -16,40 +16,38 @@ jobs:
       - name: Build jar
         run: |
           set +e
-          ./gradlew build --stacktrace 2>&1 | tee build.log
+          ./gradlew build --stacktrace 2>&1 | tee /tmp/build.log
           EC=${PIPESTATUS[0]}
-          echo "EXIT=$EC"
-          # extract errors
-          grep -n "error:" build.log | head -n 100 > errors.txt || true
-          grep -n "FAILURE" build.log | head -n 50 >> errors.txt || true
-          tail -n 300 build.log > tail.log
-          # copy to workspace for next step
-          cp build.log tail.log errors.txt $GITHUB_WORKSPACE/ 2>/dev/null || true
+          grep -n "error:" /tmp/build.log | head -n 100 > /tmp/errors.txt || true
+          grep "FAILURE" /tmp/build.log | head -n 20 >> /tmp/errors.txt || true
+          tail -n 400 /tmp/build.log > /tmp/tail.log
+          cat /tmp/tail.log
+          cat /tmp/errors.txt
+          echo "EXITCODE:$EC"
           exit $EC
-      - name: Publish jar or log to dist branch
-        if: always()
+      - name: Publish logs to branch on failure
+        if: failure()
         run: |
+          cp /tmp/build.log ./build.log 2>/dev/null || echo "no log" > build.log
+          cp /tmp/errors.txt ./errors.txt 2>/dev/null || true
+          cp /tmp/tail.log ./tail.log 2>/dev/null || true
           git config user.name "arena-agent"
           git config user.email "arena-agent@users.noreply.github.com"
-          # check if jar exists
-          if ls build/libs/*.jar 1>/dev/null 2>&1; then
-            JAR=$(ls build/libs/*.jar | head -n1)
-            echo "Jar built: $JAR"
-            git checkout --orphan dist-jar 2>/dev/null || git checkout -B dist-jar
-            git reset --hard
-            cp "$GITHUB_WORKSPACE/$JAR" ./ || cp build/libs/*.jar ./ 2>/dev/null || true
-            ls -lh *.jar || true
-            git add -f *.jar
-            git commit -m "jar $GITHUB_SHA" || true
-            git push -f origin dist-jar
-          else
-            echo "No jar, publishing logs"
-            git checkout --orphan build-log-temp 2>/dev/null || git checkout -B build-log-temp
-            git reset --hard
-            cp "$GITHUB_WORKSPACE/build.log" ./build.log 2>/dev/null || echo "no log" > build.log
-            cp "$GITHUB_WORKSPACE/errors.txt" ./errors.txt 2>/dev/null || true
-            cp "$GITHUB_WORKSPACE/tail.log" ./tail.log 2>/dev/null || true
-            git add -f build.log errors.txt tail.log
-            git commit -m "log $GITHUB_SHA" || true
-            git push -f origin build-log-temp
-          fi
+          git checkout -B build-log-temp
+          git add -f build.log errors.txt tail.log
+          git commit -m "log $GITHUB_SHA" || true
+          git push -f origin build-log-temp
+      - name: Publish jar on success
+        if: success()
+        run: |
+          JAR=$(ls build/libs/*.jar | head -n1)
+          echo "Jar $JAR"
+          ls -lh build/libs/
+          git config user.name "arena-agent"
+          git config user.email "arena-agent@users.noreply.github.com"
+          git checkout -B dist-jar
+          cp "$JAR" ./simplecolonies-prism.jar
+          ls -lh *.jar
+          git add -f simplecolonies-prism.jar
+          git commit -m "jar $GITHUB_SHA" || true
+          git push -f origin dist-jar
