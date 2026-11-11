@@ -30,12 +30,16 @@ jobs:
         with:
           name: simplecolonies-prism-jar
           path: build/libs/*.jar
+      - name: Get version
+        if: success()
+        id: version
+        run: echo "version=$(grep '^mod_version=' gradle.properties | cut -d'=' -f2 | tr -d '\r\n ')" >> $GITHUB_OUTPUT
       - name: Create Release
         if: success()
         uses: softprops/action-gh-release@v2
         with:
           tag_name: prism-${{ github.sha }}
-          name: Prism ${{ github.sha }}
-          body: "Drop into Prism mods/. NeoForge 1.21.1 + Java 21"
+          name: ${{ steps.version.outputs.version }}
+          body: "SimpleColonies ${{ steps.version.outputs.version }} — Drop into Prism mods/. NeoForge 1.21.1 + Java 21 — commit ${{ github.sha }}"
           files: build/libs/*.jar
           prerelease: true
