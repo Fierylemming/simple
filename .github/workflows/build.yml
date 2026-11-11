@@ -14,9 +14,19 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - name: Build jar
-        run: |
-          ./gradlew build --stacktrace 2>&1 | tee /tmp/build.log
-          echo "===== TAIL ====="
-          tail -n 200 /tmp/build.log
-          echo "===== ERRORS ====="
-          grep -n "error" /tmp/build.log | head -n 100
+        run: ./gradlew build
+      - name: Upload jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: simplecolonies-prism-jar
+          path: build/libs/*.jar
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: prism-${{ github.sha }}
+          name: Prism ${{ github.sha }}
+          body: "Prism jar for ${{ github.sha }}"
+          files: build/libs/*.jar
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
