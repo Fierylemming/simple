@@ -2,13 +2,24 @@ package com.simplecolonies.colony;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.simplecolonies.progression.ColonyUpgrade;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * /colony info | list | tp <id> | setleader <player> | war <id> | ally <id> | delete <id>
+ * /colony list | info | tp <id> | delete <id>
+ * + debug helpers to test progression without grinding:
+ *   /colony research [id]                 — show unlocked + available + costs
+ *   /colony warehouse [id]                — dump chests + abstract counts (counts are the “self-sufficient?” proof)
+ *   /colony give <item> <count> [id]      — deposit to warehouse for testing (e.g. /colony give minecraft:cobblestone 64)
+ *   /colony unlock <upgradeId> [id]       — force-unlock for testing (bypasses cost)
+ *   /colony buy <upgradeId> [id]          — try buy normally (tests affordability/prereq logic)
+ *   /colony tickprogress [id]             — force auto-progress tick (skip 5-day cooldown)
+ *   /colony spawn <culture>               — spawn colony at your position for quick testing
  */
 public class ColonyCommand {
     public static void register(CommandDispatcher<CommandSourceStack> disp) {
@@ -19,7 +30,7 @@ public class ColonyCommand {
                     src.sendSuccess(() -> Component.literal("Colonies: " + count), false);
                     for (Colony c : ColonyManager.getInstance().getAll()) {
                         src.sendSuccess(() -> Component.literal(
-                                "#" + c.getId() + " " + c.getCulture().displayName + " at " + c.getCenter().toShortString() + " pop:" + c.citizenCount() + " lvl:" + c.getLevel()
+                                "#" + c.getId() + " " + c.getCulture().displayName + " at " + c.getCenter().toShortString() + " pop:" + c.citizenCount() + " lvl:" + c.getLevel() + " tool:" + c.getResearch().getToolTier() + " workers:" + c.getResearch().getWorkSpeedMultiplier()
                         ), false);
                     }
                     return 1;
@@ -27,11 +38,151 @@ public class ColonyCommand {
                 .then(Commands.literal("info").executes(ctx -> {
                     ServerPlayer p = ctx.getSource().getPlayerOrException();
                     var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
-                    if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony")); return 0; }
+                    if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony — stand near town hall")); return 0; }
                     Colony c = colony.get();
-                    ctx.getSource().sendSuccess(() -> Component.literal(c.getCulture().displayName + " colony #" + c.getId() + " rep " + c.getReputation(p) + " leader=" + c.getLeaderId()), false);
-                    return 1;
-                }))
+                    return sendInfo(ctx.getSource(), c, p);
+                }).then(Commands.argument("id", IntegerArgumentType.integer()).executes(ctx -> {
+                    int id = IntegerArgumentType.getInteger(ctx, "id");
+                    var colony = ColonyManager.getInstance().getColony(id);
+                    if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("No colony #" + id)); return 0; }
+                    Colony c = colony.get();
+                    ServerPlayer p = null; try { p = ctx.getSource().getPlayerOrException(); } catch (Exception ignored) {}
+                    return sendInfo(ctx.getSource(), c, p);
+                })))
+                .then(Commands.literal("research")
+                        .executes(ctx -> {
+                            ServerPlayer p = ctx.getSource().getPlayerOrException();
+                            var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
+                            if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony")); return 0; }
+                            return sendResearch(ctx.getSource(), colony.get(), p);
+                        })
+                        .then(Commands.argument("id", IntegerArgumentType.integer()).executes(ctx -> {
+                            int id = IntegerArgumentType.getInteger(ctx, "id");
+                            var colony = ColonyManager.getInstance().getColony(id);
+                            if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("No colony #" + id)); return 0; }
+                            ServerPlayer p = null; try { p = ctx.getSource().getPlayerOrException(); } catch (Exception ignored) {}
+                            return sendResearch(ctx.getSource(), colony.get(), p);
+                        }))
+                )
+                .then(Commands.literal("warehouse")
+                        .executes(ctx -> {
+                            ServerPlayer p = ctx.getSource().getPlayerOrException();
+                            var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
+                            if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony")); return 0; }
+                            return sendWarehouse(ctx.getSource(), colony.get(), p);
+                        })
+                        .then(Commands.argument("id", IntegerArgumentType.integer()).executes(ctx -> {
+                            int id = IntegerArgumentType.getInteger(ctx, "id");
+                            var colony = ColonyManager.getInstance().getColony(id);
+                            if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("No colony #" + id)); return 0; }
+                            ServerPlayer p = null; try { p = ctx.getSource().getPlayerOrException(); } catch (Exception ignored) {}
+                            return sendWarehouse(ctx.getSource(), colony.get(), p);
+                        }))
+                )
+                .then(Commands.literal("give")
+                        .then(Commands.argument("item", StringArgumentType.string())
+                                .then(Commands.argument("count", IntegerArgumentType.integer(1, 10000))
+                                        .executes(ctx -> {
+                                            ServerPlayer p = ctx.getSource().getPlayerOrException();
+                                            var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
+                                            if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony")); return 0; }
+                                            String item = StringArgumentType.getString(ctx, "item");
+                                            int count = IntegerArgumentType.getInteger(ctx, "count");
+                                            colony.get().depositToWarehouse(item.contains(":") ? item : "minecraft:" + item, count);
+                                            ColonyManager.getInstance().markDirty(colony.get());
+                                            ctx.getSource().sendSuccess(() -> Component.literal("Gave " + count + "x " + item + " to colony #" + colony.get().getId() + " — check /colony warehouse"), true);
+                                            return 1;
+                                        })
+                                        .then(Commands.argument("id", IntegerArgumentType.integer()).executes(ctx -> {
+                                            String item = StringArgumentType.getString(ctx, "item");
+                                            int count = IntegerArgumentType.getInteger(ctx, "count");
+                                            int id = IntegerArgumentType.getInteger(ctx, "id");
+                                            var colony = ColonyManager.getInstance().getColony(id);
+                                            if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("No colony #" + id)); return 0; }
+                                            colony.get().depositToWarehouse(item.contains(":") ? item : "minecraft:" + item, count);
+                                            ColonyManager.getInstance().markDirty(colony.get());
+                                            ctx.getSource().sendSuccess(() -> Component.literal("Gave " + count + "x " + item + " to colony #" + id), true);
+                                            return 1;
+                                        }))
+                        ))
+                .then(Commands.literal("unlock")
+                        .then(Commands.argument("upgradeId", StringArgumentType.string())
+                                .executes(ctx -> {
+                                    ServerPlayer p = ctx.getSource().getPlayerOrException();
+                                    var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
+                                    if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony")); return 0; }
+                                    String uid = StringArgumentType.getString(ctx, "upgradeId");
+                                    return forceUnlock(ctx.getSource(), colony.get(), uid);
+                                })
+                                .then(Commands.argument("id", IntegerArgumentType.integer()).executes(ctx -> {
+                                    String uid = StringArgumentType.getString(ctx, "upgradeId");
+                                    int id = IntegerArgumentType.getInteger(ctx, "id");
+                                    var colony = ColonyManager.getInstance().getColony(id);
+                                    if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("No colony #" + id)); return 0; }
+                                    return forceUnlock(ctx.getSource(), colony.get(), uid);
+                                }))
+                        )
+                .then(Commands.literal("buy")
+                        .then(Commands.argument("upgradeId", StringArgumentType.string())
+                                .executes(ctx -> {
+                                    ServerPlayer p = ctx.getSource().getPlayerOrException();
+                                    var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
+                                    if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony")); return 0; }
+                                    String uid = StringArgumentType.getString(ctx, "upgradeId");
+                                    return tryBuy(ctx.getSource(), colony.get(), uid, p);
+                                })
+                                .then(Commands.argument("id", IntegerArgumentType.integer()).executes(ctx -> {
+                                    String uid = StringArgumentType.getString(ctx, "upgradeId");
+                                    int id = IntegerArgumentType.getInteger(ctx, "id");
+                                    var colony = ColonyManager.getInstance().getColony(id);
+                                    if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("No colony #" + id)); return 0; }
+                                    ServerPlayer p = null; try { p = ctx.getSource().getPlayerOrException(); } catch (Exception ignored) {}
+                                    return tryBuy(ctx.getSource(), colony.get(), uid, p);
+                                }))
+                        )
+                .then(Commands.literal("tickprogress")
+                        .executes(ctx -> {
+                            ServerPlayer p = ctx.getSource().getPlayerOrException();
+                            var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
+                            if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony")); return 0; }
+                            ServerLevel lvl = p.serverLevel();
+                            colony.get().getResearch().tickAutoProgress(lvl);
+                            // also tick with cooldown bypass: do 3 manual ticks
+                            for (int i=0;i<3;i++) {
+                                try {
+                                    var f = colony.get().getResearch().getClass().getDeclaredField("autoProgressCooldown");
+                                    f.setAccessible(true); f.set(colony.get().getResearch(), 0);
+                                    colony.get().getResearch().tickAutoProgress(lvl);
+                                } catch (Exception ignored) {}
+                            }
+                            ctx.getSource().sendSuccess(() -> Component.literal("Forced auto-progress ticks for colony #" + colony.get().getId() + " — check /colony research"), true);
+                            return 1;
+                        })
+                        .then(Commands.argument("id", IntegerArgumentType.integer()).executes(ctx -> {
+                            int id = IntegerArgumentType.getInteger(ctx, "id");
+                            var colony = ColonyManager.getInstance().getColony(id);
+                            if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("No colony #" + id)); return 0; }
+                            ServerPlayer p = null; try { p = ctx.getSource().getPlayerOrException(); } catch (Exception ignored) {}
+                            ServerLevel lvl = p != null ? p.serverLevel() : ctx.getSource().getLevel();
+                            for (int i=0;i<4;i++) {
+                                try { var f = colony.get().getResearch().getClass().getDeclaredField("autoProgressCooldown"); f.setAccessible(true); f.set(colony.get().getResearch(), 0); } catch (Exception ignored) {}
+                                colony.get().getResearch().tickAutoProgress(lvl);
+                            }
+                            ctx.getSource().sendSuccess(() -> Component.literal("Forced auto-progress for colony #" + id), true);
+                            return 1;
+                        }))
+                )
+                .then(Commands.literal("spawn")
+                        .then(Commands.argument("culture", StringArgumentType.string()).executes(ctx -> {
+                            ServerPlayer p = ctx.getSource().getPlayerOrException();
+                            String cultStr = StringArgumentType.getString(ctx, "culture");
+                            var culture = com.simplecolonies.culture.CultureType.byId(cultStr);
+                            var colony = ColonyManager.getInstance().createColony(culture, p.blockPosition());
+                            if (colony == null) { ctx.getSource().sendFailure(Component.literal("Failed to create colony (limit?)")); return 0; }
+                            ctx.getSource().sendSuccess(() -> Component.literal("Spawned " + culture.displayName + " colony #" + colony.getId() + " at " + colony.getCenter().toShortString() + " with starter cobble/wood — test with /colony warehouse, /colony research, /colony buy TOOL_STONE"), true);
+                            return 1;
+                        }))
+                )
                 .then(Commands.literal("tp").then(Commands.argument("id", IntegerArgumentType.integer()).executes(ctx -> {
                     int id = IntegerArgumentType.getInteger(ctx, "id");
                     var colony = ColonyManager.getInstance().getColony(id);
@@ -49,5 +200,82 @@ public class ColonyCommand {
                             return 1;
                         })))
         );
+    }
+
+    private static int sendInfo(CommandSourceStack src, Colony c, ServerPlayer p) {
+        src.sendSuccess(() -> Component.literal("§l" + c.getCulture().displayName + " colony #" + c.getId() + " §r at " + c.getCenter().toShortString()), false);
+        src.sendSuccess(() -> Component.literal("  Level " + c.getLevel() + " radius " + c.getRadius() + " pop " + c.citizenCount() + " state " + c.getState()), false);
+        src.sendSuccess(() -> Component.literal("  Tool tier " + c.getResearch().getToolTier() + " (" + c.getResearch().getWorkSpeedMultiplier() + "x speed) | Buildings: " + c.getBuildings().size()), false);
+        src.sendSuccess(() -> Component.literal("  Unlocked: " + c.getResearch().getUnlocked().stream().map(u -> u.name()).reduce((a,b)->a+", "+b).orElse("none")), false);
+        if (p != null) src.sendSuccess(() -> Component.literal("  Your rep: " + c.getReputation(p) + (c.isLeader(p) ? " §6(LEADER)" : "")), false);
+        src.sendSuccess(() -> Component.literal("  §7Try: /colony research, /colony warehouse, /colony buy TOOL_STONE"), false);
+        return 1;
+    }
+
+    private static int sendResearch(CommandSourceStack src, Colony c, ServerPlayer p) {
+        src.sendSuccess(() -> Component.literal("§lResearch for colony #" + c.getId() + " — tool tier " + c.getResearch().getToolTier() + " speed " + c.getResearch().getWorkSpeedMultiplier() + "x"), false);
+        src.sendSuccess(() -> Component.literal("§aUnlocked (" + c.getResearch().getUnlocked().size() + "): " + c.getResearch().getUnlocked().stream().map(u -> u.displayName).reduce((a,b)->a+", "+b).orElse("none")), false);
+        var avail = c.getResearch().getAvailableToBuy();
+        if (avail.isEmpty()) src.sendSuccess(() -> Component.literal("§eNo more unlockable upgrades — need prereqs or already maxed"), false);
+        else {
+            src.sendSuccess(() -> Component.literal("§eAvailable to buy (prereqs met — check costs in Town Hall Research tab):"), false);
+            for (var up : avail) {
+                ServerLevel lvl = null; try { if (p != null) lvl = p.serverLevel(); } catch (Exception ignored) {}
+                boolean canAfford = c.getResearch().canAfford(up, lvl);
+                String costStr = up.cost.entrySet().stream().map(e -> e.getValue() + "x " + e.getKey()).reduce((a,b)->a+", "+b).orElse("free");
+                String line = (canAfford ? "§a✓ " : "§c✗ ") + up.name() + " [" + up.tier + "] " + up.displayName + " — cost: " + costStr + (up.prerequisites.isEmpty() ? "" : " | needs: " + up.prerequisites.stream().map(x->x.name()).reduce((a,b)->a+", "+b).orElse(""));
+                String lineFinal = line;
+                src.sendSuccess(() -> Component.literal(lineFinal), false);
+            }
+            src.sendSuccess(() -> Component.literal("§7Buy with: /colony buy <UPGRADE_ID> or Town Hall → Research tab | Test afford: /colony give cobblestone 64"), false);
+        }
+        return 1;
+    }
+
+    private static int sendWarehouse(CommandSourceStack src, Colony c, ServerPlayer p) {
+        ServerLevel lvl = null; try { if (p != null) lvl = p.serverLevel(); } catch (Exception ignored) {}
+        var snap = c.getWarehouseSnapshot(lvl);
+        var chests = c.getWarehouseManager().snapshot();
+        src.sendSuccess(() -> Component.literal("§lWarehouse colony #" + c.getId() + " — chest network: " + c.getWarehouseManager().getChestCount() + " chests scanned, abstract stash included"), false);
+        if (snap.isEmpty()) src.sendSuccess(() -> Component.literal("§cEmpty — this is starter cobble test: fresh colonies have 32 cobble+8 coal+32 planks+16 logs+16 bread (from ColonyManager)"), false);
+        else {
+            snap.entrySet().stream().sorted((a,b)-> b.getValue()-a.getValue()).forEach(e -> src.sendSuccess(() -> Component.literal("  " + e.getKey() + ": " + e.getValue()), false));
+        }
+        if (!chests.isEmpty()) {
+            src.sendSuccess(() -> Component.literal("§7Chest breakdown:"), false);
+            chests.entrySet().forEach(e -> src.sendSuccess(() -> Component.literal("  [chest] " + e.getKey() + ": " + e.getValue()), false));
+        }
+        src.sendSuccess(() -> Component.literal("§7Cobble check for Tier1: need 32 cobble for TOOL_STONE — " + (snap.getOrDefault("minecraft:cobblestone",0) >= 32 ? "§aENOUGH" : "§cNEED " + (32-snap.getOrDefault("minecraft:cobblestone",0)) + " more") + " | Add with /colony give cobblestone 32"), false);
+        return 1;
+    }
+
+    private static int forceUnlock(CommandSourceStack src, Colony c, String uid) {
+        try {
+            ColonyUpgrade up = ColonyUpgrade.valueOf(uid.toUpperCase());
+            // bypass prereq, just add
+            var f = c.getResearch().getClass().getDeclaredField("unlocked");
+            f.setAccessible(true);
+            ((java.util.Set<ColonyUpgrade>)f.get(c.getResearch())).add(up);
+            ColonyManager.getInstance().markDirty(c);
+            src.sendSuccess(() -> Component.literal("Force-unlocked " + up.displayName + " for colony #" + c.getId()), true);
+            return 1;
+        } catch (Exception e) {
+            src.sendFailure(Component.literal("Unknown upgrade: " + uid + " — try one of " + java.util.Arrays.stream(ColonyUpgrade.values()).map(x->x.name()).reduce((a,b)->a+", "+b).orElse("")));
+            return 0;
+        }
+    }
+
+    private static int tryBuy(CommandSourceStack src, Colony c, String uid, ServerPlayer p) {
+        try {
+            ColonyUpgrade up = ColonyUpgrade.valueOf(uid.toUpperCase());
+            ServerLevel lvl = p != null ? p.serverLevel() : src.getLevel();
+            boolean ok = c.getResearch().tryBuy(up, lvl, p != null ? p : null);
+            if (ok) src.sendSuccess(() -> Component.literal("Bought " + up.displayName + " — check /colony research for new avail"), true);
+            else src.sendFailure(Component.literal("Buy failed — see chat error or /colony warehouse for mats, /colony research for prereqs"));
+            return ok ? 1 : 0;
+        } catch (Exception e) {
+            src.sendFailure(Component.literal("Unknown upgrade: " + uid));
+            return 0;
+        }
     }
 }
