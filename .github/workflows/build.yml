@@ -14,18 +14,18 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - name: Build jar
-        run: ./gradlew build
-      - name: Publish to Prism branch
+        run: ./gradlew build --stacktrace
+      - name: Create Prism release
         if: success()
-        run: |
-          JAR=$(ls build/libs/*.jar | head -n1)
-          echo "Built $JAR"
-          ls -lh build/libs/
-          git config user.name "arena-agent"
-          git config user.email "arena-agent@users.noreply.github.com"
-          git fetch origin dist-jar 2>&1 || true
-          git checkout -B dist-jar
-          cp "$JAR" ./simplecolonies-prism.jar
-          git add -f simplecolonies-prism.jar
-          git commit -m "jar $GITHUB_SHA" || true
-          git push -f origin dist-jar
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: prism-${{ github.sha }}
+          name: SimpleColonies Prism build ${{ github.sha }}
+          body: |
+            Prism-ready jar for branch arena/957b7435-simple
+            Commit: ${{ github.sha }}
+            Download simplecolonies-prism.jar below and drop in Prism mods folder.
+            Requires: NeoForge 1.21.1 (21.1.265), Java 21. Optional: Create 6.x + Create Aeronautics.
+          files: build/libs/*.jar
+          prerelease: true
+          generate_release_notes: false
