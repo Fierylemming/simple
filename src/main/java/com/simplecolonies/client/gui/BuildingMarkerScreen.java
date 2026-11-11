@@ -73,7 +73,7 @@ public class BuildingMarkerScreen extends AbstractContainerScreen<BuildingMarker
         g.drawString(font, "Marker "+menu.markerPos.toShortString(), x,y, C_TEXT,false);
         String cur = menu.currentType==null? "Not designated - pick a type below": "Now: "+menu.currentType.displayName+" OK";
         g.drawString(font, cur, x,y+10, menu.currentType==null?C_RED:C_GREEN,false);
-        g.drawString(font, "Colony "+menu.colony.getCulture().displayName+" #"+menu.colony.getId()+" - Leader: "+(menu.colony.isLeader(menu.player)?"You":menu.colony.getLeaderId()!=null?"Other":"none"), x,y+20, C_MUTED,false);
+        g.drawString(font, "Colony "+menu.markerPos.toShortString(), x,y+20, C_MUTED,false);
         g.drawString(font, "Choose what your build counts as - villagers use chests near marker.", x0+12, y0+50, C_MID,false);
         // help footer
         int fx=x0+12, fy=y0+168;
