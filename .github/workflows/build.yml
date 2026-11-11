@@ -6,6 +6,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -15,10 +17,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Build jar
         run: |
+          set +e
           ./gradlew build --stacktrace 2>&1 | tee /tmp/build.log
           EC=${PIPESTATUS[0]}
-          if [ $EC -ne 0 ]; then
-            echo "::error::Build failed — tail:"
-            tail -n 100 /tmp/build.log | while read line; do echo "::error::$line"; done
-          fi
+          echo "----TAIL 200---"
+          tail -n 200 /tmp/build.log
+          echo "----ERRORS---"
+          grep -n "error:" /tmp/build.log | head -n 100 || true
+          grep "FAILED" /tmp/build.log | head -n 20 || true
           exit $EC
+      - name: Upload log on failure
+        if: failure()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-log-${{ github.sha }}
+          name: Build log ${{ github.sha }}
+          body: "Build failed — see log asset"
+          files: /tmp/build.log
+          prerelease: true
