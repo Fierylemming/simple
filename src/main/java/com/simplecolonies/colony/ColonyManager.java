@@ -122,18 +122,27 @@ public class ColonyManager {
             var type = com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get();
             var villager = type.create(level);
             if (villager == null) return;
-            // Find ground
-            BlockPos spawnPos = pos;
-            for (int dy = 5; dy >= -5; dy--) {
-                BlockPos check = pos.offset(0, dy, 0);
-                if (level.getBlockState(check.below()).isSolid() && level.getBlockState(check).isAir()) { spawnPos = check; break; }
-            }
+            BlockPos spawnPos = findSafeSpawn(level, pos);
             villager.moveTo(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5, level.random.nextFloat() * 360, 0);
             villager.finalizeSpawn(level, level.getCurrentDifficultyAt(spawnPos), net.minecraft.world.entity.MobSpawnType.STRUCTURE, null);
             villager.setColony(colony);
             villager.setJob(job);
             level.addFreshEntity(villager);
-        } catch (Exception e) { SimpleColonies.LOGGER.warn("Failed to spawn villager for colony #{}: {}", colony.getId(), e.getMessage()); }
+            SimpleColonies.LOGGER.info("Spawned {} for colony #{} at {}", job.name(), colony.getId(), spawnPos.toShortString());
+        } catch (Exception e) { SimpleColonies.LOGGER.warn("Failed to spawn villager for colony #{}: {}", colony.getId(), e.getMessage()); e.printStackTrace(); }
+    }
+
+    private BlockPos findSafeSpawn(ServerLevel level, BlockPos pos) {
+        // Try exact, then heightmap, then search 5x5
+        if (level.getBlockState(pos).isAir() && level.getBlockState(pos.below()).isSolidRender(level, pos.below())) return pos;
+        int y = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, pos.getX(), pos.getZ());
+        BlockPos h = new BlockPos(pos.getX(), y, pos.getZ());
+        if (level.getBlockState(h).isAir() && level.getBlockState(h.below()).isSolidRender(level, h.below())) return h;
+        for (int dx = -3; dx <= 3; dx++) for (int dz = -3; dz <= 3; dz++) for (int dy = -2; dy <= 4; dy++) {
+            BlockPos p = pos.offset(dx, dy, dz);
+            if (level.getBlockState(p).isAir() && level.getBlockState(p.below()).isSolidRender(level, p.below())) return p;
+        }
+        return pos.above();
     }
 
     private void placeTownHallIfNeeded(ServerLevel level, Colony colony) {

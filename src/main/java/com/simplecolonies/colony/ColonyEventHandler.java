@@ -2,6 +2,7 @@ package com.simplecolonies.colony;
 
 import com.simplecolonies.SimpleColonies;
 import com.simplecolonies.entity.ColonyVillager;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -47,21 +48,40 @@ public class ColonyEventHandler {
     private static int naturalSpawnCooldown = 0;
     private static void trySpawnNaturalColonies(ServerLevel level) {
         if (!level.dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) return;
-        if (ColonyManager.getInstance().colonyCount() >= 4) return; // cap natural
+        if (ColonyManager.getInstance().colonyCount() >= 6) return;
+        // 1) Retroactively colonize any vanilla village farm the player is standing near (fixes screenshot: roman field with no villagers)
+        for (var player : level.players()) {
+            if (tickCounter % 40 != 0) break; // check slowly
+            BlockPos ppos = player.blockPosition();
+            if (ColonyManager.getInstance().getColonyAt(ppos).isPresent()) continue;
+            // If near farmland or structure, create colony at nearest farm centre
+            BlockPos farmPos = findNearbyFarmland(level, ppos, 32);
+            if (farmPos != null) {
+                var biome = level.getBiome(farmPos);
+                var culture = com.simplecolonies.culture.CultureType.fromBiomeTemperature(biome.value().getBaseTemperature(), biome);
+                var tag = com.simplecolonies.worldgen.ModWorldGen.tag(culture.id);
+                // allow even if tag mismatch — just use culture from temp, but prefer tag biomes
+                var colony = ColonyManager.getInstance().createColony(level, culture, farmPos);
+                if (colony != null) {
+                    SimpleColonies.LOGGER.info("Retroactively spawned {} colony #{} at player farm {} for {}", culture.displayName, colony.getId(), farmPos.toShortString(), player.getName().getString());
+                    level.players().forEach(pl -> pl.displayClientMessage(net.minecraft.network.chat.Component.literal("§aDiscovered " + culture.displayName + " colony #" + colony.getId() + " — villagers spawning!"), false));
+                    return;
+                }
+            }
+        }
         if (naturalSpawnCooldown-- > 0) return;
-        naturalSpawnCooldown = 6000; // ~5 mins
+        naturalSpawnCooldown = 1200; // ~1 min, more aggressive
         var center = level.getSharedSpawnPos();
         var r = level.random;
-        for (int attempt = 0; attempt < 20; attempt++) {
-            int dx = r.nextInt(2000) - 1000;
-            int dz = r.nextInt(2000) - 1000;
+        for (int attempt = 0; attempt < 30; attempt++) {
+            int dx = r.nextInt(2400) - 1200;
+            int dz = r.nextInt(2400) - 1200;
             var pos = center.offset(dx, 0, dz);
             pos = new net.minecraft.core.BlockPos(pos.getX(), level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, pos.getX(), pos.getZ()), pos.getZ());
             if (level.getBlockState(pos.below()).isAir()) continue;
             if (ColonyManager.getInstance().getColonyAt(pos).isPresent()) continue;
             var biome = level.getBiome(pos);
             var culture = com.simplecolonies.culture.CultureType.fromBiomeTemperature(biome.value().getBaseTemperature(), biome);
-            // Only spawn in matching tagged biome
             var tag = com.simplecolonies.worldgen.ModWorldGen.tag(culture.id);
             if (!level.getBiome(pos).is(tag)) continue;
             var colony = ColonyManager.getInstance().createColony(level, culture, pos);
@@ -70,6 +90,13 @@ public class ColonyEventHandler {
             }
             break;
         }
+    }
+
+    private static BlockPos findNearbyFarmland(ServerLevel level, BlockPos from, int radius) {
+        for (BlockPos p : BlockPos.betweenClosed(from.offset(-radius, -6, -radius), from.offset(radius, 6, radius))) {
+            if (level.getBlockState(p).is(net.minecraft.world.level.block.Blocks.FARMLAND)) return p.immutable().above().above(); // centre above farm
+        }
+        return null;
     }
 
     @SubscribeEvent
