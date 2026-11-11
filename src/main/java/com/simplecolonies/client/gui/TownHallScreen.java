@@ -103,8 +103,8 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
             }
             case 2 -> {
                 String[] bt = {"House","Farm","Lumber","Mine","Barracks"};
-                int[] ids = {TownHallMenu.BTN_ADD_BUILDING_HOUSE,TownHallMenu.BTN_ADD_BUILDING_FARM,TownHallMenu.BTN_ADD_BUILDING_LUMBER,TownHallMenu.BTN_ADD_BUILDING_MINE,TownHallMenu.BTN_ADD_BUILDING_BARRACKS};
-                for (int i=0;i<bt.length;i++) addRenderableWidget(Button.builder(Component.literal(bt[i]), b->send(ids[i])).bounds(btnX+i*64, btnY, 60, 16).build());
+                int[] ids2 = {TownHallMenu.BTN_ADD_BUILDING_HOUSE,TownHallMenu.BTN_ADD_BUILDING_FARM,TownHallMenu.BTN_ADD_BUILDING_LUMBER,TownHallMenu.BTN_ADD_BUILDING_MINE,TownHallMenu.BTN_ADD_BUILDING_BARRACKS};
+                for (int i=0;i<bt.length;i++) { final int idx=i; addRenderableWidget(Button.builder(Component.literal(bt[idx]), b->send(ids2[idx])).bounds(btnX+idx*64, btnY, 60, 16).build()); }
             }
             case 3 -> {}
             case 4 -> {
