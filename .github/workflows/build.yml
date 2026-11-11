@@ -14,20 +14,29 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - name: Build
+        id: build
         run: |
+          set +e
           ./gradlew build --stacktrace --info 2>&1 | tee build.log
-          echo "EXIT:$?"
-          cat build.log | grep -A2 -B2 "error\|Error\|FAILURE" | head -n 400
-        continue-on-error: true
-      - name: Upload logs always
+          EC=${PIPESTATUS[0]}
+          echo "EXIT_CODE=$EC" >> $GITHUB_OUTPUT
+          # also save failures
+          grep -i -A5 "error:" build.log | head -n 200 > errors.txt || true
+          grep -i "FAILURE\|BUILD FAILED" build.log | head -n 50 >> errors.txt || true
+          cat build.log | tail -n 150 > tail.log
+          exit 0
+      - name: Publish log to branch
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: |
-            build.log
-            build/reports/**/*
-          if-no-files-found: warn
+        run: |
+          git config user.name "arena-agent"
+          git config user.email "arena-agent@users.noreply.github.com"
+          git checkout --orphan build-log-temp || git checkout -B build-log-temp
+          cp "$GITHUB_WORKSPACE/build.log" ./build.log 2>/dev/null || echo "no log" > build.log
+          cp "$GITHUB_WORKSPACE/errors.txt" ./errors.txt 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/tail.log" ./tail.log 2>/dev/null || true
+          git add -f build.log errors.txt tail.log
+          git commit -m "build log $GITHUB_RUN_ID" || true
+          git push -f origin build-log-temp 2>&1 | tail -n 20
       - name: Upload jar if built
         if: always()
         uses: actions/upload-artifact@v4
