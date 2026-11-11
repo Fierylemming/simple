@@ -16,20 +16,13 @@ jobs:
         with:
           cache-disabled: true
       - name: Build jar
-        run: ./gradlew build --no-configuration-cache --rerun-tasks --stacktrace
-      - name: Upload Prism jar
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: simplecolonies-prism-jar
-          path: build/libs/*.jar
-          if-no-files-found: error
-      - name: Create Release
-        if: success()
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: prism-${{ github.sha }}
-          name: Prism build ${{ github.sha }}
-          body: "Drop in Prism mods folder. NeoForge 1.21.1 + optional Create."
-          files: build/libs/*.jar
-          prerelease: true
+        run: |
+          set +e
+          ./gradlew build --no-configuration-cache --stacktrace 2>&1 | tee /tmp/build.log
+          EC=${PIPESTATUS[0]}
+          echo "EXIT $EC" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -n 500 /tmp/build.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          grep -n "error:" /tmp/build.log | head -n 50 >> $GITHUB_STEP_SUMMARY || true
+          exit $EC
