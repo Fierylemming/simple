@@ -29,6 +29,9 @@ public class SimpleColonies {
     public SimpleColonies(IEventBus modEventBus, ModContainer modContainer) {
         LOGGER.info("[SimpleColonies] Initializing {} - Ancient Villages for MC 1.21.1 / NeoForge {}", MOD_ID, "21.1.265");
 
+        com.simplecolonies.villager.ColonyProfessions.POIS.register(modEventBus);
+        com.simplecolonies.villager.ColonyProfessions.PROFESSIONS.register(modEventBus);
+        NeoForge.EVENT_BUS.addListener(com.simplecolonies.villager.ColonyProfessions::addTrades);
         ModBlocks.BLOCKS.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
         ModEntities.ENTITY_TYPES.register(modEventBus);

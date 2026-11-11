@@ -118,9 +118,10 @@ public class Colony {
 
         long day = Math.floorDiv(level.getDayTime(), 24000L);
         if (lastSimulatedDay < 0 || day < lastSimulatedDay) lastSimulatedDay = day;
-        boolean isNewDay = day > lastSimulatedDay;
-        if (isNewDay) {
-            lastSimulatedDay = day;
+        // Process a bounded batch each tick so enormous /time jumps cannot freeze the server.
+        // The persisted cursor is advanced only after each individual day has run.
+        int dailyBudget = DailyCatchUp.batchSize(lastSimulatedDay, day, 64);
+        while (dailyBudget-- > 0) {
             int neededFood = (int) Math.ceil(citizens.size() * com.simplecolonies.config.ColonyConfig.FOOD_CONSUMPTION_MULTIPLIER.get());
             int availableFood = countFoodInWarehouse(level);
             if (availableFood >= neededFood) {
@@ -145,6 +146,13 @@ public class Colony {
                 }
             }
 
+            for (CitizenData citizen : List.copyOf(citizens.values())) {
+                citizen.queueDailyHealth(state == ColonyState.STARVING);
+                if (level.getEntity(citizen.uuid) instanceof com.simplecolonies.entity.ColonyVillager villager) {
+                    villager.applyPendingDailyHealth(citizen);
+                }
+            }
+
             // Vanilla-like breeding: if housed + fed, consume 3 bread per baby and spawn near a House
             tryBreed(level);
 
@@ -157,6 +165,7 @@ public class Colony {
             }
             // Progression: village can self-unlock research if it has surplus
             researchManager.tickAutoProgress(level);
+            lastSimulatedDay++;
         }
 
         for (Building b : buildings) {

@@ -6,6 +6,10 @@ import com.simplecolonies.colony.ColonyManager;
 import com.simplecolonies.menu.VillagerInteractionMenu;
 import com.simplecolonies.villager.job.*;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.GlobalPos;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.npc.VillagerData;
+import com.simplecolonies.villager.ColonyProfessions;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -31,6 +35,7 @@ public class ColonyVillager extends Villager {
     private int colonyId = -1;
     private JobType job = JobType.UNEMPLOYED;
     private AbstractJob jobInstance;
+    private boolean suppressVanillaBrainReset;
 
     // Needs
     private int hungerTicks = 0; // increments daily if no food, leads to damage
@@ -77,6 +82,7 @@ public class ColonyVillager extends Villager {
     public JobType getColonyJob() { return job; }
     public String getWorkStatus() {
         if (isBaby()) return "CHILD";
+        if (job != JobType.UNEMPLOYED && !getBrain().hasMemoryValue(MemoryModuleType.JOB_SITE)) return "WAITING_FOR_WORKSTATION";
         return jobInstance == null ? "IDLE" : jobInstance.getState().name();
     }
     public boolean isColonyCitizen() { return colonyId != -1; }
@@ -91,8 +97,17 @@ public class ColonyVillager extends Villager {
     }
 
     public void setJob(JobType newJob) {
+        boolean changed = this.job != newJob;
+        if (changed && !level().isClientSide) {
+            if (getTradingPlayer() instanceof ServerPlayer player) player.closeContainer();
+            setTradingPlayer(null);
+            clearWorkMemories();
+            this.offers = null;
+            setVillagerXp(0);
+        }
         this.job = newJob;
         this.jobInstance = createJobInstance(newJob);
+        if (!level().isClientSide) syncProfession(changed);
         // Update citizen record
         Colony colony = ColonyManager.getInstance().getColony(colonyId).orElse(null);
         if (colony != null) {
@@ -127,8 +142,76 @@ public class ColonyVillager extends Villager {
         };
     }
 
+    // Vanilla ResetProfession/AssignProfessionFromJobSite must not overwrite a colony job.
+    @Override
+    public void setVillagerData(VillagerData data) {
+        if (!level().isClientSide && colonyId != -1 && job != null
+                && data.getProfession() != ColonyProfessions.profession(job)) {
+            suppressVanillaBrainReset = true;
+            return;
+        }
+        super.setVillagerData(data);
+    }
+
+    @Override
+    public void refreshBrain(ServerLevel level) {
+        if (suppressVanillaBrainReset) {
+            suppressVanillaBrainReset = false;
+            return;
+        }
+        super.refreshBrain(level);
+    }
+
+    private void clearWorkMemories() {
+        releasePoi(MemoryModuleType.JOB_SITE);
+        releasePoi(MemoryModuleType.POTENTIAL_JOB_SITE);
+        getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
+        getBrain().eraseMemory(MemoryModuleType.POTENTIAL_JOB_SITE);
+    }
+
+    private void syncProfession(boolean resetLevel) {
+        var expected = ColonyProfessions.profession(job);
+        if (getVillagerData().getProfession() != expected) {
+            // Release a pre-existing vanilla ticket using its old profession first.
+            clearWorkMemories();
+            setVillagerXp(0);
+            super.setVillagerData(getVillagerData().setProfession(expected).setLevel(1));
+            suppressVanillaBrainReset = false;
+            if (level() instanceof ServerLevel serverLevel) super.refreshBrain(serverLevel);
+        } else if (resetLevel) {
+            super.setVillagerData(getVillagerData().setLevel(1));
+        }
+    }
+
+    private boolean updateWorkstation(ServerLevel level, Colony colony) {
+        syncProfession(false);
+        // Legacy potential sites may have been claimed before conversion.
+        if (getBrain().hasMemoryValue(MemoryModuleType.POTENTIAL_JOB_SITE)) {
+            releasePoi(MemoryModuleType.POTENTIAL_JOB_SITE);
+            getBrain().eraseMemory(MemoryModuleType.POTENTIAL_JOB_SITE);
+        }
+        if (job == JobType.UNEMPLOYED || isBaby()) return false;
+        var site = getBrain().getMemory(MemoryModuleType.JOB_SITE);
+        if (site.isPresent()) {
+            var pos = site.get();
+            if (!pos.dimension().equals(level.dimension())) { clearWorkMemories(); return false; }
+            if (!level.isLoaded(pos.pos())) return false; // Don't load chunks or discard a valid ticket.
+            if (colony.isInside(pos.pos()) && level.getPoiManager().getType(pos.pos())
+                    .filter(getVillagerData().getProfession().heldJobSite()).isPresent()) return true;
+            clearWorkMemories();
+        }
+        if (level.getGameTime() % 40 != 0) return false;
+        var found = level.getPoiManager().take(getVillagerData().getProfession().heldJobSite(),
+                (holder, pos) -> level.isLoaded(pos) && colony.isInside(pos), colony.getCenter(), colony.getRadius());
+        found.ifPresent(pos -> getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(level.dimension(), pos)));
+        return found.isPresent();
+    }
+
     @Override
     public void tick() {
+        if (!level().isClientSide && level() instanceof ServerLevel sl && colonyId != -1) {
+            ColonyManager.getInstance().getColony(colonyId).ifPresent(c -> updateWorkstation(sl, c));
+        }
         super.tick();
         // Lazy recreate job instance after reload if null
         if (jobInstance == null && job != JobType.UNEMPLOYED) {
@@ -139,25 +222,34 @@ public class ColonyVillager extends Villager {
             if (colony == null) return;
 
             // Children should grow up before taking a job.
-            if (!isBaby() && jobInstance != null) jobInstance.tick(sl);
+            if (!isBaby() && jobInstance != null && updateWorkstation(sl, colony)) jobInstance.tick(sl);
 
-            // Hunger / health daily
-            if (level().getGameTime() % 24000 == 0) {
-                daysAlive++;
-                if (colony.getState() == com.simplecolonies.colony.ColonyState.STARVING) {
-                    hungerTicks++;
-                    if (hungerTicks > 3) {
-                        hurt(damageSources().starve(), 2.0f);
-                        addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.WEAKNESS, 6000, 0));
-                    }
-                } else {
-                    hungerTicks = 0;
-                    heal(1.0f);
-                }
-            }
+            colony.getCitizens().stream().filter(c -> c.uuid.equals(getUUID())).findFirst()
+                    .ifPresent(this::applyPendingDailyHealth);
             // Show job icon above head if client config enabled
             // (handled via custom renderer; placeholder is nameplate)
         }
+    }
+
+    /** Apply exactly the days simulated by the colony, even after a chunk reload. */
+    public void applyPendingDailyHealth(CitizenData citizen) {
+        var pending = citizen.takePendingHealthDays();
+        if (pending.isEmpty()) return;
+        for (byte starving : pending) {
+            if (!isAlive()) break;
+            daysAlive++;
+            if (starving != 0) {
+                hungerTicks++;
+                if (hungerTicks > 3) {
+                    hurt(damageSources().starve(), 2.0f);
+                    addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.WEAKNESS, 6000, 0));
+                }
+            } else {
+                hungerTicks = 0;
+                heal(1.0f);
+            }
+        }
+        ColonyManager.getInstance().getColony(colonyId).ifPresent(ColonyManager.getInstance()::markDirty);
     }
 
     @Override

@@ -18,6 +18,15 @@ public class CitizenData {
     public int daysEmployed;
     public boolean isSoldier;
     public boolean isChild;
+    // Each entry is one simulated day; kept for citizens in unloaded chunks.
+    private final java.util.List<Byte> pendingHealthDays = new java.util.ArrayList<>();
+
+    public void queueDailyHealth(boolean starving) { pendingHealthDays.add((byte) (starving ? 1 : 0)); }
+    public java.util.List<Byte> takePendingHealthDays() {
+        var result = new java.util.ArrayList<>(pendingHealthDays);
+        pendingHealthDays.clear();
+        return result;
+    }
 
     public CitizenData(UUID uuid, String name, JobType job) {
         this.uuid = uuid;
@@ -38,6 +47,9 @@ public class CitizenData {
         tag.putInt("daysEmployed", daysEmployed);
         tag.putBoolean("isSoldier", isSoldier);
         tag.putBoolean("isChild", isChild);
+        byte[] days = new byte[pendingHealthDays.size()];
+        for (int i = 0; i < days.length; i++) days[i] = pendingHealthDays.get(i);
+        tag.putByteArray("pendingHealthDays", days);
         return tag;
     }
 
@@ -51,6 +63,7 @@ public class CitizenData {
         d.daysEmployed = tag.getInt("daysEmployed");
         d.isSoldier = tag.getBoolean("isSoldier");
         d.isChild = tag.getBoolean("isChild");
+        for (byte day : tag.getByteArray("pendingHealthDays")) d.pendingHealthDays.add(day);
         return d;
     }
 }
