@@ -39,7 +39,11 @@ public class FarmerJob extends AbstractJob {
                 if (harvested >= 3) break;
             }
         }
-        if (harvested == 0) ticksUntilNextWork = 100;
+        if (harvested == 0) {
+            // No crops ready — forage surface cobble/coal so Stone tier is reachable without Miner (fixes chicken-egg)
+            ForagerJob.tryForageSurfaceCobble(villager, colony, level);
+            ticksUntilNextWork = 100;
+        }
     }
 
     private BlockPos findFarmlandNear(ServerLevel level, BlockPos from) {

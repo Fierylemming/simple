@@ -45,6 +45,10 @@ public class WoodcutterJob extends AbstractJob {
                 if (plantPos != null) level.setBlock(plantPos, Blocks.OAK_SAPLING.defaultBlockState(), 3);
             }
         }
+        if (harvested == 0) {
+            // No trees nearby — forage surface stone/cobble so village can bootstrap Stone tools without Miner
+            ForagerJob.tryForageSurfaceCobble(villager, colony, level);
+        }
         ticksUntilNextWork = harvested > 0 ? 30 : 60;
     }
 

@@ -77,10 +77,14 @@ public class ColonyManager {
             var list = (java.util.List<com.simplecolonies.building.Building>) f.get(colony);
             list.add(starterHouse);
             list.add(starterFarm);
-            // Starter warehouse chest hub with wood for early game
+            // Starter warehouse chest hub with wood + starter cobble/coal so Farmer+Lumberjack can bootstrap Stone tier without Miner
+            // Fixes: with only Farmer+Woodcutter, how does village get cobble for Stone tools? Answer: starter stash + foraging
             colony.depositToWarehouse("minecraft:oak_planks", 32);
             colony.depositToWarehouse("minecraft:oak_log", 16);
             colony.depositToWarehouse("minecraft:bread", 16);
+            colony.depositToWarehouse("minecraft:cobblestone", 32); // starter rocks for Stone tools → Miner
+            colony.depositToWarehouse("minecraft:coal", 8);
+            colony.depositToWarehouse("minecraft:stick", 16);
             // Culture-specific starter mats: Greek wood, Egyptian sandstone, etc at tier 1
             var tier = com.simplecolonies.building.MaterialProgression.get(culture, 1);
             String primaryItem = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(tier.primary().get(0).asItem()).toString();
