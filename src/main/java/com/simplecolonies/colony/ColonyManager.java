@@ -100,6 +100,7 @@ public class ColonyManager {
         // Spawn initial villagers so village can progress immediately
         if (level == null && server != null) level = server.getLevel(Level.OVERWORLD);
         if (level != null) {
+            placeStarterStructures(level, colony);
             spawnInitialVillagers(level, colony);
             placeTownHallIfNeeded(level, colony);
         }
@@ -152,6 +153,66 @@ public class ColonyManager {
             var be = level.getBlockEntity(p);
             if (be instanceof com.simplecolonies.block.entity.TownHallBlockEntity th) th.setColonyId(colony.getId());
         }
+    }
+
+    private void placeStarterStructures(ServerLevel level, Colony colony) {
+        BlockPos c = colony.getCenter();
+        // House at +6,0,0 : 7x7 platform with walls, door, bed, chest — always visible
+        placeSimpleHouse(level, c.offset(6, 0, 0), colony.getCulture());
+        // Farm is already there via vanilla structure, but ensure our offset farm also has farmland if empty
+        // Only place if no farmland nearby (avoid overwriting vanilla farm)
+        BlockPos farmPos = c.offset(-8, 0, 0);
+        boolean hasFarm = false;
+        for (BlockPos p : BlockPos.betweenClosed(farmPos.offset(-4, -1, -4), farmPos.offset(4, 2, 4))) {
+            if (level.getBlockState(p).is(net.minecraft.world.level.block.Blocks.FARMLAND)) { hasFarm = true; break; }
+        }
+        if (!hasFarm) placeSimpleFarm(level, farmPos);
+    }
+
+    private void placeSimpleHouse(ServerLevel level, BlockPos origin, com.simplecolonies.culture.CultureType culture) {
+        var palette = com.simplecolonies.building.MaterialProgression.get(culture, 1).primary();
+        var wood = palette.isEmpty() ? net.minecraft.world.level.block.Blocks.OAK_PLANKS.defaultBlockState() : palette.get(0).defaultBlockState();
+        var cobble = net.minecraft.world.level.block.Blocks.COBBLESTONE.defaultBlockState();
+        // Clear 7x7 area to ground
+        for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) {
+            BlockPos p = origin.offset(x, -1, z);
+            if (level.getBlockState(p).isAir() || level.getBlockState(p).canBeReplaced()) level.setBlock(p, cobble, 3);
+            for (int y = 0; y < 4; y++) {
+                BlockPos pp = origin.offset(x, y, z);
+                if (level.getBlockState(pp).canBeReplaced()) level.setBlock(pp, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+            }
+        }
+        // Floor
+        for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) level.setBlock(origin.offset(x, -1, z), wood, 3);
+        // Walls 3 high
+        for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) if (x == -3 || x == 3 || z == -3 || z == 3) {
+            for (int y = 0; y < 3; y++) level.setBlock(origin.offset(x, y, z), y == 2 && (x == 0 && z == -3) ? net.minecraft.world.level.block.Blocks.AIR.defaultBlockState() : cobble, 3);
+        }
+        // Door
+        level.setBlock(origin.offset(0, 0, -3), net.minecraft.world.level.block.Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.SOUTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER), 3);
+        level.setBlock(origin.offset(0, 1, -3), net.minecraft.world.level.block.Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.SOUTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER), 3);
+        // Beds (housingCapacity needs beds)
+        level.setBlock(origin.offset(-2, 0, 0), net.minecraft.world.level.block.Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.FOOT), 3);
+        level.setBlock(origin.offset(-1, 0, 0), net.minecraft.world.level.block.Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.HEAD), 3);
+        level.setBlock(origin.offset(-2, 0, 1), net.minecraft.world.level.block.Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.FOOT), 3);
+        level.setBlock(origin.offset(-1, 0, 1), net.minecraft.world.level.block.Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.HEAD), 3);
+        // Chest + crafting
+        level.setBlock(origin.offset(2, 0, 2), net.minecraft.world.level.block.Blocks.CHEST.defaultBlockState(), 3);
+        level.setBlock(origin.offset(2, 0, -2), net.minecraft.world.level.block.Blocks.CRAFTING_TABLE.defaultBlockState(), 3);
+        level.setBlock(origin.offset(0, 0, 2), net.minecraft.world.level.block.Blocks.TORCH.defaultBlockState(), 3);
+    }
+
+    private void placeSimpleFarm(ServerLevel level, BlockPos origin) {
+        for (int x = -4; x <= 4; x++) for (int z = -4; z <= 4; z++) {
+            BlockPos p = origin.offset(x, -1, z);
+            if (level.getBlockState(p).isAir() || level.getBlockState(p).canBeReplaced()) level.setBlock(p, net.minecraft.world.level.block.Blocks.FARMLAND.defaultBlockState().setValue(net.minecraft.world.level.block.FarmBlock.MOISTURE, 7), 3);
+            BlockPos above = origin.offset(x, 0, z);
+            if (x == 0) level.setBlock(above, net.minecraft.world.level.block.Blocks.WATER.defaultBlockState(), 3);
+            else if (level.getBlockState(above).isAir()) level.setBlock(above, net.minecraft.world.level.block.Blocks.WHEAT.defaultBlockState().setValue(net.minecraft.world.level.block.CropBlock.AGE, 7), 3);
+        }
+        // Border fence
+        for (int x = -5; x <= 5; x++) for (int z = -5; z <= 5; z++) if (x == -5 || x == 5 || z == -5 || z == 5) level.setBlock(origin.offset(x, 0, z), net.minecraft.world.level.block.Blocks.OAK_FENCE.defaultBlockState(), 3);
+        level.setBlock(origin.offset(2, 0, 0), net.minecraft.world.level.block.Blocks.COMPOSTER.defaultBlockState(), 3);
     }
 
     public Optional<Colony> getColony(int id) { return Optional.ofNullable(colonies.get(id)); }
