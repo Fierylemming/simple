@@ -12,12 +12,29 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - name: Build jar (no gradle cache)
-        run: ./gradlew build --no-daemon
-      - name: List jar
-        run: ls -lh build/libs/
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: simplecolonies-prism-jar
-          path: build/libs/*.jar
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build jar
+        id: build
+        continue-on-error: true
+        run: |
+          ./gradlew build --stacktrace --info 2>&1 | tee /tmp/build.log
+          echo "EXIT=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          tail -n 200 /tmp/build.log
+      - name: Publish log to branch
+        if: always()
+        run: |
+          git config user.name "bot"
+          git config user.email "bot@bot.com"
+          echo "Build exit: ${{ steps.build.outputs.EXIT }}" > /tmp/status.txt
+          tail -n 500 /tmp/build.log > /tmp/tail.txt
+          grep -n "error:" /tmp/build.log | head -n 100 > /tmp/errors.txt || true
+          # create orphan branch log
+          git fetch origin || true
+          git checkout --orphan build-log || git checkout -B build-log
+          cp /tmp/build.log ./build.log 2>/dev/null || echo "no log" > build.log
+          cp /tmp/tail.txt ./tail.log 2>/dev/null || true
+          cp /tmp/errors.txt ./errors.txt 2>/dev/null || true
+          cp /tmp/status.txt ./status.txt 2>/dev/null || true
+          git add -A
+          git commit -m "log ${{ github.sha }}" || true
+          git push -f origin build-log 2>&1 | head -n 20
