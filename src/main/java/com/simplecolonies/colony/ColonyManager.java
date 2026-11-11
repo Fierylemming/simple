@@ -42,7 +42,7 @@ public class ColonyManager {
         ServerLevel overworld = server.getLevel(Level.OVERWORLD);
         if (overworld != null) {
             DimensionDataStorage storage = overworld.getDataStorage();
-            holder = storage.computeIfAbsent(new SavedData.Factory<>(SavedDataHolder::new, SavedDataHolder::load), "simplecolonies");
+            holder = storage.computeIfAbsent(new SavedData.Factory<>(SavedDataHolder::new, (tag, provider) -> SavedDataHolder.load(tag), null), "simplecolonies");
             colonies.clear();
             colonies.putAll(holder.colonies);
             nextId = holder.nextId;

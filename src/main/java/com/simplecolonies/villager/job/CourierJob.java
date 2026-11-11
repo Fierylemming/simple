@@ -81,6 +81,5 @@ public class CourierJob extends AbstractJob {
     protected int getWorkInterval() { return 10; } // courier is quick
 
     // Make courier pathfind faster
-    @Override
     protected void doWorkPatched(ServerLevel level) { doWork(level); } // placeholder for speed modifier hook
 }

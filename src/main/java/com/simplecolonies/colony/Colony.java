@@ -236,10 +236,10 @@ public class Colony {
         return buildings.size() >= requiredBuildings && citizenCount() >= level * 8;
     }
 
-    private void levelUp(ServerLevel level) {
-        level++;
-        radius = 32 + level * 16;
-        broadcast(Component.literal("§6§lColony #" + id + " leveled up to " + ColonyLevel.fromLevel(level).displayName + "! Radius now " + radius + " blocks."));
+    private void levelUp(ServerLevel lvl) {
+        this.level++;
+        radius = 32 + this.level * 16;
+        broadcast(Component.literal("§6§lColony #" + id + " leveled up to " + ColonyLevel.fromLevel(this.level).displayName + "! Radius now " + radius + " blocks."));
     }
 
     private BlockPos findBuildSite(ServerLevel level, BuildingType type) {

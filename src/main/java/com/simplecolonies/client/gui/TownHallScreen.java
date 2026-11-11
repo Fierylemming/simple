@@ -36,10 +36,10 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
     @Override
     protected void init() {
         super.init();
-        rebuildWidgets();
+        refreshWidgets();
     }
 
-    private void rebuildWidgets() {
+    private void refreshWidgets() {
         clearWidgets();
         int x = leftPos;
         int y = topPos;
@@ -49,7 +49,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
             String label = tabs[i];
             // Shorten for narrow tabs
             if (label.equals("Citizens")) label = "Citizens(" + menu.colony.citizenCount() + ")";
-            Button tab = Button.builder(Component.literal(label), b -> { currentTab = idx; rebuildWidgets(); })
+            Button tab = Button.builder(Component.literal(label), b -> { currentTab = idx; refreshWidgets(); })
                     .bounds(x + 4 + i * 42, y + 18, 40, 14)
                     .build();
             addRenderableWidget(tab);
@@ -67,8 +67,8 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
             case 1 -> {
                 var citizens = menu.getCitizensSorted();
                 if (citizens.size() > 4) {
-                    addRenderableWidget(Button.builder(Component.literal("▲"), b -> { if (citizenScroll > 0) citizenScroll--; rebuildWidgets(); }).bounds(x + imageW - 22, btnY, 14, 14).build());
-                    addRenderableWidget(Button.builder(Component.literal("▼"), b -> { if (citizenScroll + 4 < citizens.size()) citizenScroll++; rebuildWidgets(); }).bounds(x + imageW - 22, btnY + 50, 14, 14).build());
+                    addRenderableWidget(Button.builder(Component.literal("▲"), b -> { if (citizenScroll > 0) citizenScroll--; refreshWidgets(); }).bounds(x + imageW - 22, btnY, 14, 14).build());
+                    addRenderableWidget(Button.builder(Component.literal("▼"), b -> { if (citizenScroll + 4 < citizens.size()) citizenScroll++; refreshWidgets(); }).bounds(x + imageW - 22, btnY + 50, 14, 14).build());
                 }
             }
             case 2 -> {
@@ -110,8 +110,8 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
                     addRenderableWidget(buy);
                 }
                 if (available.size() > 5) {
-                    addRenderableWidget(Button.builder(Component.literal("▲"), b -> { if (researchScroll > 0) researchScroll--; rebuildWidgets(); }).bounds(x + imageW - 22, btnY, 14, 14).build());
-                    addRenderableWidget(Button.builder(Component.literal("▼"), b -> { if ((researchScroll+1)*5 < available.size()) researchScroll++; rebuildWidgets(); }).bounds(x + imageW - 22, btnY + 70, 14, 14).build());
+                    addRenderableWidget(Button.builder(Component.literal("▲"), b -> { if (researchScroll > 0) researchScroll--; refreshWidgets(); }).bounds(x + imageW - 22, btnY, 14, 14).build());
+                    addRenderableWidget(Button.builder(Component.literal("▼"), b -> { if ((researchScroll+1)*5 < available.size()) researchScroll++; refreshWidgets(); }).bounds(x + imageW - 22, btnY + 70, 14, 14).build());
                 }
             }
         }

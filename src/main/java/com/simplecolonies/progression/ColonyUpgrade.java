@@ -48,16 +48,6 @@ public enum ColonyUpgrade {
             Set.of(TOOL_WOOD), UpgradeCategory.TOOLS,
             "First upgrade — gather cobble/planks with wood"),
 
-    TOOL_IRON("Iron Tools", "Iron tools, 1.6× speed, unlocks Nether-ready & soldier gear", 2,
-            Map.of("minecraft:raw_iron", 16, "minecraft:coal", 8, "minecraft:oak_planks", 8),
-            Set.of(TOOL_STONE, UNLOCK_MINER, UNLOCK_BLACKSMITH), UpgradeCategory.TOOLS,
-            "Needs Miner (raw iron) + Blacksmith (smelts) — both from previous tier"),
-
-    TOOL_DIAMOND("Diamond Tools", "Diamond tools, 2.0× speed, fastest", 3,
-            Map.of("minecraft:diamond", 4, "minecraft:iron_ingot", 8),
-            Set.of(TOOL_IRON), UpgradeCategory.TOOLS,
-            "Late game — Miner at iron tier can mine diamonds"),
-
     // === Profession unlocks — Tier 0 (free) ===
     PROF_FARMER("Farmer", "Unlocks Farmer job", 0,
             Map.of(), Set.of(), UpgradeCategory.PROFESSION,
@@ -103,6 +93,14 @@ public enum ColonyUpgrade {
             Map.of("minecraft:furnace", 2, "minecraft:coal", 8, "minecraft:cobblestone", 16),
             Set.of(UNLOCK_MINER), UpgradeCategory.PROFESSION,
             "Needs Miner to exist (not yet iron), provides smelting for Iron tier"),
+    TOOL_IRON("Iron Tools", "Iron tools, 1.6× speed, unlocks Nether-ready & soldier gear", 2,
+            Map.of("minecraft:raw_iron", 16, "minecraft:coal", 8, "minecraft:oak_planks", 8),
+            Set.of(TOOL_STONE, UNLOCK_MINER, UNLOCK_BLACKSMITH), UpgradeCategory.TOOLS,
+            "Needs Miner (raw iron) + Blacksmith (smelts) — both from previous tier"),
+    TOOL_DIAMOND("Diamond Tools", "Diamond tools, 2.0× speed, fastest", 3,
+            Map.of("minecraft:diamond", 4, "minecraft:iron_ingot", 8),
+            Set.of(TOOL_IRON), UpgradeCategory.TOOLS,
+            "Late game — Miner at iron tier can mine diamonds"),
     UNLOCK_COURIER("Courier", "Unlocks Courier (bulk chest logistics, 9 stacks/trip)", 2,
             Map.of("minecraft:leather", 8, "minecraft:oak_planks", 16, "minecraft:string", 4),
             Set.of(UNLOCK_BUILDER, UNLOCK_BUTCHER), UpgradeCategory.PROFESSION,

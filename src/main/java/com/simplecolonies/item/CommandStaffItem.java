@@ -36,7 +36,7 @@ public class CommandStaffItem extends Item {
     }
 
     @Override
-    public net.minecraft.world.InteractionResult interactEntity(ItemStack stack, Player player, LivingEntity target, InteractionHand hand) {
+    public net.minecraft.world.InteractionResult interactLivingEntity(ItemStack stack, Player player, LivingEntity target, InteractionHand hand) {
         // If target is colony villager soldier, assign commander
         player.displayClientMessage(Component.literal("§eCommand staff used on " + target.getName().getString()), true);
         return net.minecraft.world.InteractionResult.SUCCESS;

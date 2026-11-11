@@ -157,7 +157,7 @@ public class ColonyVillager extends Villager {
     }
 
     @Override
-    protected InteractionResult mobInteract(Player player, InteractionHand hand) {
+    public InteractionResult mobInteract(Player player, InteractionHand hand) {
         if (hand != InteractionHand.MAIN_HAND) return super.mobInteract(player, hand);
         Colony colony = ColonyManager.getInstance().getColony(colonyId).orElse(null);
         // Hold shift -> open custom villager GUI (playable job assign)
