@@ -13,16 +13,10 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
-        with:
-          cache-disabled: true
       - name: Build jar
         run: |
-          set +e
-          ./gradlew build --no-configuration-cache --stacktrace 2>&1 | tee /tmp/build.log
-          EC=${PIPESTATUS[0]}
-          echo "EXIT $EC" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          tail -n 500 /tmp/build.log >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          grep -n "error:" /tmp/build.log | head -n 50 >> $GITHUB_STEP_SUMMARY || true
-          exit $EC
+          ./gradlew build --stacktrace 2>&1 | tee /tmp/build.log
+          echo "===== TAIL ====="
+          tail -n 200 /tmp/build.log
+          echo "===== ERRORS ====="
+          grep -n "error" /tmp/build.log | head -n 100
