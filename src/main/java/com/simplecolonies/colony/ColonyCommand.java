@@ -182,7 +182,6 @@ public class ColonyCommand {
                             ctx.getSource().sendSuccess(() -> Component.literal("Spawned " + culture.displayName + " colony #" + colony.getId() + " at " + colony.getCenter().toShortString() + " with starter cobble/wood — test with /colony warehouse, /colony research, /colony buy TOOL_STONE"), true);
                             return 1;
                         }))
-                )
                 .then(Commands.literal("tp").then(Commands.argument("id", IntegerArgumentType.integer()).executes(ctx -> {
                     int id = IntegerArgumentType.getInteger(ctx, "id");
                     var colony = ColonyManager.getInstance().getColony(id);

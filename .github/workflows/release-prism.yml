@@ -1,12 +1,10 @@
 name: Release Prism jar
 on:
-  push:
-    branches: ['arena/957b7435-simple']
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Git ref to build (default green 1e0749d)'
-        default: '1e0749d'
+        description: 'Git ref to build (default HEAD)'
+        default: 'arena/957b7435-simple'
         required: false
 jobs:
   release:
@@ -16,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || '1e0749d' }}
+          ref: ${{ inputs.ref || github.ref_name }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -31,6 +29,6 @@ jobs:
         with:
           tag_name: prism-${{ github.sha }}
           name: Prism ${{ github.sha }}
-          body: "Drop into Prism mods/. NeoForge 1.21.1 (21.1.265) + Java 21. Optional Create 6.x + Aeronautics."
+          body: "Drop into Prism mods/. NeoForge 1.21.1 (21.1.265) + Java 21."
           files: build/libs/*.jar
           prerelease: true
