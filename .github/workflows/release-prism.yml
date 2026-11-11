@@ -1,0 +1,36 @@
+name: Release Prism jar
+on:
+  push:
+    branches: ['arena/957b7435-simple']
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to build (default green 1e0749d)'
+        default: '1e0749d'
+        required: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || '1e0749d' }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simplecolonies-prism-jar
+          path: build/libs/*.jar
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: prism-${{ github.sha }}
+          name: Prism ${{ github.sha }}
+          body: "Drop into Prism mods/. NeoForge 1.21.1 (21.1.265) + Java 21. Optional Create 6.x + Aeronautics."
+          files: build/libs/*.jar
+          prerelease: true
