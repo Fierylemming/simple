@@ -1,6 +1,7 @@
 package com.simplecolonies.block;
 
 import com.simplecolonies.SimpleColonies;
+import com.simplecolonies.block.entity.TownHallBlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -23,6 +24,6 @@ public class ModBlocks {
     public static final Supplier<Block> WAREHOUSE_CHEST = BLOCKS.register("warehouse_chest",
             () -> new WarehouseBlock(BlockBehaviour.Properties.of().mapColor(MapColor.WOOD).strength(2.5f)));
 
-    // Block entities registered in separate holder - simplified
-    // public static final Supplier<BlockEntityType<TownHallBlockEntity>> TOWN_HALL_BE = ...
+    public static final Supplier<BlockEntityType<TownHallBlockEntity>> TOWN_HALL_BE = BLOCK_ENTITIES.register("town_hall",
+            () -> BlockEntityType.Builder.of(TownHallBlockEntity::new, TOWN_HALL.get()).build(null));
 }

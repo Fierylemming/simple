@@ -1,15 +1,14 @@
 package com.simplecolonies.network;
 
 import com.simplecolonies.SimpleColonies;
-import net.neoforged.bus.api.IEventBus;
 
 /**
- * Networking for Town Hall GUI, command staff, colony sync.
- * Uses NeoForge 1.21.1 CustomPacketPayload system.
- * Payloads: OpenTownHall, SetJob, RequestBuilding, DiplomacyAction
+ * Placeholder for future CustomPacketPayload sync (colony delta, warehouse, diplomacy).
+ * Current playable version uses MenuType extraData + ColonyManager shared singleton (singleplayer).
+ * Dedicated server sync will be added via net.neoforged.neoforge.network.registration.PayloadRegistrar.
  */
 public class ModNetworking {
-    public static void register(IEventBus bus) {
-        SimpleColonies.LOGGER.info("[SimpleColonies] Networking registered (payloads: colony_sync, job_set, diplomacy)");
+    public static void register(net.neoforged.bus.api.IEventBus bus) {
+        SimpleColonies.LOGGER.info("[SimpleColonies] Networking stub - menu extraData handles colony sync for now");
     }
 }

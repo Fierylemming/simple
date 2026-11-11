@@ -3,29 +3,29 @@ package com.simplecolonies.entity;
 import com.simplecolonies.colony.CitizenData;
 import com.simplecolonies.colony.Colony;
 import com.simplecolonies.colony.ColonyManager;
+import com.simplecolonies.menu.VillagerInteractionMenu;
 import com.simplecolonies.villager.job.*;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.npc.Villager;
-import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
-import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * Custom villager that belongs to a colony, has a job, needs food/housing,
  * and participates in supply chain + warfare.
- *
- * Extends Villager to reuse trading + profession UI, but overrides AI to use jobs.
+ * NEW: shift-right-click opens custom job GUI (playable), normal right-click opens vanilla trades.
  */
 public class ColonyVillager extends Villager {
     private int colonyId = -1;
@@ -43,32 +43,68 @@ public class ColonyVillager extends Villager {
     @Override
     public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty, MobSpawnType reason, @Nullable SpawnGroupData spawnData) {
         SpawnGroupData data = super.finalizeSpawn(level, difficulty, reason, spawnData);
-        // Assign random Egyptian/Roman etc name based on nearest colony culture
         this.setCustomName(Component.literal(randomName()));
         this.setCustomNameVisible(false);
+        // Try auto-assign to nearest colony if spawned via village structure
+        var colonyOpt = ColonyManager.getInstance().getColonyAt(blockPosition());
+        if (colonyOpt.isPresent()) {
+            setColony(colonyOpt.get());
+            // Random job to make colony alive immediately
+            JobType[] starters = {JobType.FARMER, JobType.LUMBERJACK, JobType.MINER, JobType.BUILDER, JobType.UNEMPLOYED};
+            setJob(starters[level.getRandom().nextInt(starters.length)]);
+            // Register citizen properly with name
+            setCustomName(Component.literal(citizenNameForCulture(colonyOpt.get())));
+        }
         return data;
     }
 
     private String randomName() {
         String[] eg = {"Ahmose","Nefer","Khepri","Bastet","Ramses","Cleopatra","Imhotep"};
-        String[] roman = {"Marcus","Livia","Augustus","Caesar","Lucia","Titus","Aurelia"};
-        return (job.displayName + " " + eg[level().random.nextInt(eg.length)]);
+        return eg[level().random.nextInt(eg.length)];
     }
+
+    private String citizenNameForCulture(Colony colony) {
+        return switch (colony.getCulture()) {
+            case EGYPTIAN -> new String[]{"Ahmose","Nefer","Khepri","Bastet","Ramses","Imhotep","Anhk"}[random.nextInt(7)];
+            case ROMAN -> new String[]{"Marcus","Livia","Augustus","Caesar","Lucia","Titus","Aurelia"}[random.nextInt(7)];
+            case GREEK -> new String[]{"Alexandros","Helene","Pericles","Socrates","Athena","Leonidas","Kallias"}[random.nextInt(7)];
+            case PERSIAN -> new String[]{"Cyrus","Darius","Xerxes","Roxana","Artemis","Bahar","Kaveh"}[random.nextInt(7)];
+            case MESOPOTAMIAN -> new String[]{"Gilgamesh","Enkidu","Sargon","Hammurabi","Ishtar","Nabu","Utu"}[random.nextInt(7)];
+        };
+    }
+
+    public int getColonyId() { return colonyId; }
+    public JobType getColonyJob() { return job; }
+    public boolean isColonyCitizen() { return colonyId != -1; }
 
     public void setColony(Colony colony) {
         this.colonyId = colony.getId();
-        colony.addCitizen(new CitizenData(this.getUUID(), this.getName().getString(), job));
+        // Avoid duplicate citizen entry if already exists
+        boolean exists = colony.getCitizens().stream().anyMatch(c -> c.uuid.equals(getUUID()));
+        if (!exists) {
+            colony.addCitizen(new CitizenData(getUUID(), getName().getString(), job));
+        }
     }
 
     public void setJob(JobType newJob) {
         this.job = newJob;
         this.jobInstance = createJobInstance(newJob);
-        // Update profession for trading UI
-        // this.setVillagerData(getVillagerData().setProfession(...));
-        // Attach AI goals if soldier
+        // Update citizen record
+        Colony colony = ColonyManager.getInstance().getColony(colonyId).orElse(null);
+        if (colony != null) {
+            for (CitizenData cd : colony.getCitizens()) {
+                if (cd.uuid.equals(getUUID())) {
+                    cd.job = newJob;
+                    break;
+                }
+            }
+            ColonyManager.getInstance().markDirty(colony);
+        }
         if (newJob == JobType.SOLDIER || newJob == JobType.GUARD) {
             SoldierJob.attachGoals(this);
         }
+        // Update custom name to show job icon
+        setCustomName(Component.literal(getName().getString().split(" \\[")[0] + " [" + newJob.displayName + "]"));
     }
 
     private AbstractJob createJobInstance(JobType type) {
@@ -90,6 +126,10 @@ public class ColonyVillager extends Villager {
     @Override
     public void tick() {
         super.tick();
+        // Lazy recreate job instance after reload if null
+        if (jobInstance == null && job != JobType.UNEMPLOYED) {
+            jobInstance = createJobInstance(job);
+        }
         if (!level().isClientSide && level() instanceof ServerLevel sl) {
             Colony colony = ColonyManager.getInstance().getColony(colonyId).orElse(null);
             if (colony == null) return;
@@ -97,43 +137,60 @@ public class ColonyVillager extends Villager {
             // Job tick
             if (jobInstance != null) jobInstance.tick(sl);
 
-            // Hunger / health
+            // Hunger / health daily
             if (level().getGameTime() % 24000 == 0) {
                 daysAlive++;
-                // Check if colony fed them (colony.tick already consumed food)
-                // If colony starving, villagers take damage
                 if (colony.getState() == com.simplecolonies.colony.ColonyState.STARVING) {
                     hungerTicks++;
                     if (hungerTicks > 3) {
-                        this.hurt(damageSources().starve(), 2.0f);
-                        this.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.WEAKNESS, 6000, 0));
+                        hurt(damageSources().starve(), 2.0f);
+                        addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.WEAKNESS, 6000, 0));
                     }
                 } else {
                     hungerTicks = 0;
-                    this.heal(1.0f);
+                    heal(1.0f);
                 }
             }
+            // Show job icon above head if client config enabled
+            // (handled via custom renderer; placeholder is nameplate)
         }
     }
 
     @Override
     protected InteractionResult mobInteract(Player player, InteractionHand hand) {
-        // Keep vanilla trading, plus extra if player is leader:
-        // - shift-right-click to assign job
-        // - command staff interaction handled separately
-        if (!level().isClientSide && player.isShiftKeyDown()) {
-            Colony colony = ColonyManager.getInstance().getColony(colonyId).orElse(null);
-            if (colony != null) {
-                if (colony.isLeader(player) || colony.getReputation(player) > 50) {
-                    player.displayClientMessage(Component.literal(
-                            "§eVillager: " + getName().getString() + " | Job: " + job.displayName + " | Colony #" + colonyId
-                    ), false);
-                    // Would open job assignment screen
-                } else {
-                    player.displayClientMessage(Component.literal("§7Villager is busy working for colony #" + colonyId), true);
-                }
+        if (hand != InteractionHand.MAIN_HAND) return super.mobInteract(player, hand);
+        Colony colony = ColonyManager.getInstance().getColony(colonyId).orElse(null);
+        // Hold shift -> open custom villager GUI (playable job assign)
+        if (player.isShiftKeyDown()) {
+            if (level().isClientSide) return InteractionResult.SUCCESS;
+            if (colony == null) {
+                player.displayClientMessage(Component.literal("§7This villager is not in a colony (wanderer). Claim with Town Hall."), true);
                 return InteractionResult.SUCCESS;
             }
+            // Allow anyone with >0 rep to view, leader/high rep to assign
+            CitizenData citizen = colony.getCitizens().stream().filter(c -> c.uuid.equals(getUUID())).findFirst().orElse(null);
+            if (citizen == null) {
+                // Create missing record
+                citizen = new CitizenData(getUUID(), getName().getString(), job);
+                colony.addCitizen(citizen);
+            }
+            final CitizenData fCitizen = citizen;
+            final Colony fColony = colony;
+            if (player instanceof ServerPlayer sp) {
+                sp.openMenu(new SimpleMenuProvider((cid, inv, ply) -> new VillagerInteractionMenu(cid, inv, getId(), fColony, fCitizen),
+                        Component.literal(fCitizen.name + " - " + job.displayName)),
+                        buf -> {
+                            buf.writeInt(getId());
+                            buf.writeInt(fColony.getId());
+                        });
+            }
+            return InteractionResult.SUCCESS;
+        }
+        // Normal right-click: keep vanilla trading if villager has trades (we give default trades per job)
+        // If colony villager, still allow vanilla trade plus show hint
+        if (!level().isClientSide && colony != null && player instanceof ServerPlayer sp) {
+            // Give hint once
+            // sp.displayClientMessage(Component.literal("§7Shift+right-click to manage job/commands"), true);
         }
         return super.mobInteract(player, hand);
     }
@@ -151,9 +208,14 @@ public class ColonyVillager extends Villager {
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
         colonyId = tag.getInt("colonyId");
-        job = JobType.valueOf(tag.getString("colonyJob"));
+        if (tag.contains("colonyJob")) job = JobType.valueOf(tag.getString("colonyJob"));
         hungerTicks = tag.getInt("hungerTicks");
         daysAlive = tag.getInt("daysAlive");
-        // Recreate job instance when colony loaded later - lazy in tick
+    }
+
+    @Override
+    public boolean removeWhenFarAway(double distanceToClosestPlayer) {
+        // Colony villagers never despawn
+        return colonyId == -1 && super.removeWhenFarAway(distanceToClosestPlayer);
     }
 }

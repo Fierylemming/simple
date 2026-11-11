@@ -1,0 +1,180 @@
+package com.simplecolonies.menu;
+
+import com.simplecolonies.colony.CitizenData;
+import com.simplecolonies.colony.Colony;
+import com.simplecolonies.colony.ColonyManager;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.item.ItemStack;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Server-side Menu for Town Hall. No slots (warehouse preview via button state).
+ * clickMenuButton handles all tab actions server-side.
+ */
+public class TownHallMenu extends AbstractContainerMenu {
+    public final Colony colony;
+    public final BlockPos pos;
+    public final Player player;
+
+    // Button IDs
+    public static final int BTN_TAB_OVERVIEW = 0;
+    public static final int BTN_TAB_CITIZENS = 1;
+    public static final int BTN_TAB_BUILDINGS = 2;
+    public static final int BTN_TAB_WAREHOUSE = 3;
+    public static final int BTN_TAB_DIPLOMACY = 4;
+    public static final int BTN_ADD_BUILDING_HOUSE = 10;
+    public static final int BTN_ADD_BUILDING_FARM = 11;
+    public static final int BTN_ADD_BUILDING_LUMBER = 12;
+    public static final int BTN_ADD_BUILDING_MINE = 13;
+    public static final int BTN_ADD_BUILDING_BARRACKS = 14;
+    public static final int BTN_LEVEL_UP = 20;
+    public static final int BTN_RALLY_SOLDIERS = 21;
+    public static final int BTN_DECLARE_WAR_NEXT = 30;
+    public static final int BTN_PROPOSE_ALLIANCE = 31;
+    public static final int BTN_CLAIM_LEADER = 40;
+    public static final int BTN_DONATE_FOOD = 41;
+
+    public TownHallMenu(int containerId, Inventory inv, Colony colony, BlockPos pos) {
+        super(ModMenuTypes.TOWN_HALL.get(), containerId);
+        this.colony = colony;
+        this.pos = pos;
+        this.player = inv.player;
+    }
+
+    // Client constructor via IMenuTypeExtension - extraData contains colonyId+pos from server
+    public static TownHallMenu fromNetwork(int containerId, Inventory inv, RegistryFriendlyByteBuf buf) {
+        int colonyId = buf.readInt();
+        BlockPos pos = buf.readBlockPos();
+        Colony c = ColonyManager.getInstance().getColony(colonyId).orElse(null);
+        if (c == null) {
+            // Fallback: try lookup by pos (structure-generated colonies may not be synced yet)
+            c = ColonyManager.getInstance().getColonyAt(pos).orElse(null);
+            if (c == null) {
+                // Create dummy preview so screen still opens (client-only, singleplayer sharing will correct next tick)
+                c = new Colony(colonyId, com.simplecolonies.culture.CultureType.ROMAN, pos);
+            }
+        }
+        return new TownHallMenu(containerId, inv, c, pos);
+    }
+
+    @Override
+    public boolean clickMenuButton(Player player, int id) {
+        boolean isLeader = colony.isLeader(player);
+        switch (id) {
+            case BTN_CLAIM_LEADER -> {
+                if (colony.getLeaderId() == null && colony.getReputation(player) >= com.simplecolonies.config.ColonyConfig.REPUTATION_NEEDED_TO_LEAD.get()) {
+                    colony.setLeader(player);
+                } else if (colony.getLeaderId() == null) {
+                    player.displayClientMessage(net.minecraft.network.chat.Component.literal("Need " + (int)Math.ceil(com.simplecolonies.config.ColonyConfig.REPUTATION_NEEDED_TO_LEAD.get()) + " rep, you have " + colony.getReputation(player)), true);
+                } else {
+                    player.displayClientMessage(net.minecraft.network.chat.Component.literal("Already has leader"), true);
+                }
+                return true;
+            }
+            case BTN_DONATE_FOOD -> {
+                int donated = 0;
+                for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                    ItemStack st = player.getInventory().getItem(i);
+                    if (st.is(net.minecraft.world.item.Items.BREAD) && st.getCount() > 0) {
+                        int take = Math.min(st.getCount(), 5 - donated);
+                        st.shrink(take);
+                        colony.depositToWarehouse("minecraft:bread", take);
+                        donated += take;
+                        if (donated >= 5) break;
+                    }
+                }
+                if (donated > 0) {
+                    colony.addReputation(player, 2 * donated, "donated food");
+                    player.displayClientMessage(net.minecraft.network.chat.Component.literal("§aDonated " + donated + " bread! +" + (2*donated) + " rep"), false);
+                } else {
+                    player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cNo bread in inventory to donate"), true);
+                }
+                return true;
+            }
+            case BTN_ADD_BUILDING_HOUSE -> { if (isLeader) queueBuilding(colony, com.simplecolonies.building.BuildingType.HOUSE, player); else deny(player); return true; }
+            case BTN_ADD_BUILDING_FARM -> { if (isLeader) queueBuilding(colony, com.simplecolonies.building.BuildingType.FARM, player); else deny(player); return true; }
+            case BTN_ADD_BUILDING_LUMBER -> { if (isLeader) queueBuilding(colony, com.simplecolonies.building.BuildingType.LUMBERJACK_HUT, player); else deny(player); return true; }
+            case BTN_ADD_BUILDING_MINE -> { if (isLeader) queueBuilding(colony, com.simplecolonies.building.BuildingType.MINE, player); else deny(player); return true; }
+            case BTN_ADD_BUILDING_BARRACKS -> { if (isLeader) queueBuilding(colony, com.simplecolonies.building.BuildingType.BARRACKS, player); else deny(player); return true; }
+            case BTN_LEVEL_UP -> {
+                if (!isLeader) { deny(player); return true; }
+                player.displayClientMessage(net.minecraft.network.chat.Component.literal("Level up requires " + (colony.getLevel()*3) + " buildings & " + (colony.getLevel()*8) + " pop"), false);
+                return true;
+            }
+            case BTN_RALLY_SOLDIERS -> {
+                if (isLeader) player.displayClientMessage(net.minecraft.network.chat.Component.literal("§6Rallying soldiers... Equip Command Staff to direct individually"), false);
+                else deny(player);
+                return true;
+            }
+            case BTN_DECLARE_WAR_NEXT -> {
+                if (!isLeader) { deny(player); return true; }
+                var nearby = ColonyManager.getInstance().getAll().stream().filter(c -> c.getId() != colony.getId()).findFirst();
+                if (nearby.isPresent()) {
+                    colony.getDiplomacy().declareWar(colony, nearby.get());
+                    player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cDeclared war on colony #" + nearby.get().getId() + " (" + nearby.get().getCulture().displayName + ")!"), false);
+                } else {
+                    player.displayClientMessage(net.minecraft.network.chat.Component.literal("No other colonies nearby to war"), true);
+                }
+                return true;
+            }
+            case BTN_PROPOSE_ALLIANCE -> {
+                if (!isLeader) { deny(player); return true; }
+                var nearby = ColonyManager.getInstance().getAll().stream().filter(c -> c.getId() != colony.getId()).findFirst();
+                if (nearby.isPresent()) {
+                    colony.getDiplomacy().proposeAlliance(colony, nearby.get());
+                    player.displayClientMessage(net.minecraft.network.chat.Component.literal("§aAllied with colony #" + nearby.get().getId()), false);
+                } else player.displayClientMessage(net.minecraft.network.chat.Component.literal("No other colonies nearby"), true);
+                return true;
+            }
+        }
+        // Tabs handled client-side only; server ignores
+        return super.clickMenuButton(player, id);
+    }
+
+    private void deny(Player p) { p.displayClientMessage(net.minecraft.network.chat.Component.literal("§cOnly the colony leader can do that"), true); }
+
+    private void queueBuilding(Colony colony, com.simplecolonies.building.BuildingType type, Player player) {
+        var level = player.level();
+        if (!(level instanceof net.minecraft.server.level.ServerLevel sl)) return;
+        BlockPos site = null;
+        for (int r = 16; r < colony.getRadius(); r += 8) {
+            for (int a = 0; a < 360; a+= 45) {
+                double rad = Math.toRadians(a);
+                BlockPos test = colony.getCenter().offset((int)(Math.cos(rad)*r), 0, (int)(Math.sin(rad)*r));
+                if (sl.isLoaded(test) && sl.getBlockState(test.below()).isSolid() && sl.getBlockState(test).isAir()) { site = test; break; }
+            }
+            if (site != null) break;
+        }
+        if (site == null) { player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cNo build site found"), true); return; }
+        var b = new com.simplecolonies.building.Building(type, site, colony.getCulture());
+        b.setState(com.simplecolonies.building.BuildingState.BLUEPRINT);
+        try {
+            var f = Colony.class.getDeclaredField("buildings");
+            f.setAccessible(true);
+            var list = (java.util.List<com.simplecolonies.building.Building>) f.get(colony);
+            list.add(b);
+            ColonyManager.getInstance().markDirty(colony);
+            player.displayClientMessage(net.minecraft.network.chat.Component.literal("§aQueued " + type.displayName + " at " + site.toShortString()), false);
+        } catch (Exception e) { player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cFailed to queue: " + e.getMessage()), true); }
+    }
+
+    @Override
+    public ItemStack quickMoveStack(Player player, int index) { return ItemStack.EMPTY; }
+
+    @Override
+    public boolean stillValid(Player player) {
+        return player.distanceToSqr(pos.getX()+0.5, pos.getY()+0.5, pos.getZ()+0.5) < 400;
+    }
+
+    public List<CitizenData> getCitizensSorted() {
+        var list = new ArrayList<>(colony.getCitizens());
+        list.sort(java.util.Comparator.comparing(c -> c.job.displayName));
+        return list;
+    }
+}
