@@ -79,13 +79,24 @@ public class VillagerInteractionMenu extends AbstractContainerMenu {
                 case BTN_SET_BLACKSMITH -> JobType.BLACKSMITH;
                 default -> JobType.UNEMPLOYED;
             };
+            // Progression gate: must have researched profession (farmer/lumberjack always free)
+            if (!colony.getResearch().isProfessionUnlocked(newJob)) {
+                player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cProfession locked — unlock in Town Hall Research tab (need mats + prereqs)"), true);
+                player.displayClientMessage(net.minecraft.network.chat.Component.literal("§7Current unlocked: " + colony.getResearch().getUnlocked().stream().filter(u->u.isProfession()).map(u->u.displayName).reduce((a,b)->a+", "+b).orElse("none")), false);
+                return true;
+            }
+            // Tool tier check: warn if tool tier too low for job
+            int tier = colony.getResearch().getToolTier();
+            if ((newJob == JobType.MINER || newJob == JobType.BUILDER) && tier < 1) {
+                player.displayClientMessage(net.minecraft.network.chat.Component.literal("§eWarning: Stone Tools not yet researched — job will be 30% slower"), false);
+            }
             citizen.job = newJob;
             ColonyManager.getInstance().markDirty(colony);
             var ent = player.level().getEntity(entityId);
             if (ent instanceof com.simplecolonies.entity.ColonyVillager cv) {
                 cv.setJob(newJob);
             }
-            player.displayClientMessage(net.minecraft.network.chat.Component.literal("§aSet " + citizen.name + " to " + newJob.displayName), false);
+            player.displayClientMessage(net.minecraft.network.chat.Component.literal("§aSet " + citizen.name + " to " + newJob.displayName + (colony.getResearch().isProfessionUnlocked(newJob)?"":" §c(locked)")), false);
             return true;
         }
         if (id == BTN_TRADE) {

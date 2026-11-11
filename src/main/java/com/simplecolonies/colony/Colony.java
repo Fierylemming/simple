@@ -3,6 +3,7 @@ package com.simplecolonies.colony;
 import com.simplecolonies.building.Building;
 import com.simplecolonies.building.BuildingType;
 import com.simplecolonies.culture.CultureType;
+import com.simplecolonies.progression.ResearchManager;
 import com.simplecolonies.villager.job.JobType;
 import com.simplecolonies.warehouse.WarehouseManager;
 import net.minecraft.core.BlockPos;
@@ -37,6 +38,7 @@ public class Colony {
     private final Map<String, Integer> warehouse = new HashMap<>();
     // New: distributed chest network
     private final WarehouseManager warehouseManager;
+    private final ResearchManager researchManager;
     private final Map<UUID, Integer> reputation = new HashMap<>(); // player -> 0..100
     private UUID leaderId; // player who is leader
     private final Diplomacy diplomacy = new Diplomacy();
@@ -55,6 +57,7 @@ public class Colony {
         this.level = 1;
         this.radius = 32 + level * 16; // grows with level
         this.warehouseManager = new WarehouseManager(this);
+        this.researchManager = new ResearchManager(this);
     }
 
     public int getId() { return id; }
@@ -69,6 +72,7 @@ public class Colony {
     public List<Building> getBuildings() { return Collections.unmodifiableList(buildings); }
     public Map<UUID, Integer> getReputationMap() { return reputation; }
     public WarehouseManager getWarehouseManager() { return warehouseManager; }
+    public ResearchManager getResearch() { return researchManager; }
 
     public int citizenCount() { return citizens.size(); }
     public boolean isLeader(Player player) { return leaderId != null && leaderId.equals(player.getUUID()); }
@@ -143,6 +147,8 @@ public class Colony {
                 tryExpand(level);
                 daysSinceExpansion = 0;
             }
+            // Progression: village can self-unlock research if it has surplus
+            researchManager.tickAutoProgress(level);
         }
 
         for (Building b : buildings) {
@@ -338,6 +344,7 @@ public class Colony {
         reputation.forEach((uuid, val) -> rep.putInt(uuid.toString(), val));
         tag.put("reputation", rep);
         tag.put("diplomacy", diplomacy.save());
+        tag.put("research", researchManager.save());
         return tag;
     }
 
@@ -367,6 +374,7 @@ public class Colony {
         CompoundTag rep = tag.getCompound("reputation");
         for (String k : rep.getAllKeys()) c.reputation.put(UUID.fromString(k), rep.getInt(k));
         c.diplomacy.load(tag.getCompound("diplomacy"));
+        if (tag.contains("research")) c.researchManager.load(tag.getCompound("research"));
         return c;
     }
 }

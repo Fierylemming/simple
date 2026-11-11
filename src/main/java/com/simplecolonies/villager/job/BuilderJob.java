@@ -17,7 +17,20 @@ public class BuilderJob extends AbstractJob {
 
     @Override
     protected void doWork(ServerLevel level) {
+        // First, check for Create schematic job — if schematic in warehouse chests, Builder pastes it for player
         if (currentJob == null || currentJob.getState() == BuildingState.COMPLETE) {
+            var schematicTask = com.simplecolonies.integration.CreateSchematicIntegration.tryCreateSchematicTask(colony, level, villager.blockPosition());
+            if (schematicTask != null) {
+                // Queue schematic as Building — uses Create paste logic (stub picks tier mats)
+                try {
+                    var f = com.simplecolonies.colony.Colony.class.getDeclaredField("buildings");
+                    f.setAccessible(true);
+                    var list = (java.util.List<Building>) f.get(colony);
+                    list.add(schematicTask);
+                    com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
+                } catch (Exception ignored) {}
+            }
+
             currentJob = colony.getBuildings().stream()
                     .filter(b -> b.getState() == BuildingState.BLUEPRINT || b.getState() == BuildingState.UNDER_CONSTRUCTION)
                     .findFirst().orElse(null);

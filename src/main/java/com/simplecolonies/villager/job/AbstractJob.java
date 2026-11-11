@@ -61,7 +61,12 @@ public abstract class AbstractJob {
 
     protected abstract void doWork(ServerLevel level);
 
-    protected int getWorkInterval() { return 20; }
+    protected int getWorkInterval() {
+        int base = 20;
+        double mult = colony.getResearch().getWorkSpeedMultiplier();
+        // Faster speed = lower interval
+        return Math.max(5, (int)(base / mult));
+    }
 
     // --- Warehouse / chest helpers ---
 

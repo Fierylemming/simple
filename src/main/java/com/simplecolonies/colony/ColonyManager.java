@@ -67,6 +67,25 @@ public class ColonyManager {
         if (colonies.size() >= com.simplecolonies.config.ColonyConfig.MAX_COLONIES_PER_DIMENSION.get()) return null;
         int id = nextId++;
         Colony colony = new Colony(id, culture, center);
+        // Starter buildings — villages spawn with wood-tier houses and farm, using local resources that match style
+        // Greek wood at lvl1 → stone bases lvl2 → terracotta etc as described
+        var starterHouse = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.HOUSE, center.offset(6,0,0), culture, true);
+        var starterFarm = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.FARM, center.offset(-8,0,0), culture, true);
+        try {
+            var f = Colony.class.getDeclaredField("buildings");
+            f.setAccessible(true);
+            var list = (java.util.List<com.simplecolonies.building.Building>) f.get(colony);
+            list.add(starterHouse);
+            list.add(starterFarm);
+            // Starter warehouse chest hub with wood for early game
+            colony.depositToWarehouse("minecraft:oak_planks", 32);
+            colony.depositToWarehouse("minecraft:oak_log", 16);
+            colony.depositToWarehouse("minecraft:bread", 16);
+            // Culture-specific starter mats: Greek wood, Egyptian sandstone, etc at tier 1
+            var tier = com.simplecolonies.building.MaterialProgression.get(culture, 1);
+            String primaryItem = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(tier.primary().get(0).asItem()).toString();
+            colony.depositToWarehouse(primaryItem, 24);
+        } catch (Exception ignored) {}
         colonies.put(id, colony);
         markDirty(colony);
         return colony;
