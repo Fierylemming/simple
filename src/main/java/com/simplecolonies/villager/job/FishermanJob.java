@@ -20,8 +20,6 @@ import net.minecraft.world.phys.AABB;
 public class FishermanJob extends AbstractJob {
     private static final int MIN_SCHOOL = 2;
     private static final double REACH_SQ = 6.25;
-    private String routeDebug = "not started";
-    public String getRouteDebug() { return routeDebug; }
     public FishermanJob(Villager villager, Colony colony) { super(villager, colony, JobType.FISHERMAN); }
 
     @Override protected void onTick(ServerLevel level) {
@@ -51,8 +49,6 @@ public class FishermanJob extends AbstractJob {
                         && !f.hasCustomName() && !f.fromBucket() && !f.isPersistenceRequired() && !f.requiresCustomPersistence());
         var candidates = fish.stream().filter(f -> fish.stream().filter(other -> other.getType() == f.getType()).count() > MIN_SCHOOL)
                 .sorted(Comparator.comparingDouble(villager::distanceToSqr)).limit(4).toList();
-        routeDebug = "ground=" + villager.onGround() + " fluid=" + villager.isInLiquid()
-                + " fish=" + fish.size() + " candidates=" + candidates.size();
         // GroundPathNavigation refuses all path requests while airborne. Retry
         // next tick, rather than synchronizing retries with repeated jumps.
         if (!candidates.isEmpty() && !villager.onGround() && !villager.isInLiquid() && !villager.isPassenger()) {
@@ -89,14 +85,12 @@ public class FishermanJob extends AbstractJob {
                         || level.getBlockState(p.below()).is(Blocks.MAGMA_BLOCK)) continue;
                 stands.add(p);
             }
-            routeDebug += " stands=" + stands.size();
             stands.sort(Comparator.comparingDouble(p -> p.distSqr(villager.blockPosition())));
             int attempts = 0;
             for (BlockPos stand : stands) {
                 if (stand.equals(villager.blockPosition())) continue;
                 if (++attempts > 8) break;
                 var path = villager.getNavigation().createPath(stand, 0);
-                routeDebug += path == null ? (" N" + (level.getChunkSource().getChunkNow(stand.getX() >> 4, stand.getZ() >> 4) == null ? "U" : "L")) : (path.canReach() ? " R" : " P") + (dryPath(level, path) ? "d" : "w");
                 if (path == null || !dryPath(level, path)) continue;
                 if (path.canReach()) {
                     villager.getNavigation().moveTo(path, 0.7);
@@ -117,9 +111,7 @@ public class FishermanJob extends AbstractJob {
             state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
         }
         state = candidates.isEmpty() ? JobState.NEEDS_RESOURCE : JobState.STUCK;
-        // A just-spawned villager may not yet be on the ground, in which case
-        // Minecraft cannot calculate a path. Retry before vanilla idle wandering
-        // carries it far away from an otherwise reachable shore.
+        // Retry unreachable candidates sooner than an empty fishing area.
         ticksUntilNextWork = candidates.isEmpty() ? 100 : 20;
     }
 
