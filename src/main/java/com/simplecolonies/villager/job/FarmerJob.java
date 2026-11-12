@@ -41,8 +41,7 @@ public class FarmerJob extends AbstractJob {
             }
         }
         if (harvested == 0) {
-            // No crops ready — forage surface cobble/coal so Stone tier is reachable without Miner (fixes chicken-egg)
-            ForagerJob.tryForageSurfaceCobble(villager, colony, level);
+            // Wait for crops; the old stone-foraging fallback could damage nearby buildings.
             ticksUntilNextWork = 100;
         }
     }

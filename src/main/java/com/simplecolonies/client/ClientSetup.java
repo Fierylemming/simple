@@ -22,7 +22,7 @@ public class ClientSetup {
     @SubscribeEvent
     public static void registerEntityRenderers(net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(),
-                net.minecraft.client.renderer.entity.VillagerRenderer::new);
+                com.simplecolonies.client.render.ColonyVillagerRenderer::new);
     }
 
     @SubscribeEvent
