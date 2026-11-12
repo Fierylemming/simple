@@ -100,7 +100,7 @@ public abstract class AbstractJob {
         return Math.max(5, (int)(base / mult));
     }
 
-    /** Reuse a worker's stowed tools before withdrawing another one from storage. */
+    /** Reuse a worker's stowed tool of this type before withdrawing another from storage. */
     protected net.minecraft.world.item.ItemStack takeTool(ServerLevel level, net.minecraft.world.item.Item item) {
         var inventory = villager.getInventory();
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {

@@ -5,11 +5,13 @@ import com.simplecolonies.culture.CultureType;
 import com.simplecolonies.entity.ColonyVillager;
 import com.simplecolonies.entity.ModEntities;
 import com.simplecolonies.villager.job.WoodcutterJob;
+import com.simplecolonies.villager.job.JobType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.Container;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -93,6 +95,11 @@ public class WoodcutterGameTests {
         makeTree(helper);
         Colony colony = colony(helper);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(54, 1, 56));
+        worker.setJob(JobType.LUMBERJACK);
+        ItemStack axe = new ItemStack(Items.STONE_AXE); axe.setDamageValue(8);
+        worker.setItemSlot(EquipmentSlot.MAINHAND, axe);
+        worker.setJob(JobType.MINER);
+        worker.setJob(JobType.LUMBERJACK);
         WoodcutterJob[] job = {new WoodcutterJob(worker, colony)};
         boolean[] blocked = {false};
         for (int tick = 1; tick < 900; tick++) helper.runAtTickTime(tick, () -> {
@@ -111,6 +118,8 @@ public class WoodcutterGameTests {
                         + " root=" + helper.getBlockState(ROOT) + " second=" + helper.getBlockState(ROOT.above(2))
                         + " top=" + helper.getBlockState(ROOT.above(3)) + " memory=" + worker.getWoodcutterMemory()
                         + " state=" + job[0].getState() + " at=" + worker.blockPosition().toShortString());
+            if (!worker.getMainHandItem().is(Items.STONE_AXE) || worker.getMainHandItem().getDamageValue() != 9)
+                helper.fail("Worker did not reuse its stowed axe when returning to the job");
             helper.succeed();
         });
     }
