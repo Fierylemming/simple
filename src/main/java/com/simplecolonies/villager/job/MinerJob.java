@@ -27,9 +27,11 @@ public class MinerJob extends AbstractJob {
     private int step;
     private int siteIndex;
     private boolean restored;
+    private String lastFirstSite = "not checked";
+    private String unsafeReason = "";
 
     public MinerJob(Villager villager, Colony colony) { super(villager, colony, JobType.MINER); }
-    public String diagnostic() { return "entrance=" + entrance + ", direction=" + direction + ", step=" + step + ", nextSite=" + siteIndex; }
+    public String diagnostic() { return "entrance=" + entrance + ", direction=" + direction + ", step=" + step + ", nextSite=" + siteIndex + ", firstSite=" + lastFirstSite; }
 
     @Override protected void doWork(ServerLevel level) {
         if (!restored) { readMemory(); restored = true; }
@@ -100,10 +102,13 @@ public class MinerJob extends AbstractJob {
             int[] d = SITES[index];
             int x = colony.getCenter().getX() + d[0], z = colony.getCenter().getZ() + d[1];
             BlockPos column = new BlockPos(x, colony.getCenter().getY(), z);
-            if (!level.isLoaded(column)) continue;
+            if (!level.isLoaded(column)) { if (index == 0) lastFirstSite = "unloaded " + column; continue; }
             int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
             BlockPos p = new BlockPos(x, y, z);
-            if (!colony.isInside(p) || y - MAX_STEPS - 3 <= level.getMinBuildHeight() || !safeArea(level, p.below())) continue;
+            boolean inside = colony.isInside(p), deepEnough = y - MAX_STEPS - 3 > level.getMinBuildHeight();
+            boolean safe = inside && deepEnough && safeArea(level, p.below());
+            if (index == 0) lastFirstSite = p.toShortString() + " inside=" + inside + " deep=" + deepEnough + " safe=" + safe + " reason=" + unsafeReason;
+            if (!safe) continue;
             if (!level.getBlockState(p).getCollisionShape(level, p).isEmpty()
                     || !level.getBlockState(p.above()).getCollisionShape(level, p.above()).isEmpty()
                     || !level.getBlockState(p.below()).isFaceSturdy(level, p.below(), Direction.UP)) continue;
@@ -127,15 +132,15 @@ public class MinerJob extends AbstractJob {
             if (!MinerRules.farFromBuilding(pos.getX(), pos.getZ(), building.getPos().getX(), building.getPos().getZ(), Math.max(12, building.getSize() / 2 + 8))) return false;
         }
         for (var structure : level.structureManager().getAllStructuresAt(pos).keySet()) {
-            if (level.structureManager().getStructureAt(pos, structure).isValid()) return false;
+            if (level.structureManager().getStructureAt(pos, structure).isValid()) { unsafeReason = "generated structure"; return false; }
         }
         for (BlockPos neighbor : BlockPos.betweenClosed(pos.offset(-1, -1, -1), pos.offset(1, 1, 1))) {
-            if (!level.isLoaded(neighbor) || level.getBlockEntity(neighbor) != null) return false;
+            if (!level.isLoaded(neighbor) || level.getBlockEntity(neighbor) != null) { unsafeReason = "unloaded/entity " + neighbor; return false; }
             BlockState block = level.getBlockState(neighbor);
-            if (!block.getFluidState().isEmpty()) return false;
+            if (!block.getFluidState().isEmpty()) { unsafeReason = "fluid " + neighbor; return false; }
             String id = BuiltInRegistries.BLOCK.getKey(block.getBlock()).toString();
             if (!(block.isAir() || block.is(BlockTags.DIRT) || block.is(BlockTags.BASE_STONE_OVERWORLD)
-                    || MinerRules.dropFor(id) != null)) return false;
+                    || MinerRules.dropFor(id) != null)) { unsafeReason = "built/unknown " + neighbor + " " + id; return false; }
         }
         return true;
     }
