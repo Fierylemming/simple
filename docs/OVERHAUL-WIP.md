@@ -16,7 +16,7 @@ Expansion now checks on normal colony ticks, reports blockers and does not stall
 ## Required before release
 
 - Verify/fix the startup town hall, compact farm, pathfinding, door placement, roofs, resource accounting and 15 house plans in-game, including reload and blocked/unloaded sites. The initial town hall and house designs are provisional and not historically complete.
-- Implement job-specific buildings built around the forester, miner and builder workstations; current construction still only supports houses. Improve site planning and growth beyond house-only expansion.
+- Test the new builder, forester and mine worksite shells around claimed POIs, including site separation, obstructed/legacy sites, materials, pathfinding and reloads. Improve site planning and growth for additional building types; these are the only non-house construction plans so far.
 - Finish and test physical tree harvesting (current short-tree-only implementation leaves partial trees if interrupted and does not use or wear an axe) and replace remote quarry mining with accessible physical work and real tools. Avoid damage to buildings or player property; natural-block recognition remains heuristic.
 - Finish and test every profession's real supply-chain behaviour, including butcher, leatherworker, blacksmith, baker, fisherman, courier, soldier/guard and any required shepherd/wool system. Current nonstarter professions include placeholders and are not distribution-ready.
 - Implement proper social interactions and robust day/night navigation; current shelter movement is provisional. Address beds and actual food production/cooking beyond wheat counts.

@@ -20,7 +20,7 @@ public class Building {
     private BuildingState state = BuildingState.BLUEPRINT;
     private int level = 1;
     // Version 1 is the old all-log plan, retained for buildings saved before 0.1.28.
-    private int planVersion = 3;
+    private int planVersion = 4;
     private int houseVariant;
     private final Map<String, Integer> requiredResources = new HashMap<>();
     private final Queue<BlockPlacement> placements = new ArrayDeque<>();
@@ -60,10 +60,18 @@ public class Building {
 
     private void loadSchematicPlacements() {
         // A deterministic plan makes partially completed construction resumable after reload.
-        // Only houses have an implemented plan; unsupported types must not become fake buildings.
+        // Preserve the original plans of all in-progress saves. Worksite plans were introduced in v4.
         placements.clear();
         requiredResources.clear();
-        if (type != BuildingType.HOUSE) return;
+        if (type != BuildingType.HOUSE) {
+            if (planVersion >= 4 && LevelOneWorksites.supports(type)) {
+                LevelOneWorksites.generate(type, pos, (at, state) -> {
+                    String item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(state.getBlock().asItem()).toString();
+                    addPlacement(at, state, item);
+                });
+            }
+            return;
+        }
         if (planVersion >= 3) {
             LevelOneHouses.generate(pos, culture, houseVariant, (at, state) -> {
                 String item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(state.getBlock().asItem()).toString();
@@ -91,7 +99,9 @@ public class Building {
         requiredResources.merge(item, 1, Integer::sum);
     }
 
-    public boolean hasSupportedPlan() { return type == BuildingType.HOUSE && !isPlayerPlaced; }
+    public boolean hasSupportedPlan() {
+        return !isPlayerPlaced && (type == BuildingType.HOUSE || (planVersion >= 4 && LevelOneWorksites.supports(type)));
+    }
 
     public void upgradeToNextLevel() {
         if (level >= 5) return;

@@ -243,16 +243,27 @@ public class ColonyManager {
         var states = new net.minecraft.world.level.block.state.BlockState[]{
                 Blocks.ANVIL.defaultBlockState(), Blocks.FURNACE.defaultBlockState(),
                 Blocks.CAMPFIRE.defaultBlockState().setValue(net.minecraft.world.level.block.CampfireBlock.LIT, false)};
+        var placed = new ArrayList<BlockPos>();
         for (int i = 0; i < jobs.length; i++) {
             var predicate = com.simplecolonies.villager.ColonyProfessions.profession(jobs[i]).heldJobSite();
             if (level.getPoiManager().getInRange(predicate, colony.getCenter(), colony.getRadius(),
                     net.minecraft.world.entity.ai.village.poi.PoiManager.Occupancy.ANY).findAny().isPresent()) continue;
-            BlockPos site = findStarterSite(level, colony, 1, 8);
+            BlockPos site = null;
+            for (var offset : StarterSiteSearch.offsets(42, 2)) {
+                if (offset.x() * offset.x() + offset.z() * offset.z() < 64) continue;
+                BlockPos candidate = naturalSurface(level, colony.getCenter().getX() + offset.x(), colony.getCenter().getZ() + offset.z());
+                if (candidate == null || placed.stream().anyMatch(p -> p.distSqr(candidate) < 144)) continue;
+                if (colony.isClearWorksite(level, candidate, false)) { site = candidate; break; }
+            }
+            // In cramped terrain retain a usable POI even when a surrounding workshop
+            // cannot yet be planned; never overwrite blocks to force the larger plot.
+            if (site == null) site = findStarterSite(level, colony, 1, 8);
             if (site == null) {
                 SimpleColonies.LOGGER.warn("No safe starter workstation site for {} in colony #{}", jobs[i], colony.getId());
                 continue;
             }
             level.setBlock(site, states[i], 3);
+            placed.add(site);
         }
     }
 

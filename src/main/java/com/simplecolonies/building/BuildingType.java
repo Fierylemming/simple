@@ -15,6 +15,7 @@ public enum BuildingType {
     TOWN_HALL("Town Hall", "Center of colony, manages citizens and diplomacy", 0, null, Map.of("minecraft:oak_log", 32, "minecraft:cobblestone", 64)),
     HOUSE("House", "Housing for 4 villagers + beds (upgrades +4 beds & +1 worker each level)", 4, null, Map.of("minecraft:oak_planks", 40, "minecraft:cobblestone", 20, "minecraft:wool", 8)),
     FARM("Farm", "Workplace for Farmer (needs only wood/wheat)", 0, com.simplecolonies.villager.job.JobType.FARMER, Map.of("minecraft:farmland", 20, "minecraft:wheat_seeds", 16, "minecraft:oak_fence", 12)),
+    BUILDER_HUT("Builder Hut", "Shelter around the builder's workstation", 0, com.simplecolonies.villager.job.JobType.BUILDER, Map.of("minecraft:oak_planks", 30, "minecraft:cobblestone", 16)),
     LUMBERJACK_HUT("Lumberjack Hut", "Workplace for Woodcutter (now stone axe, not iron, so self-sufficient)", 0, com.simplecolonies.villager.job.JobType.LUMBERJACK, Map.of("minecraft:oak_log", 24, "minecraft:stone_axe", 1)),
     MINE("Mine", "Entrance to quarry for Miner (stone only)", 0, com.simplecolonies.villager.job.JobType.MINER, Map.of("minecraft:cobblestone", 48, "minecraft:ladder", 16, "minecraft:torch", 12)),
     WAREHOUSE("Warehouse", "Shared stockpile — many chests, courier hub", 0, null, Map.of("minecraft:chest", 8, "minecraft:oak_planks", 32)),

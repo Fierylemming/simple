@@ -236,27 +236,81 @@ public class Colony {
 
     private void tryExpand(ServerLevel level) {
         if (citizens.isEmpty()) { expansionStatus = "No citizens"; return; }
-        if (citizens.size() >= com.simplecolonies.config.ColonyConfig.MAX_CITIZENS_PER_COLONY.get()) {
-            expansionStatus = "Population limit reached"; return;
-        }
         if (citizens.values().stream().noneMatch(c -> c.job == JobType.BUILDER)) {
             expansionStatus = "No builder assigned"; return;
         }
         if (buildings.stream().anyMatch(b -> b.hasSupportedPlan() && b.getState() != com.simplecolonies.building.BuildingState.COMPLETE)) {
             expansionStatus = "Construction already queued"; return;
         }
-        int housing = shelterCapacity();
-        if (housing > citizens.size() + 2) { expansionStatus = "Housing capacity sufficient"; return; }
-        BlockPos site = findBuildSite(level, BuildingType.HOUSE);
-        if (site == null) { expansionStatus = "No safe loaded house site"; return; }
-        Building blueprint = new Building(BuildingType.HOUSE, site, culture);
-        if (!com.simplecolonies.building.ConstructionCrafting.canBuild(getWarehouseSnapshot(level), blueprint.getRemainingPlacements())) {
-            expansionStatus = "Not enough materials for the next house"; return;
+        var stock = getWarehouseSnapshot(level);
+        String housingReason = "Housing capacity sufficient";
+        if (citizens.size() < com.simplecolonies.config.ColonyConfig.MAX_CITIZENS_PER_COLONY.get()
+                && shelterCapacity() <= citizens.size() + 2) {
+            BlockPos site = findBuildSite(level, BuildingType.HOUSE);
+            if (site == null) housingReason = "No safe loaded house site";
+            else {
+                Building house = new Building(BuildingType.HOUSE, site, culture);
+                if (com.simplecolonies.building.ConstructionCrafting.canBuild(stock, house.getRemainingPlacements())) {
+                    queueExpansion(house);
+                    return;
+                }
+                housingReason = "Not enough materials for the next house";
+            }
         }
+        // Worksite shells are planned around the POI actually claimed by an assigned worker.
+        // Never invent or move a workstation, and never designate an unloaded/obstructed plot.
+        for (var pair : java.util.List.of(
+                Map.entry(JobType.BUILDER, BuildingType.BUILDER_HUT),
+                Map.entry(JobType.LUMBERJACK, BuildingType.LUMBERJACK_HUT),
+                Map.entry(JobType.MINER, BuildingType.MINE))) {
+            if (buildings.stream().anyMatch(b -> b.getType() == pair.getValue())) continue;
+            for (CitizenData citizen : citizens.values()) {
+                if (citizen.job != pair.getKey()) continue;
+                if (!(level.getEntity(citizen.uuid) instanceof com.simplecolonies.entity.ColonyVillager worker)
+                        || worker.getColonyId() != id || worker.getColonyJob() != pair.getKey()) continue;
+                var memory = worker.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE);
+                if (memory.isEmpty() || !memory.get().dimension().equals(level.dimension())) continue;
+                BlockPos station = memory.get().pos();
+                if (!level.isLoaded(station) || level.getPoiManager().getType(station)
+                        .filter(worker.getVillagerData().getProfession().heldJobSite()).isEmpty()
+                        || !isClearWorksite(level, station, true)) continue;
+                Building building = new Building(pair.getValue(), station, culture);
+                if (com.simplecolonies.building.ConstructionCrafting.canBuild(stock, building.getRemainingPlacements())) {
+                    queueExpansion(building);
+                    return;
+                }
+            }
+        }
+        expansionStatus = housingReason + "; no affordable, clear claimed worksite";
+    }
+
+    private void queueExpansion(Building blueprint) {
         buildings.add(blueprint);
         expansionStatus = "Construction already queued";
         ColonyManager.getInstance().markDirty(this);
-        broadcast(Component.literal("§aColony #" + id + " is expanding: new house at " + site.toShortString()));
+        broadcast(Component.literal("§aColony #" + id + " is expanding: " + blueprint.getType().displayName
+                + " at " + blueprint.getPos().toShortString()));
+    }
+
+    /** Validate an unchanged five-by-five plot, optionally allowing the central workstation. */
+    public boolean isClearWorksite(ServerLevel level, BlockPos station, boolean allowStation) {
+        if (buildings.stream().anyMatch(b -> b.getPos().distSqr(station) < 144)) return false;
+        for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
+            BlockPos ground = station.offset(x, -1, z);
+            if (!level.isLoaded(ground) || !isInside(ground)) return false;
+            var soil = level.getBlockState(ground);
+            if (!(soil.is(net.minecraft.tags.BlockTags.DIRT) || soil.is(net.minecraft.world.level.block.Blocks.SAND)
+                    || soil.is(net.minecraft.world.level.block.Blocks.RED_SAND) || soil.is(net.minecraft.world.level.block.Blocks.GRAVEL))) return false;
+            for (int y = 0; y <= 3; y++) {
+                BlockPos p = station.offset(x, y, z);
+                if (!level.isLoaded(p)) return false;
+                if (allowStation && x == 0 && y == 0 && z == 0) continue;
+                var block = level.getBlockState(p);
+                if (level.getBlockEntity(p) != null || (!block.isAir() && !block.canBeReplaced())
+                        || !block.getFluidState().isEmpty()) return false;
+            }
+        }
+        return true;
     }
 
     /** Queues a house only when there is no unfinished construction and a safe site exists. */
