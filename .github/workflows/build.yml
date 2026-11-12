@@ -17,6 +17,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Build jar
         run: ./gradlew build --info 2>&1 | tee build.log; test ${PIPESTATUS[0]} -eq 0
+      - name: Run construction GameTests
+        run: |
+          mkdir -p run
+          echo 'eula=true' > run/eula.txt
+          timeout 300s ./gradlew runGameTestServer --info
       - name: Report failure details
         if: failure()
         run: |
