@@ -34,6 +34,7 @@ public abstract class AbstractJob {
     public JobState getState() { return state; }
 
     public final void tick(ServerLevel level) {
+        onTick(level);
         if (ticksUntilNextWork > 0) { ticksUntilNextWork--; return; }
         if (!colony.isInside(villager.blockPosition())) {
             state = JobState.GOING_TO_WORK;
@@ -86,6 +87,9 @@ public abstract class AbstractJob {
         ticksUntilNextWork = 20;
         return false;
     }
+
+    /** Called even between work actions, for behaviours that must not be deferred. */
+    protected void onTick(ServerLevel level) {}
 
     protected abstract void doWork(ServerLevel level);
 

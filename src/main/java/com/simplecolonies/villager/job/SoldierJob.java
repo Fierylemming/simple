@@ -16,6 +16,18 @@ public class SoldierJob extends AbstractJob {
     public SoldierJob(Villager villager, Colony colony) { super(villager, colony, JobType.SOLDIER); }
     public void setCommander(Player player, boolean follow) { commander = player; followingLeader = follow; }
 
+    @Override protected void onTick(ServerLevel level) {
+        // Vanilla villagers panic and replace the combat path with a flee target.
+        // During an active defense, let this job own navigation and suppress that
+        // panic; ordinary villagers and reassigned guards retain vanilla behavior.
+        if (state != JobState.GOING_TO_WORK && state != JobState.WORKING) return;
+        var brain = villager.getBrain();
+        brain.eraseMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.NEAREST_HOSTILE);
+        brain.eraseMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.HURT_BY);
+        brain.eraseMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.HURT_BY_ENTITY);
+        brain.eraseMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET);
+    }
+
     @Override protected void doWork(ServerLevel level) {
         LivingEntity target = null;
         if (followingLeader && commander != null && commander.isAlive() && commander.level() == level) {
