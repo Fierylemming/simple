@@ -20,16 +20,58 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public class ConstructionGameTests {
     @GameTest(template = "empty", timeoutTicks = 2400)
-    public static void house(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null); }
+    public static void houseRoman0(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.ROMAN, 0); }
 
     @GameTest(template = "empty", timeoutTicks = 2400)
-    public static void builderHut(GameTestHelper helper) { runBuilder(helper, BuildingType.BUILDER_HUT, Blocks.ANVIL); }
+    public static void houseRoman1(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.ROMAN, 1); }
 
     @GameTest(template = "empty", timeoutTicks = 2400)
-    public static void foresterHut(GameTestHelper helper) { runBuilder(helper, BuildingType.LUMBERJACK_HUT, Blocks.CAMPFIRE); }
+    public static void houseRoman2(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.ROMAN, 2); }
 
     @GameTest(template = "empty", timeoutTicks = 2400)
-    public static void mine(GameTestHelper helper) { runBuilder(helper, BuildingType.MINE, Blocks.FURNACE); }
+    public static void houseGreek0(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.GREEK, 0); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void houseGreek1(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.GREEK, 1); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void houseGreek2(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.GREEK, 2); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void houseEgyptian0(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.EGYPTIAN, 0); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void houseEgyptian1(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.EGYPTIAN, 1); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void houseEgyptian2(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.EGYPTIAN, 2); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void housePersian0(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.PERSIAN, 0); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void housePersian1(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.PERSIAN, 1); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void housePersian2(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.PERSIAN, 2); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void houseMesopotamian0(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.MESOPOTAMIAN, 0); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void houseMesopotamian1(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.MESOPOTAMIAN, 1); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void houseMesopotamian2(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.MESOPOTAMIAN, 2); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void builderHut(GameTestHelper helper) { runBuilder(helper, BuildingType.BUILDER_HUT, Blocks.ANVIL, CultureType.ROMAN, -1); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void foresterHut(GameTestHelper helper) { runBuilder(helper, BuildingType.LUMBERJACK_HUT, Blocks.CAMPFIRE, CultureType.ROMAN, -1); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void mine(GameTestHelper helper) { runBuilder(helper, BuildingType.MINE, Blocks.FURNACE, CultureType.ROMAN, -1); }
 
     @GameTest(template = "empty", timeoutTicks = 200)
     public static void blockedPlacementDoesNotConsume(GameTestHelper helper) {
@@ -70,16 +112,26 @@ public class ConstructionGameTests {
         });
     }
 
-    private static void runBuilder(GameTestHelper helper, BuildingType type, Block workstation) {
+    private static void runBuilder(GameTestHelper helper, BuildingType type, Block workstation, CultureType culture, int variant) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
         BlockPos relative = new BlockPos(8, 1, 9);
+        if (variant >= 0) {
+            for (int dx = -1; dx <= 1; dx++) {
+                BlockPos absolute = helper.absolutePos(relative.offset(dx, 0, 0));
+                if (Math.floorMod(absolute.getX() * 31 + absolute.getZ() * 17, 3) == variant) {
+                    relative = relative.offset(dx, 0, 0); break;
+                }
+            }
+        }
         BlockPos origin = helper.absolutePos(relative);
         if (workstation != null) helper.setBlock(relative, workstation);
-        Colony colony = new Colony(0, CultureType.ROMAN, origin);
+        final BlockPos stationRelative = relative;
+        Colony colony = new Colony(0, culture, origin);
         colony.depositToWarehouse("minecraft:oak_log", 300);
         colony.depositToWarehouse("minecraft:cobblestone", 300);
         colony.depositToWarehouse("minecraft:coal", 10);
-        Building blueprint = new Building(type, origin, CultureType.ROMAN);
+        Building blueprint = new Building(type, origin, culture);
+        if (variant >= 0 && blueprint.save().getInt("houseVariant") != variant) helper.fail("Wrong house variant");
         if (!colony.registerPlayerBuilding(blueprint)) helper.fail("Failed to queue test plan");
         BlockPos door = blueprint.getRemainingPlacements().stream()
                 .filter(p -> p.state.is(Blocks.OAK_DOOR)).findFirst().orElseThrow().pos;
@@ -94,7 +146,7 @@ public class ConstructionGameTests {
                         + " next " + (next == null ? "none" : next.pos.toShortString())
                         + " distance " + (next == null ? 0 : villager.distanceToSqr(next.pos.getX()+0.5, next.pos.getY()+0.5, next.pos.getZ()+0.5)));
             }
-            if (workstation != null) helper.assertBlockPresent(workstation, relative);
+            if (workstation != null) helper.assertBlockPresent(workstation, stationRelative);
             var lower = helper.getLevel().getBlockState(door);
             var upper = helper.getLevel().getBlockState(door.above());
             if (!lower.is(Blocks.OAK_DOOR) || !upper.is(Blocks.OAK_DOOR)
