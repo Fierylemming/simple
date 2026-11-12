@@ -30,8 +30,11 @@ jobs:
           from pathlib import Path
           log = Path('gametest.log') if Path('gametest.log').exists() else Path('build.log')
           lines = log.read_text(errors='replace').splitlines()
-          highlights = [line for line in lines if any(term in line.lower() for term in ('error', 'failed', 'exception', 'builder ', 'tests complete', 'required tests'))]
-          text = '\n'.join(highlights[-20:] + lines[-8:])[-3500:].replace('%', '%25').replace('\n', '%0A').replace('\r', '%0D')
+          failures = [line for line in lines if 'failed at ' in line.lower() or 'error:' in line.lower()]
+          for line in failures:
+              print('::error title=Test or compiler failure::' + line[-3000:].replace('%', '%25').replace('\r', '%0D'))
+          highlights = [line for line in lines if any(term in line.lower() for term in ('error', 'failed', 'exception', 'tests complete', 'required tests'))]
+          text = '\n'.join(highlights[-12:] + lines[-8:])[-3500:].replace('%', '%25').replace('\n', '%0A').replace('\r', '%0D')
           print('::error title=Build log tail::' + text)
           PYCODE
       - name: Upload build log
