@@ -29,7 +29,7 @@ public class ButcherJob extends AbstractJob {
         // Never slaughter the last two eligible adults of either species.
         Animal target = animals.stream().filter(a -> animals.stream().filter(other -> other.getType() == a.getType()).count() > 2)
                 .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
-        if (target == null) { state = JobState.NEEDS_RESOURCE; ticksUntilNextWork = 100; return; }
+        if (target == null) { breedLivestock(level, center); return; }
         if (villager.distanceToSqr(target) > 6.25) {
             var path = villager.getNavigation().createPath(target, 1);
             if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
@@ -58,5 +58,42 @@ public class ButcherJob extends AbstractJob {
         }
         state = JobState.WORKING;
         ticksUntilNextWork = 40;
+    }
+
+    /** Feed an eligible pair with real stock; vanilla animal AI creates the offspring. */
+    private void breedLivestock(ServerLevel level, BlockPos center) {
+        var all = level.getEntitiesOfClass(Animal.class, new AABB(center).inflate(8, 4, 8),
+                a -> a.isAlive() && (a instanceof Cow || a instanceof Pig));
+        for (Class<? extends Animal> species : java.util.List.of(Cow.class, Pig.class)) {
+            var herd = all.stream().filter(a -> a.getClass() == species).toList();
+            if (herd.size() >= 4) continue; // Includes calves, piglets and named animals.
+            var adults = herd.stream().filter(a -> !a.hasCustomName() && a.getAge() == 0).toList();
+            var candidate = adults.stream().filter(a -> !a.isInLove() && a.canFallInLove())
+                    .filter(a -> adults.stream().anyMatch(other -> other != a && (other.isInLove() || other.canFallInLove())))
+                    .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
+            if (candidate == null) continue;
+            boolean partnerWaiting = adults.stream().anyMatch(a -> a != candidate && a.isInLove());
+            String[] foods = species == Cow.class ? new String[]{"minecraft:wheat"}
+                    : new String[]{"minecraft:carrot", "minecraft:potato", "minecraft:beetroot"};
+            String food = null;
+            for (String item : foods) {
+                // Preserve two items for other colony needs and enough for both parents.
+                if (colony.getWarehouseCount(level, item) >= (partnerWaiting ? 3 : 4)) { food = item; break; }
+            }
+            if (food == null) continue;
+            if (villager.distanceToSqr(candidate) > 6.25) {
+                var path = villager.getNavigation().createPath(candidate, 1);
+                if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
+                villager.getNavigation().moveTo(path, 0.7);
+                state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
+            }
+            if (!candidate.isAlive() || candidate.getAge() != 0 || candidate.isInLove() || !candidate.canFallInLove()) continue;
+            if (!colony.consumeStock(level, food, 1)) continue;
+            candidate.setInLove(null);
+            villager.getLookControl().setLookAt(candidate);
+            villager.swing(InteractionHand.MAIN_HAND);
+            state = JobState.WORKING; ticksUntilNextWork = 20; return;
+        }
+        state = JobState.NEEDS_RESOURCE; ticksUntilNextWork = 100;
     }
 }
