@@ -13,18 +13,19 @@ import net.neoforged.neoforge.event.entity.living.LivingDropsEvent;
 
 /** Capture only the drop entities from this synchronous butcher attack. */
 @EventBusSubscriber(modid = SimpleColonies.MOD_ID)
-final class ButcherDrops {
+public final class ButcherDrops {
     private record Attack(Villager worker, LivingEntity target, List<ItemEntity> drops) {}
     private static final ThreadLocal<Attack> ACTIVE = new ThreadLocal<>();
 
     static List<ItemEntity> attack(Villager worker, LivingEntity target, float damage) {
         Attack attack = new Attack(worker, target, new ArrayList<>());
+        Attack previous = ACTIVE.get();
         ACTIVE.set(attack);
         try {
             target.hurt(worker.damageSources().mobAttack(worker), damage);
             return attack.drops();
         } finally {
-            ACTIVE.remove();
+            if (previous == null) ACTIVE.remove(); else ACTIVE.set(previous);
         }
     }
     @SubscribeEvent(priority = EventPriority.LOWEST)
