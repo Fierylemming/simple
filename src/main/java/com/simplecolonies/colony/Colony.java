@@ -256,7 +256,8 @@ public class Colony {
                 Map.entry(JobType.LUMBERJACK, BuildingType.LUMBERJACK_HUT),
                 Map.entry(JobType.MINER, BuildingType.MINE),
                 Map.entry(JobType.BLACKSMITH, BuildingType.BLACKSMITH),
-                Map.entry(JobType.BUTCHER, BuildingType.BUTCHER_HUT))) {
+                Map.entry(JobType.BUTCHER, BuildingType.BUTCHER_HUT),
+                Map.entry(JobType.FISHERMAN, BuildingType.HARBOR))) {
             if (buildings.stream().anyMatch(b -> b.getType() == pair.getValue()
                     && (b.isPlayerPlaced || b.hasSupportedPlan() || b.getState() == com.simplecolonies.building.BuildingState.COMPLETE))) continue;
             for (CitizenData citizen : citizens.values()) {
@@ -268,7 +269,8 @@ public class Colony {
                 BlockPos station = memory.get().pos();
                 if (!level.isLoaded(station) || level.getPoiManager().getType(station)
                         .filter(worker.getVillagerData().getProfession().heldJobSite()).isEmpty()
-                        || !isClearWorksite(level, station, true)) continue;
+                        || !isClearWorksite(level, station, true)
+                        || (pair.getValue() == BuildingType.HARBOR && !hasFishingWater(level, station))) continue;
                 Building building = new Building(pair.getValue(), station, culture);
                 if (com.simplecolonies.building.ConstructionCrafting.canBuild(stock, building.getRemainingPlacements())) {
                     queueExpansion(building);
@@ -306,6 +308,29 @@ public class Colony {
             }
         }
         return true;
+    }
+
+    /** A modest, loaded two-deep pool near the dry worksite. This does not
+     * guarantee a path to the shore or that the biome will spawn fish. */
+    private boolean hasFishingWater(ServerLevel level, BlockPos station) {
+        for (int x = -8; x <= 7; x++) for (int z = -8; z <= 7; z++) {
+            if (x * x + z * z > 49) continue;
+            for (int y = -2; y <= 0; y++) {
+                BlockPos corner = station.offset(x, y, z);
+                boolean water = true;
+                for (int dx = 0; dx <= 1 && water; dx++) for (int dz = 0; dz <= 1 && water; dz++) {
+                    BlockPos surface = corner.offset(dx, 1, dz);
+                    if (!level.isLoaded(surface) || !level.getBlockState(surface).isAir()) { water = false; break; }
+                    for (int dy = 0; dy >= -1; dy--) {
+                        BlockPos p = corner.offset(dx, dy, dz);
+                        if (!isInside(p) || !level.isLoaded(p) || !level.getFluidState(p).is(net.minecraft.tags.FluidTags.WATER)
+                                || !level.getFluidState(p).isSource()) { water = false; break; }
+                    }
+                }
+                if (water) return true;
+            }
+        }
+        return false;
     }
 
     /** Queues a house only when there is no unfinished construction and a safe site exists. */

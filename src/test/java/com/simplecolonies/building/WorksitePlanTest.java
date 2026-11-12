@@ -16,7 +16,7 @@ class WorksitePlanTest {
     @BeforeAll static void bootstrap() { SharedConstants.tryDetectVersion(); Bootstrap.bootStrap(); }
 
     @Test void workshopPlansSurroundButNeverReplaceTheirWorkstations() {
-        var types = new BuildingType[]{BuildingType.BUILDER_HUT, BuildingType.LUMBERJACK_HUT, BuildingType.MINE, BuildingType.BLACKSMITH, BuildingType.BUTCHER_HUT};
+        var types = new BuildingType[]{BuildingType.BUILDER_HUT, BuildingType.LUMBERJACK_HUT, BuildingType.MINE, BuildingType.BLACKSMITH, BuildingType.BUTCHER_HUT, BuildingType.HARBOR};
         var fingerprints = new java.util.HashSet<Map<BlockPos, net.minecraft.world.level.block.state.BlockState>>();
         for (var type : types) {
             Map<BlockPos, net.minecraft.world.level.block.state.BlockState> placements = new HashMap<>();
@@ -47,6 +47,15 @@ class WorksitePlanTest {
         for (var type : new BuildingType[]{BuildingType.BLACKSMITH, BuildingType.BUTCHER_HUT}) {
             var tag = new Building(type, BlockPos.ZERO, CultureType.ROMAN).save();
             tag.putInt("planVersion", 6);
+            Building old = Building.load(tag);
+            assertFalse(old.hasSupportedPlan());
+            assertTrue(old.getRemainingPlacements().isEmpty());
+        }
+    }
+    @Test void olderHarborPlaceholdersRemainUnsupported() {
+        for (int version = 1; version <= 7; version++) {
+            var tag = new Building(BuildingType.HARBOR, BlockPos.ZERO, CultureType.ROMAN).save();
+            tag.putInt("planVersion", version);
             Building old = Building.load(tag);
             assertFalse(old.hasSupportedPlan());
             assertTrue(old.getRemainingPlacements().isEmpty());

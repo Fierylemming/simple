@@ -79,6 +79,9 @@ public class ConstructionGameTests {
     @GameTest(template = "empty", timeoutTicks = 2400)
     public static void butcherHut(GameTestHelper helper) { runBuilder(helper, BuildingType.BUTCHER_HUT, Blocks.SMOKER, CultureType.ROMAN, -1); }
 
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void harborWorksite(GameTestHelper helper) { runBuilder(helper, BuildingType.HARBOR, Blocks.BARREL, CultureType.ROMAN, -1); }
+
     @GameTest(template = "empty", timeoutTicks = 200)
     public static void blockedPlacementDoesNotConsume(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
@@ -131,6 +134,10 @@ public class ConstructionGameTests {
         }
         BlockPos origin = helper.absolutePos(relative);
         if (workstation != null) helper.setBlock(relative, workstation);
+        if (type == BuildingType.HARBOR) {
+            var barrel = (net.minecraft.world.Container) helper.getBlockEntity(relative);
+            barrel.setItem(0, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 3));
+        }
         final BlockPos stationRelative = relative;
         Colony colony = new Colony(0, culture, origin);
         colony.depositToWarehouse("minecraft:oak_log", 300);
@@ -153,6 +160,11 @@ public class ConstructionGameTests {
                         + " distance " + (next == null ? 0 : villager.distanceToSqr(next.pos.getX()+0.5, next.pos.getY()+0.5, next.pos.getZ()+0.5)));
             }
             if (workstation != null) helper.assertBlockPresent(workstation, stationRelative);
+            if (type == BuildingType.HARBOR) {
+                var barrel = (net.minecraft.world.Container) helper.getBlockEntity(stationRelative);
+                if (!barrel.getItem(0).is(net.minecraft.world.item.Items.DIAMOND) || barrel.getItem(0).getCount() != 3)
+                    helper.fail("Construction modified the barrel inventory");
+            }
             if (type == BuildingType.BLACKSMITH) helper.assertBlockPresent(Blocks.FURNACE, stationRelative.east());
             var lower = helper.getLevel().getBlockState(door);
             var upper = helper.getLevel().getBlockState(door.above());

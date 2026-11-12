@@ -29,6 +29,71 @@ public class WorksiteExpansionGameTests {
     public static void butcherExpansionUsesAssignedStation(GameTestHelper helper) {
         testExpansion(helper, JobType.BUTCHER, BuildingType.BUTCHER_HUT, Blocks.SMOKER);
     }
+    @GameTest(template = "isolated", timeoutTicks = 1300)
+    public static void harborExpansionNeedsDeepWaterAndClearPlot(GameTestHelper helper) {
+        for (int x = 20; x <= 75; x++) for (int z = 35; z <= 75; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos center = helper.absolutePos(new BlockPos(36, 1, 56));
+        BlockPos site = new BlockPos(56, 1, 56), absSite = helper.absolutePos(site);
+        helper.setBlock(site, Blocks.BARREL);
+        var barrel = (net.minecraft.world.Container) helper.getBlockEntity(site);
+        barrel.setItem(0, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 3));
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        colony.registerPlayerBuilding(new Building(BuildingType.TOWN_HALL, center, CultureType.ROMAN, true));
+        colony.registerPlayerBuilding(new Building(BuildingType.HOUSE, center.north(16), CultureType.ROMAN, true));
+        colony.addCitizen(new CitizenData(UUID.randomUUID(), "Builder", JobType.BUILDER));
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), site.offset(0, 0, 2));
+        worker.setNoAi(true);
+        worker.setColony(colony);
+        worker.setJob(JobType.FISHERMAN);
+        colony.getCitizens().stream().filter(c -> c.uuid.equals(worker.getUUID())).findFirst().orElseThrow().job = JobType.FISHERMAN;
+        worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), absSite));
+        colony.depositToWarehouse("minecraft:oak_log", 300);
+        colony.depositToWarehouse("minecraft:cobblestone", 300);
+        colony.depositToWarehouse("minecraft:coal", 10);
+        var tag = new Building(BuildingType.HARBOR, center.south(14), CultureType.ROMAN).save();
+        tag.putInt("planVersion", 7);
+        var legacy = Building.load(tag);
+        colony.registerPlayerBuilding(legacy);
+        helper.runAtTickTime(200, () -> {
+            colony.tick(helper.getLevel());
+            if (hasHarborPlan(colony)) helper.fail("Harbor queued on dry land");
+            // A shallow pool outside the footprint should not suffice either.
+            for (int x = 60; x <= 61; x++) for (int z = 55; z <= 56; z++) helper.setBlock(x, 0, z, Blocks.WATER);
+        });
+        helper.runAtTickTime(400, () -> {
+            colony.tick(helper.getLevel());
+            if (hasHarborPlan(colony)) helper.fail("Harbor queued beside shallow water");
+            for (int x = 60; x <= 61; x++) for (int z = 55; z <= 56; z++) {
+                helper.setBlock(x, -1, z, Blocks.WATER);
+                helper.setBlock(x, 1, z, Blocks.STONE);
+            }
+        });
+        helper.runAtTickTime(600, () -> {
+            colony.tick(helper.getLevel());
+            if (hasHarborPlan(colony)) helper.fail("Harbor queued beside buried water");
+            for (int x = 60; x <= 61; x++) for (int z = 55; z <= 56; z++) helper.setBlock(x, 1, z, Blocks.AIR);
+            helper.setBlock(site.offset(2, 0, 0), Blocks.OBSIDIAN);
+        });
+        helper.runAtTickTime(800, () -> {
+            colony.tick(helper.getLevel());
+            if (hasHarborPlan(colony)) helper.fail("Harbor queued over an obstruction");
+            helper.setBlock(site.offset(2, 0, 0), Blocks.AIR);
+        });
+        helper.runAtTickTime(1000, () -> {
+            colony.tick(helper.getLevel());
+            var harbor = colony.getBuildings().stream().filter(b -> b.getType() == BuildingType.HARBOR && b.hasSupportedPlan()).findFirst().orElse(null);
+            if (harbor == null || !harbor.getPos().equals(absSite) || legacy.hasSupportedPlan() || !legacy.getRemainingPlacements().isEmpty())
+                helper.fail("No new plan at shoreline or old placeholder changed: " + colony.getExpansionStatus());
+            if (!helper.getBlockState(site).is(Blocks.BARREL) || barrel.getItem(0).getCount() != 3
+                    || !helper.getBlockState(new BlockPos(60, 0, 55)).is(Blocks.WATER))
+                helper.fail("Planning altered the station, its inventory or water");
+            helper.succeed();
+        });
+    }
+    private static boolean hasHarborPlan(Colony colony) {
+        return colony.getBuildings().stream().anyMatch(b -> b.getType() == BuildingType.HARBOR && b.hasSupportedPlan());
+    }
+
     private static void testExpansion(GameTestHelper helper, JobType type, BuildingType buildingType, Block stationBlock) {
         for (int x = 20; x <= 75; x++) for (int z = 35; z <= 75; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
         BlockPos center = helper.absolutePos(new BlockPos(36, 1, 56));
