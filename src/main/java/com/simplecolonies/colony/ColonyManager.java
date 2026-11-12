@@ -85,6 +85,7 @@ public class ColonyManager {
             colony.depositToWarehouse("minecraft:bread", 16);
             colony.depositToWarehouse("minecraft:cobblestone", 32);
             colony.depositToWarehouse("minecraft:stone_pickaxe", 1);
+            colony.depositToWarehouse("minecraft:stone_axe", 1);
             colony.depositToWarehouse("minecraft:oak_sapling", 4);
             colony.depositToWarehouse("minecraft:coal", 8);
             colony.depositToWarehouse("minecraft:stick", 16);

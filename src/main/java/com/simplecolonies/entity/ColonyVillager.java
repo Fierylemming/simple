@@ -39,6 +39,7 @@ public class ColonyVillager extends Villager {
     // The courier carries this actual stack across chunk unloads and restarts.
     private net.minecraft.world.item.ItemStack courierCargo = net.minecraft.world.item.ItemStack.EMPTY;
     private CompoundTag minerMemory = new CompoundTag();
+    private CompoundTag woodcutterMemory = new CompoundTag();
     private long nextConversationTime;
 
     // Needs
@@ -94,6 +95,8 @@ public class ColonyVillager extends Villager {
     public void setCourierCargo(net.minecraft.world.item.ItemStack cargo) { courierCargo = cargo; }
     public CompoundTag getMinerMemory() { return minerMemory.copy(); }
     public void setMinerMemory(CompoundTag memory) { minerMemory = memory.copy(); }
+    public CompoundTag getWoodcutterMemory() { return woodcutterMemory.copy(); }
+    public void setWoodcutterMemory(CompoundTag memory) { woodcutterMemory = memory.copy(); }
 
     public void setColony(Colony colony) {
         if (this.colonyId != -1 && this.colonyId != colony.getId()) {
@@ -363,6 +366,7 @@ public class ColonyVillager extends Villager {
         tag.putInt("daysAlive", daysAlive);
         if (!courierCargo.isEmpty()) tag.put("courierCargo", courierCargo.save(registryAccess()));
         if (!minerMemory.isEmpty()) tag.put("minerMemory", minerMemory.copy());
+        if (!woodcutterMemory.isEmpty()) tag.put("woodcutterMemory", woodcutterMemory.copy());
     }
 
     @Override
@@ -373,6 +377,7 @@ public class ColonyVillager extends Villager {
         hungerTicks = tag.getInt("hungerTicks");
         daysAlive = tag.getInt("daysAlive");
         minerMemory = tag.getCompound("minerMemory").copy();
+        woodcutterMemory = tag.getCompound("woodcutterMemory").copy();
         courierCargo = tag.contains("courierCargo")
                 ? net.minecraft.world.item.ItemStack.parseOptional(registryAccess(), tag.getCompound("courierCargo"))
                 : net.minecraft.world.item.ItemStack.EMPTY;

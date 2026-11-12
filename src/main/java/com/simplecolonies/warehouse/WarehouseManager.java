@@ -142,6 +142,26 @@ public class WarehouseManager {
         return Collections.unmodifiableMap(new HashMap<>(aggregatedCounts));
     }
 
+    /** Remove one actual item, retaining damage, enchantments and other components. */
+    public ItemStack extractOne(ServerLevel level, BlockPos requesterPos, net.minecraft.world.item.Item item) {
+        scan(level);
+        var sorted = new ArrayList<>(cachedChests.entrySet());
+        sorted.sort(Comparator.comparingDouble(e -> e.getKey().distSqr(requesterPos)));
+        for (var entry : sorted) {
+            Container container = entry.getValue();
+            for (int slot = 0; slot < container.getContainerSize(); slot++) {
+                if (!container.getItem(slot).is(item)) continue;
+                ItemStack taken = container.removeItem(slot, 1);
+                if (!taken.isEmpty()) {
+                    container.setChanged();
+                    refreshCounts(level);
+                    return taken;
+                }
+            }
+        }
+        return ItemStack.EMPTY;
+    }
+
     /** Try to extract amount of itemId from any chests near pos (nearest-first). Returns actually extracted. */
     public int extract(ServerLevel level, BlockPos requesterPos, String itemId, int amount, boolean simulate) {
         scan(level);

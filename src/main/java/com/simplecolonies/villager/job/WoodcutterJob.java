@@ -2,6 +2,11 @@ package com.simplecolonies.villager.job;
 
 import com.simplecolonies.building.BuildingType;
 import com.simplecolonies.colony.Colony;
+import com.simplecolonies.entity.ColonyVillager;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.AxeItem;
+import net.minecraft.world.item.Items;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -17,6 +22,7 @@ public class WoodcutterJob extends AbstractJob {
     private BlockPos treeBase;
     private java.util.List<BlockPos> tree = java.util.List.of();
     private int remaining;
+    private boolean restored;
 
     public WoodcutterJob(Villager villager, Colony colony) {
         super(villager, colony, JobType.LUMBERJACK);
@@ -25,6 +31,7 @@ public class WoodcutterJob extends AbstractJob {
     @Override
     protected void doWork(ServerLevel level) {
         var view = new TreeView(level);
+        if (!restored) { readMemory(); restored = true; }
         if (treeBase == null) {
             BlockPos center = villager.blockPosition();
             for (BlockPos mutable : BlockPos.betweenClosed(center.offset(-16, -4, -16), center.offset(16, 8, 16))) {
@@ -36,12 +43,21 @@ public class WoodcutterJob extends AbstractJob {
                 treeBase = base;
                 tree = found;
                 remaining = tree.size();
+                writeMemory();
                 break;
             }
         }
         if (treeBase == null) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
+        // A chunk unload is not a safety violation: retain the partially cut tree
+        // and retry without loading chunks. Actual construction in the area aborts it.
+        for (int dx = -3; dx <= 3; dx++) for (int dz = -3; dz <= 3; dz++)
+            for (int dy = -1; dy <= tree.size() + 2; dy++) {
+                if (!view.loaded(treeBase.offset(dx, dy, dz))) {
+                    state = JobState.STUCK; ticksUntilNextWork = 100; return;
+                }
+            }
         if (!SafeOakTree.safePartialTrunk(view, treeBase, tree, remaining)) {
-            treeBase = null; state = JobState.STUCK; ticksUntilNextWork = 60; return;
+            clearTree(); state = JobState.STUCK; ticksUntilNextWork = 60; return;
         }
         BlockPos log = tree.get(remaining - 1);
         if (villager.distanceToSqr(log.getX() + 0.5, log.getY() + 0.5, log.getZ() + 0.5) > 20.25) {
@@ -57,13 +73,16 @@ public class WoodcutterJob extends AbstractJob {
                 var attempt = villager.getNavigation().createPath(candidate, 0);
                 if (attempt != null && attempt.canReach()) { path = attempt; break; }
             }
-            if (path == null) { treeBase = null; state = JobState.STUCK; ticksUntilNextWork = 60; return; }
+            if (path == null) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
             villager.getNavigation().moveTo(path, 0.7);
             state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
         }
+        equipAxeIfAvailable(level);
         var block = level.getBlockState(log);
         var drops = net.minecraft.world.level.block.Block.getDrops(block, level, log, null, villager, villager.getMainHandItem());
-        if (!level.destroyBlock(log, false)) { treeBase = null; state = JobState.STUCK; return; }
+        if (!level.destroyBlock(log, false)) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
+        if (villager.getMainHandItem().getItem() instanceof AxeItem)
+            villager.getMainHandItem().hurtAndBreak(1, villager, EquipmentSlot.MAINHAND);
         villager.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
         for (var drop : drops) if (!drop.isEmpty()) depositToColony(level,
                 net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(drop.getItem()).toString(), drop.getCount());
@@ -75,10 +94,46 @@ public class WoodcutterJob extends AbstractJob {
                 if (!level.setBlock(treeBase, Blocks.OAK_SAPLING.defaultBlockState(), 3))
                     colony.depositToWarehouse("minecraft:oak_sapling", 1);
             }
-            treeBase = null;
-        }
+            clearTree();
+        } else writeMemory();
         state = JobState.WORKING;
         ticksUntilNextWork = 30;
+    }
+
+    /** Use an actual stock axe when available. Bare-handed work remains possible in
+     * older colonies without one, so upgrading a save does not stop its wood supply. */
+    private void equipAxeIfAvailable(ServerLevel level) {
+        if (!villager.getMainHandItem().isEmpty()) return;
+        for (var item : new net.minecraft.world.item.Item[]{Items.NETHERITE_AXE, Items.DIAMOND_AXE,
+                Items.IRON_AXE, Items.STONE_AXE, Items.WOODEN_AXE, Items.GOLDEN_AXE}) {
+            var tool = colony.takeStockItem(level, villager.blockPosition(), item);
+            if (!tool.isEmpty()) { villager.setItemSlot(EquipmentSlot.MAINHAND, tool); return; }
+        }
+    }
+
+    private void clearTree() {
+        treeBase = null; tree = java.util.List.of(); remaining = 0; writeMemory();
+    }
+    private void writeMemory() {
+        if (!(villager instanceof ColonyVillager cv)) return;
+        CompoundTag tag = new CompoundTag();
+        if (treeBase != null) {
+            tag.putLong("base", treeBase.asLong());
+            tag.putInt("height", tree.size());
+            tag.putInt("remaining", remaining);
+        }
+        cv.setWoodcutterMemory(tag);
+    }
+    private void readMemory() {
+        if (!(villager instanceof ColonyVillager cv)) return;
+        CompoundTag tag = cv.getWoodcutterMemory();
+        int height = tag.getInt("height"), count = tag.getInt("remaining");
+        if (!tag.contains("base") || height < 3 || height > 4 || count < 1 || count > height) return;
+        BlockPos base = BlockPos.of(tag.getLong("base"));
+        if (!colony.isInside(base)) return;
+        var logs = new java.util.ArrayList<BlockPos>();
+        for (int y = 0; y < height; y++) logs.add(base.above(y));
+        treeBase = base; tree = java.util.List.copyOf(logs); remaining = count;
     }
 
     private final class TreeView implements SafeOakTree.View {

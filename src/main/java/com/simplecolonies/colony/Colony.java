@@ -434,6 +434,20 @@ public class Colony {
         }
     }
 
+    /** Take a real item when available, preserving its components; legacy virtual stock
+     * stores only item IDs and therefore can only represent an undamaged item. */
+    public net.minecraft.world.item.ItemStack takeStockItem(ServerLevel level, BlockPos requester,
+                                                             net.minecraft.world.item.Item item) {
+        if (level != null) {
+            var taken = warehouseManager.extractOne(level, requester, item);
+            if (!taken.isEmpty()) { ColonyManager.getInstance().markDirty(this); return taken; }
+        }
+        String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString();
+        if (warehouse.getOrDefault(id, 0) < 1) return net.minecraft.world.item.ItemStack.EMPTY;
+        depositToWarehouse(id, -1);
+        return new net.minecraft.world.item.ItemStack(item);
+    }
+
     /** Consume from chest and virtual stockpile, exactly once, or not at all. */
     public boolean consumeStock(ServerLevel level, String itemId, int amount) {
         if (amount <= 0) return true;
