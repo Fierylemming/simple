@@ -95,6 +95,10 @@ public class WarehouseManager {
                     BlockPos pos = entry.getKey();
                     if (center.distSqr(pos) > radiusSq) continue;
                     if (!(entry.getValue() instanceof Container container)) continue;
+                    if (!(entry.getValue() instanceof ChestBlockEntity)
+                            && !(entry.getValue() instanceof net.minecraft.world.level.block.entity.BarrelBlockEntity)
+                            && !(entry.getValue() instanceof net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity)) continue;
+                    // A furnace, hopper or other machine is not a warehouse storage container.
                     // Each block entity is one half of a double chest, so count both.
                     cachedChests.put(pos.immutable(), container);
                     chestCount++;
