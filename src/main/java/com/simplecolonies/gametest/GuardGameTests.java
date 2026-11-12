@@ -33,7 +33,9 @@ public class GuardGameTests {
                 helper.fail("Guard attacked a hostile remotely");
         });
         helper.succeedWhen(() -> {
-            if (zombie.isAlive()) helper.fail("Guard has not defeated hostile: " + job.getState());
+            if (zombie.isAlive()) helper.fail("Guard " + job.getState() + " at " + guard.blockPosition().toShortString()
+                    + ", hostile at " + zombie.blockPosition().toShortString() + ", distance " + guard.distanceToSqr(zombie)
+                    + ", health " + zombie.getHealth());
         });
     }
 }

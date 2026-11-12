@@ -28,7 +28,7 @@ public class SoldierJob extends AbstractJob {
         if (target != null) {
             villager.getLookControl().setLookAt(target);
             if (villager.distanceToSqr(target) > 4 || !villager.hasLineOfSight(target)) {
-                var path = villager.getNavigation().createPath(target, 1);
+                var path = villager.getNavigation().createPath(target, 0);
                 if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 30; return; }
                 villager.getNavigation().moveTo(path, 1.0);
                 state = JobState.GOING_TO_WORK;
