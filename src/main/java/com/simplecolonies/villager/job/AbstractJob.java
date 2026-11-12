@@ -100,6 +100,15 @@ public abstract class AbstractJob {
         return Math.max(5, (int)(base / mult));
     }
 
+    /** Reuse a worker's stowed tools before withdrawing another one from storage. */
+    protected net.minecraft.world.item.ItemStack takeTool(ServerLevel level, net.minecraft.world.item.Item item) {
+        var inventory = villager.getInventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            if (inventory.getItem(slot).is(item)) return inventory.removeItem(slot, 1);
+        }
+        return colony.takeStockItem(level, villager.blockPosition(), item);
+    }
+
     // --- Warehouse / chest helpers ---
 
     protected void depositToColony(ServerLevel level, String itemId, int count) {

@@ -81,7 +81,7 @@ public class MinerJob extends AbstractJob {
         int tier = tier(held);
         if (tier != 0 || !held.isEmpty()) return tier;
         for (var item : new net.minecraft.world.item.Item[]{Items.NETHERITE_PICKAXE, Items.DIAMOND_PICKAXE, Items.IRON_PICKAXE, Items.STONE_PICKAXE}) {
-            ItemStack tool = colony.takeStockItem(level, villager.blockPosition(), item);
+            ItemStack tool = takeTool(level, item);
             if (!tool.isEmpty()) {
                 villager.setItemSlot(EquipmentSlot.MAINHAND, tool);
                 return tier(tool);

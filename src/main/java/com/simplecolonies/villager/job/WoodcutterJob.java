@@ -106,7 +106,7 @@ public class WoodcutterJob extends AbstractJob {
         if (!villager.getMainHandItem().isEmpty()) return;
         for (var item : new net.minecraft.world.item.Item[]{Items.NETHERITE_AXE, Items.DIAMOND_AXE,
                 Items.IRON_AXE, Items.STONE_AXE, Items.WOODEN_AXE, Items.GOLDEN_AXE}) {
-            var tool = colony.takeStockItem(level, villager.blockPosition(), item);
+            var tool = takeTool(level, item);
             if (!tool.isEmpty()) { villager.setItemSlot(EquipmentSlot.MAINHAND, tool); return; }
         }
     }

@@ -113,6 +113,15 @@ public class ColonyVillager extends Villager {
     public void setJob(JobType newJob) {
         boolean changed = this.job != newJob;
         if (changed && !level().isClientSide) {
+            // Keep real job tools (including their damage/components) when switching
+            // professions, instead of leaving an incompatible tool in the main hand.
+            var held = getMainHandItem();
+            boolean oldTool = (job == JobType.LUMBERJACK && held.getItem() instanceof net.minecraft.world.item.AxeItem)
+                    || (job == JobType.MINER && held.getItem() instanceof net.minecraft.world.item.PickaxeItem);
+            if (oldTool) {
+                var remainder = getInventory().addItem(held);
+                setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, remainder);
+            }
             if (!courierCargo.isEmpty()) {
                 spawnAtLocation(courierCargo);
                 courierCargo = net.minecraft.world.item.ItemStack.EMPTY;
