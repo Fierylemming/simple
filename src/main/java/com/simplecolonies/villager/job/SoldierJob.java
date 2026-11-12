@@ -2,58 +2,52 @@ package com.simplecolonies.villager.job;
 
 import com.simplecolonies.colony.Colony;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
-import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Player;
 
-/**
- * Soldier: defends colony and can be commanded by leader to attack other colonies.
- * - When leader right-clicks soldier with command staff, soldier enters FOLLOW_LEADER mode and attacks what leader attacks.
- * - Otherwise patrols colony border and attacks hostiles + war enemies.
- */
+/** Close-range defensive combat against hostiles; commander following remains optional. */
 public class SoldierJob extends AbstractJob {
-    private Player commander; // leader commanding this soldier
-    private boolean followingLeader = false;
+    private Player commander;
+    private boolean followingLeader;
 
-    public SoldierJob(Villager villager, Colony colony) {
-        super(villager, colony, JobType.SOLDIER);
-    }
+    public SoldierJob(Villager villager, Colony colony) { super(villager, colony, JobType.SOLDIER); }
+    public void setCommander(Player player, boolean follow) { commander = player; followingLeader = follow; }
 
-    public void setCommander(Player player, boolean follow) {
-        this.commander = player;
-        this.followingLeader = follow;
-    }
-
-    @Override
-    protected void doWork(ServerLevel level) {
-        // Soldiers use vanilla AI goals more than tick logic - this just handles commander follow
-        state = JobState.WORKING;
-        if (followingLeader && commander != null) {
-            // Move towards commander if too far
-            if (villager.distanceToSqr(commander) > 100) {
-                villager.getNavigation().moveTo(commander, 1.2);
-            }
-            // Attack commander's target
-            LivingEntity target = commander.getLastHurtMob();
-            if (target != null && target.isAlive() && villager.distanceToSqr(target) < 5000) {
-                villager.setTarget(target);
-            }
-        } else {
-            // Patrol: if colony under attack (war), go to border
-            if (colony.getState() == com.simplecolonies.colony.ColonyState.UNDER_ATTACK) {
-                // Find nearest enemy colony member - simplified to nearest monster
-                // Real would have cross-colony entity tracking
-            }
+    @Override protected void doWork(ServerLevel level) {
+        LivingEntity target = null;
+        if (followingLeader && commander != null && commander.isAlive() && commander.level() == level) {
+            LivingEntity recent = commander.getLastHurtMob();
+            if (recent instanceof Monster && recent.isAlive() && villager.distanceToSqr(recent) < 400) target = recent;
         }
-        ticksUntilNextWork = 20;
+        if (target == null) target = level.getEntitiesOfClass(Monster.class, villager.getBoundingBox().inflate(16, 6, 16),
+                        m -> m.isAlive() && colony.isInside(m.blockPosition()))
+                .stream().min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
+        if (target != null) {
+            villager.getLookControl().setLookAt(target);
+            if (villager.distanceToSqr(target) > 4 || !villager.hasLineOfSight(target)) {
+                var path = villager.getNavigation().createPath(target, 1);
+                if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 30; return; }
+                villager.getNavigation().moveTo(path, 1.0);
+                state = JobState.GOING_TO_WORK;
+            } else {
+                villager.swing(InteractionHand.MAIN_HAND);
+                target.hurt(level.damageSources().mobAttack(villager), 2.0f);
+                state = JobState.WORKING;
+            }
+            ticksUntilNextWork = 20;
+            return;
+        }
+        if (followingLeader && commander != null && commander.isAlive() && commander.level() == level
+                && villager.distanceToSqr(commander) > 36) {
+            villager.getNavigation().moveTo(commander, 1.0);
+            state = JobState.GOING_TO_WORK;
+        } else state = JobState.IDLE;
+        ticksUntilNextWork = 40;
     }
 
-    public static void attachGoals(Villager villager) {
-        // Called when villager job set to soldier - adds combat AI
-        // villager.goalSelector.addGoal(2, new MeleeAttackGoal(...));
-        // villager.targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(villager, Monster.class, true));
-    }
+    // Combat is tick-driven rather than attaching goals that persist after reassignment.
+    public static void attachGoals(Villager villager) {}
 }
