@@ -21,6 +21,19 @@ public class FarmerJob extends AbstractJob {
     public FarmerJob(Villager villager, Colony colony) { super(villager, colony, JobType.FARMER); }
 
     @Override protected void doWork(ServerLevel level) {
+        var site = villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE);
+        if (site.isEmpty() || !site.get().dimension().equals(level.dimension()) || !level.isLoaded(site.get().pos())
+                || !level.getBlockState(site.get().pos()).is(Blocks.COMPOSTER)) {
+            state = JobState.STUCK; ticksUntilNextWork = 100; return;
+        }
+        // A composter alone is not permission to harvest nearby player fields.
+        // Only a completed, explicitly registered farm near this POI is worked.
+        var farm = colony.getBuildings().stream()
+                .filter(b -> b.getType() == com.simplecolonies.building.BuildingType.FARM
+                        && b.getState() == com.simplecolonies.building.BuildingState.COMPLETE
+                        && level.isLoaded(b.getPos()) && b.getPos().distSqr(site.get().pos()) <= 144)
+                .min(java.util.Comparator.comparingDouble(b -> b.getPos().distSqr(site.get().pos()))).orElse(null);
+        if (farm == null) { state = JobState.STUCK; ticksUntilNextWork = 100; return; }
         // Vanilla farmers make bread. This keeps the four-founder starter settlement
         // viable without requiring a separately assigned baker.
         int targetBread = Math.max(16, colony.citizenCount() * 4);
@@ -35,7 +48,7 @@ public class FarmerJob extends AbstractJob {
                 return;
             }
         }
-        if (target == null || !level.isLoaded(target) || !eligible(level, target)) target = findWork(level);
+        if (target == null || !level.isLoaded(target) || !eligible(level, target, farm.getPos())) target = findWork(level, farm.getPos());
         if (target == null) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
         if (villager.distanceToSqr(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5) > 9.0) {
             var path = villager.getNavigation().createPath(target, 2);
@@ -85,18 +98,19 @@ public class FarmerJob extends AbstractJob {
         ticksUntilNextWork = 40;
     }
 
-    private boolean eligible(ServerLevel level, BlockPos pos) {
+    private boolean eligible(ServerLevel level, BlockPos pos, BlockPos farm) {
+        if (Math.abs(pos.getX() - farm.getX()) > 5 || Math.abs(pos.getZ() - farm.getZ()) > 5
+                || Math.abs(pos.getY() - farm.getY()) > 3) return false;
         if (!level.getBlockState(pos.below()).is(Blocks.FARMLAND)) return false;
         BlockState state = level.getBlockState(pos);
         return state.isAir() || (state.getBlock() instanceof CropBlock crop && seedFor(state) != null && crop.isMaxAge(state));
     }
 
-    private BlockPos findWork(ServerLevel level) {
-        BlockPos center = workplacePos == null ? villager.blockPosition() : workplacePos;
+    private BlockPos findWork(ServerLevel level, BlockPos center) {
         unreachableUntil.entrySet().removeIf(e -> e.getValue() <= level.getGameTime());
         BlockPos empty = null;
-        for (BlockPos p : BlockPos.betweenClosed(center.offset(-6, -3, -6), center.offset(6, 3, 6))) {
-            if (!level.isLoaded(p) || !colony.isInside(p) || unreachableUntil.containsKey(p) || !eligible(level, p)) continue;
+        for (BlockPos p : BlockPos.betweenClosed(center.offset(-5, -3, -5), center.offset(5, 3, 5))) {
+            if (!level.isLoaded(p) || !colony.isInside(p) || unreachableUntil.containsKey(p) || !eligible(level, p, center)) continue;
             if (!level.getBlockState(p).isAir()) return p.immutable();
             if (empty == null) empty = p.immutable();
         }
