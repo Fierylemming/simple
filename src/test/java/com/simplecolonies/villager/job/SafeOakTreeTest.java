@@ -60,6 +60,18 @@ class SafeOakTreeTest {
             if (x != 0 || z != 0) f.put(ROOT.offset(x, 3, z), Block.AIR);
         assertTrue(SafeOakTree.trunk(f, ROOT).isEmpty());
     }
+    @Test void partialTreeMustRemainSafeBeforeEachPhysicalCut() {
+        Fake f = tree();
+        var trunk = SafeOakTree.trunk(f, ROOT);
+        assertTrue(SafeOakTree.safePartialTrunk(f, ROOT, trunk, 4));
+        f.put(ROOT.above(3), Block.AIR);
+        assertTrue(SafeOakTree.safePartialTrunk(f, ROOT, trunk, 3));
+        f.put(ROOT.offset(2, 0, 0), Block.STRUCTURE);
+        assertFalse(SafeOakTree.safePartialTrunk(f, ROOT, trunk, 3));
+        f.put(ROOT.offset(2, 0, 0), Block.AIR);
+        f.protectedBlocks.add(ROOT.above(1));
+        assertFalse(SafeOakTree.safePartialTrunk(f, ROOT, trunk, 3));
+    }
     @Test void plantingRespectsProtectedAndBuiltAreas() {
         Fake f = new Fake(); f.put(ROOT.below(), Block.SOIL);
         assertTrue(SafeOakTree.safePlantingArea(f, ROOT));

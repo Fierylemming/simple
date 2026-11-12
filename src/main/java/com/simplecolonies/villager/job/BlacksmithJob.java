@@ -9,6 +9,7 @@ public class BlacksmithJob extends AbstractJob {
 
     @Override
     protected void doWork(ServerLevel level) {
+        if (!atClaimedWorkstation(level)) return;
         state = JobState.WORKING;
         int iron = colony.getWarehouseCount(level, "minecraft:raw_iron");
         int coal = colony.getWarehouseCount(level, "minecraft:coal");

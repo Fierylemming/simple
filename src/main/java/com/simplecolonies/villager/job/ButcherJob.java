@@ -9,6 +9,7 @@ public class ButcherJob extends AbstractJob {
 
     @Override
     protected void doWork(ServerLevel level) {
+        if (!atClaimedWorkstation(level)) return;
         state = JobState.WORKING;
         if (colony.consumeStock(level, "minecraft:wheat", 2)) {
             depositToColony(level, "minecraft:beef", 2);

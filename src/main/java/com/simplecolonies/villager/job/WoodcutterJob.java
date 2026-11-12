@@ -11,11 +11,12 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.RotatedPillarBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.levelgen.Heightmap;
 
 /** Harvest only recognizable, unbuilt oak trees; never use nearby leaves alone as proof. */
 public class WoodcutterJob extends AbstractJob {
-    private int plantCooldown;
+    private BlockPos treeBase;
+    private java.util.List<BlockPos> tree = java.util.List.of();
+    private int remaining;
 
     public WoodcutterJob(Villager villager, Colony colony) {
         super(villager, colony, JobType.LUMBERJACK);
@@ -24,61 +25,47 @@ public class WoodcutterJob extends AbstractJob {
     @Override
     protected void doWork(ServerLevel level) {
         var view = new TreeView(level);
-        boolean harvested = false;
-        BlockPos center = villager.blockPosition();
-        for (BlockPos mutable : BlockPos.betweenClosed(center.offset(-16, -4, -16), center.offset(16, 8, 16))) {
-            BlockPos base = mutable.immutable();
-            if (!view.loaded(base) || !view.trunk(base) || !view.loaded(base.below()) || !view.soil(base.below())) continue;
-            var tree = SafeOakTree.trunk(view, base);
-            if (tree.isEmpty()) continue;
-            // Recheck the full tree immediately before changing the world.
-            if (!tree.equals(SafeOakTree.trunk(view, base))) continue;
-            int removed = 0;
-            for (BlockPos log : tree) {
-                if (level.destroyBlock(log, false)) removed++;
-            }
-            if (removed > 0) {
-                depositToColony(level, "minecraft:oak_log", removed);
-                harvested = true;
-                // Only replant if all trunk blocks were removed and the base is still free.
-                if (removed == tree.size() && level.getBlockState(base).isAir() && view.soil(base.below())) {
-                    level.setBlock(base, Blocks.OAK_SAPLING.defaultBlockState(), 3);
-                }
-            }
-            break;
-        }
-
-        if (--plantCooldown <= 0) {
-            plantCooldown = 10;
-            if (countNearbyOakAndSaplings(level, center) < 10) plantSapling(level, view, center);
-        }
-        state = harvested ? JobState.WORKING : JobState.IDLE;
-        ticksUntilNextWork = harvested ? 30 : 60;
-    }
-
-    private int countNearbyOakAndSaplings(ServerLevel level, BlockPos center) {
-        int count = 0;
-        for (BlockPos pos : BlockPos.betweenClosed(center.offset(-10, -4, -10), center.offset(10, 8, 10))) {
-            if (!level.isLoaded(pos)) continue;
-            BlockState state = level.getBlockState(pos);
-            if (state.is(Blocks.OAK_SAPLING) || state.is(Blocks.OAK_LOG)) {
-                if (++count >= 10) break;
+        if (treeBase == null) {
+            BlockPos center = villager.blockPosition();
+            for (BlockPos mutable : BlockPos.betweenClosed(center.offset(-16, -4, -16), center.offset(16, 8, 16))) {
+                BlockPos base = mutable.immutable();
+                if (!view.loaded(base) || !view.trunk(base) || !view.loaded(base.below()) || !view.soil(base.below())) continue;
+                var found = SafeOakTree.trunk(view, base);
+                // The worker must be able to reach each block from ground level, without scaffolding.
+                if (found.isEmpty() || found.size() > 4) continue;
+                treeBase = base;
+                tree = found;
+                remaining = tree.size();
+                break;
             }
         }
-        return count;
-    }
-
-    private void plantSapling(ServerLevel level, TreeView view, BlockPos center) {
-        for (int i = 0; i < 20; i++) {
-            int x = center.getX() + level.random.nextInt(33) - 16;
-            int z = center.getZ() + level.random.nextInt(33) - 16;
-            if (!level.isLoaded(new BlockPos(x, center.getY(), z))) continue;
-            BlockPos pos = new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z), z);
-            if (colony.isInside(pos) && level.getBlockState(pos).isAir() && SafeOakTree.safePlantingArea(view, pos)) {
-                level.setBlock(pos, Blocks.OAK_SAPLING.defaultBlockState(), 3);
-                return;
-            }
+        if (treeBase == null) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
+        if (!SafeOakTree.safePartialTrunk(view, treeBase, tree, remaining)) {
+            treeBase = null; state = JobState.STUCK; ticksUntilNextWork = 60; return;
         }
+        BlockPos log = tree.get(remaining - 1);
+        if (villager.distanceToSqr(log.getX() + 0.5, log.getY() + 0.5, log.getZ() + 0.5) > 20.25) {
+            var path = villager.getNavigation().createPath(treeBase, 1);
+            if (path == null || !path.canReach()) { treeBase = null; state = JobState.STUCK; ticksUntilNextWork = 60; return; }
+            villager.getNavigation().moveTo(path, 0.7);
+            state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
+        }
+        var block = level.getBlockState(log);
+        var drops = net.minecraft.world.level.block.Block.getDrops(block, level, log, null, villager, villager.getMainHandItem());
+        if (!level.destroyBlock(log, false)) { treeBase = null; state = JobState.STUCK; return; }
+        villager.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+        for (var drop : drops) if (!drop.isEmpty()) depositToColony(level,
+                net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(drop.getItem()).toString(), drop.getCount());
+        remaining--;
+        if (remaining == 0) {
+            // No free saplings: replant only from real colony stock, at the tree's original base.
+            if (level.getBlockState(treeBase).isAir() && view.soil(treeBase.below())
+                    && colony.consumeStock(level, "minecraft:oak_sapling", 1))
+                level.setBlock(treeBase, Blocks.OAK_SAPLING.defaultBlockState(), 3);
+            treeBase = null;
+        }
+        state = JobState.WORKING;
+        ticksUntilNextWork = 30;
     }
 
     private final class TreeView implements SafeOakTree.View {

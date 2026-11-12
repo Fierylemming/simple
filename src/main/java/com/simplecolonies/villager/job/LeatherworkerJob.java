@@ -9,6 +9,7 @@ public class LeatherworkerJob extends AbstractJob {
 
     @Override
     protected void doWork(ServerLevel level) {
+        if (!atClaimedWorkstation(level)) return;
         state = JobState.WORKING;
         if (colony.consumeStock(level, "minecraft:leather", 4)) {
             depositToColony(level, "minecraft:leather_chestplate", 1);

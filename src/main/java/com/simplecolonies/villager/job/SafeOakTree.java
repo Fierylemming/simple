@@ -43,6 +43,23 @@ final class SafeOakTree {
         return leaves >= 5 && touchingCanopy ? List.copyOf(logs) : List.of();
     }
 
+    /** Recheck the entire envelope after each cut; remaining logs must still match the original tree.
+     * Removed logs are allowed to be air, but any new construction aborts the job. */
+    static boolean safePartialTrunk(View view, BlockPos base, List<BlockPos> original, int remaining) {
+        if (remaining < 1 || remaining > original.size() || !view.loaded(base.below()) || !view.soil(base.below())) return false;
+        for (int dx = -3; dx <= 3; dx++) for (int dz = -3; dz <= 3; dz++) {
+            for (int dy = -1; dy <= original.size() + 2; dy++) {
+                BlockPos pos = base.offset(dx, dy, dz);
+                if (!view.loaded(pos)) return false;
+                if (dx == 0 && dz == 0 && dy >= 0 && dy < original.size()) {
+                    if (view.protectedPosition(pos)) return false;
+                    if (dy < remaining ? !view.trunk(pos) : !view.clearOrNatural(pos, false)) return false;
+                } else if (!view.clearOrNatural(pos, dy < 0)) return false;
+            }
+        }
+        return true;
+    }
+
     static boolean safePlantingArea(View view, BlockPos base) {
         if (!view.loaded(base) || !view.loaded(base.below()) || !view.soil(base.below()) || view.protectedPosition(base)) return false;
         for (int dx = -3; dx <= 3; dx++) for (int dz = -3; dz <= 3; dz++) for (int y = -1; y <= 5; y++) {

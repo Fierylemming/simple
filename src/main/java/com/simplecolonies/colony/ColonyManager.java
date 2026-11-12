@@ -85,6 +85,7 @@ public class ColonyManager {
             colony.depositToWarehouse("minecraft:bread", 16);
             colony.depositToWarehouse("minecraft:cobblestone", 32);
             colony.depositToWarehouse("minecraft:stone_pickaxe", 1);
+            colony.depositToWarehouse("minecraft:oak_sapling", 4);
             colony.depositToWarehouse("minecraft:coal", 8);
             colony.depositToWarehouse("minecraft:stick", 16);
             var tier = com.simplecolonies.building.MaterialProgression.get(culture, 1);
@@ -481,7 +482,7 @@ public class ColonyManager {
             for (int y = 0; y < 3; y++) level.setBlock(origin.offset(x, y, z), y == 2 && (x == 0 && z == -3) ? Blocks.AIR.defaultBlockState() : cobble, 3);
         }
         // Door south
-        level.setBlock(origin.offset(0, 0, -3), Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.NORTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER), 3);
+        level.setBlock(origin.offset(0, 0, -3), Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.NORTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER), 2);
         level.setBlock(origin.offset(0, 1, -3), Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.NORTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER), 3);
         // Starter shelter intentionally has no beds; wool requires later production.
         // Chest + crafting + torch
@@ -533,7 +534,8 @@ public class ColonyManager {
         // Border fence — now on solid dirt, not floating over water
         for (int x = -halfSize; x <= halfSize; x++) for (int z = -halfSize; z <= halfSize; z++) if (x == -halfSize || x == halfSize || z == -halfSize || z == halfSize) level.setBlock(origin.offset(x, 0, z), Blocks.OAK_FENCE.defaultBlockState(), 3);
         // Gate gives villagers access without stepping on crops.
-        level.setBlock(origin.offset(0, 0, -halfSize), Blocks.OAK_FENCE_GATE.defaultBlockState(), 3);
+        level.setBlock(origin.offset(0, 0, -halfSize), Blocks.OAK_FENCE_GATE.defaultBlockState()
+                .setValue(net.minecraft.world.level.block.FenceGateBlock.OPEN, true), 3);
         level.setBlock(origin.offset(halfSize, 0, 0), Blocks.COMPOSTER.defaultBlockState(), 3);
     }
 

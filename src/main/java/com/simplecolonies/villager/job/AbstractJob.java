@@ -59,6 +59,28 @@ public abstract class AbstractJob {
         return colony.getCenter();
     }
 
+    /** Move to the villager's claimed POI before workstation-based production. */
+    protected boolean atClaimedWorkstation(ServerLevel level) {
+        var site = villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE);
+        if (site.isEmpty() || !site.get().dimension().equals(level.dimension()) || !level.isLoaded(site.get().pos())) {
+            state = JobState.STUCK;
+            ticksUntilNextWork = 40;
+            return false;
+        }
+        BlockPos target = site.get().pos();
+        if (villager.distanceToSqr(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5) <= 9) return true;
+        var path = villager.getNavigation().createPath(target, 1);
+        if (path == null || !path.canReach()) {
+            state = JobState.STUCK;
+            ticksUntilNextWork = 60;
+            return false;
+        }
+        villager.getNavigation().moveTo(path, 0.7);
+        state = JobState.GOING_TO_WORK;
+        ticksUntilNextWork = 20;
+        return false;
+    }
+
     protected abstract void doWork(ServerLevel level);
 
     protected int getWorkInterval() {

@@ -138,6 +138,7 @@ public class ColonyVillager extends Villager {
             case BUTCHER -> new ButcherJob(this, colony);
             case LEATHERWORKER -> new LeatherworkerJob(this, colony);
             case BLACKSMITH -> new BlacksmithJob(this, colony);
+            case BAKER -> new BakerJob(this, colony);
             default -> null;
         };
     }
