@@ -20,7 +20,7 @@ public class Building {
     private BuildingState state = BuildingState.BLUEPRINT;
     private int level = 1;
     // Version 1 is the old all-log plan, retained for buildings saved before 0.1.28.
-    private int planVersion = 6;
+    private int planVersion = 7;
     private int houseVariant;
     private final Map<String, Integer> requiredResources = new HashMap<>();
     private final Queue<BlockPlacement> placements = new ArrayDeque<>();
@@ -64,7 +64,7 @@ public class Building {
         placements.clear();
         requiredResources.clear();
         if (type != BuildingType.HOUSE) {
-            if (planVersion >= 4 && LevelOneWorksites.supports(type)) {
+            if (planVersion >= 4 && LevelOneWorksites.supports(type, planVersion)) {
                 var plan = new ArrayList<BlockPlacement>();
                 LevelOneWorksites.generate(type, pos, (at, state) -> plan.add(placement(at, state)));
                 addPlan(plan, false);
@@ -128,7 +128,7 @@ public class Building {
     }
 
     public boolean hasSupportedPlan() {
-        return !isPlayerPlaced && (type == BuildingType.HOUSE || (planVersion >= 4 && LevelOneWorksites.supports(type)));
+        return !isPlayerPlaced && (type == BuildingType.HOUSE || (planVersion >= 4 && LevelOneWorksites.supports(type, planVersion)));
     }
 
     public void upgradeToNextLevel() {

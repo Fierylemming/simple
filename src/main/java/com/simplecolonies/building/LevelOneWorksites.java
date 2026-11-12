@@ -10,8 +10,10 @@ import java.util.function.BiConsumer;
 
 /** Compact early workshops built around an existing workstation, not over it. */
 final class LevelOneWorksites {
-    static boolean supports(BuildingType type) {
-        return type == BuildingType.LUMBERJACK_HUT || type == BuildingType.MINE || type == BuildingType.BUILDER_HUT;
+    static boolean supports(BuildingType type) { return supports(type, 7); }
+    static boolean supports(BuildingType type, int version) {
+        return type == BuildingType.LUMBERJACK_HUT || type == BuildingType.MINE || type == BuildingType.BUILDER_HUT
+                || (version >= 7 && (type == BuildingType.BLACKSMITH || type == BuildingType.BUTCHER_HUT));
     }
 
     static void generate(BuildingType type, BlockPos station, BiConsumer<BlockPos, BlockState> add) {
@@ -26,12 +28,17 @@ final class LevelOneWorksites {
                 case MINE -> y == 2 && !corner ? Blocks.OAK_PLANKS.defaultBlockState() : Blocks.COBBLESTONE.defaultBlockState();
                 case BUILDER_HUT -> y == 0 ? Blocks.COBBLESTONE.defaultBlockState()
                         : corner ? Blocks.OAK_LOG.defaultBlockState() : Blocks.OAK_PLANKS.defaultBlockState();
+                case BLACKSMITH -> y == 0 || corner ? Blocks.COBBLESTONE.defaultBlockState() : Blocks.OAK_PLANKS.defaultBlockState();
+                case BUTCHER_HUT -> corner ? (y == 0 ? Blocks.COBBLESTONE.defaultBlockState() : Blocks.OAK_LOG.defaultBlockState())
+                        : Blocks.OAK_PLANKS.defaultBlockState();
                 default -> throw new IllegalStateException();
             };
             add.accept(station.offset(x, y, z), wall);
         }
         add.accept(station.offset(0, 0, -2), Blocks.OAK_DOOR.defaultBlockState().setValue(DoorBlock.FACING, Direction.NORTH));
         add.accept(station.offset(1, 0, 1), Blocks.TORCH.defaultBlockState());
+        // SmithFurnace deliberately accepts only a furnace adjacent to the claimed table.
+        if (type == BuildingType.BLACKSMITH) add.accept(station.offset(1, 0, 0), Blocks.FURNACE.defaultBlockState());
         for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
             BlockState roof = x == -2 || x == 2
                     ? Blocks.OAK_STAIRS.defaultBlockState().setValue(StairBlock.FACING, x < 0 ? Direction.EAST : Direction.WEST)

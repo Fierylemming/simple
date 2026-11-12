@@ -20,7 +20,7 @@ class HousePlanVersionTest {
         assertTrue(b.getRequiredResources().containsKey("minecraft:oak_stairs"));
         assertTrue(b.getRequiredResources().containsKey("minecraft:oak_slab"));
         var tag = b.save();
-        assertEquals(6, tag.getInt("planVersion"));
+        assertEquals(7, tag.getInt("planVersion"));
         Building restored = Building.load(tag);
         assertEquals(b.getRequiredResources(), restored.getRequiredResources());
         assertEquals(tag.getInt("houseVariant"), restored.save().getInt("houseVariant"));

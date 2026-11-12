@@ -16,7 +16,7 @@ class WorksitePlanTest {
     @BeforeAll static void bootstrap() { SharedConstants.tryDetectVersion(); Bootstrap.bootStrap(); }
 
     @Test void workshopPlansSurroundButNeverReplaceTheirWorkstations() {
-        var types = new BuildingType[]{BuildingType.BUILDER_HUT, BuildingType.LUMBERJACK_HUT, BuildingType.MINE};
+        var types = new BuildingType[]{BuildingType.BUILDER_HUT, BuildingType.LUMBERJACK_HUT, BuildingType.MINE, BuildingType.BLACKSMITH, BuildingType.BUTCHER_HUT};
         var fingerprints = new java.util.HashSet<Map<BlockPos, net.minecraft.world.level.block.state.BlockState>>();
         for (var type : types) {
             Map<BlockPos, net.minecraft.world.level.block.state.BlockState> placements = new HashMap<>();
@@ -43,4 +43,18 @@ class WorksitePlanTest {
         assertFalse(old.hasSupportedPlan());
         assertTrue(old.getRemainingPlacements().isEmpty());
     }
+    @Test void olderSmithAndButcherPlaceholdersRemainUnsupported() {
+        for (var type : new BuildingType[]{BuildingType.BLACKSMITH, BuildingType.BUTCHER_HUT}) {
+            var tag = new Building(type, BlockPos.ZERO, CultureType.ROMAN).save();
+            tag.putInt("planVersion", 6);
+            Building old = Building.load(tag);
+            assertFalse(old.hasSupportedPlan());
+            assertTrue(old.getRemainingPlacements().isEmpty());
+        }
+    }
+    @Test void smithPlanIncludesUsableAdjacentFurnace() {
+        var b = new Building(BuildingType.BLACKSMITH, BlockPos.ZERO, CultureType.ROMAN);
+        assertTrue(b.getRemainingPlacements().stream().anyMatch(p -> p.pos.equals(BlockPos.ZERO.east()) && p.state.is(Blocks.FURNACE)));
+    }
+
 }

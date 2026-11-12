@@ -73,6 +73,12 @@ public class ConstructionGameTests {
     @GameTest(template = "empty", timeoutTicks = 2400)
     public static void mine(GameTestHelper helper) { runBuilder(helper, BuildingType.MINE, Blocks.FURNACE, CultureType.ROMAN, -1); }
 
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void smithy(GameTestHelper helper) { runBuilder(helper, BuildingType.BLACKSMITH, Blocks.SMITHING_TABLE, CultureType.ROMAN, -1); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void butcherHut(GameTestHelper helper) { runBuilder(helper, BuildingType.BUTCHER_HUT, Blocks.SMOKER, CultureType.ROMAN, -1); }
+
     @GameTest(template = "empty", timeoutTicks = 200)
     public static void blockedPlacementDoesNotConsume(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
@@ -147,6 +153,7 @@ public class ConstructionGameTests {
                         + " distance " + (next == null ? 0 : villager.distanceToSqr(next.pos.getX()+0.5, next.pos.getY()+0.5, next.pos.getZ()+0.5)));
             }
             if (workstation != null) helper.assertBlockPresent(workstation, stationRelative);
+            if (type == BuildingType.BLACKSMITH) helper.assertBlockPresent(Blocks.FURNACE, stationRelative.east());
             var lower = helper.getLevel().getBlockState(door);
             var upper = helper.getLevel().getBlockState(door.above());
             if (!lower.is(Blocks.OAK_DOOR) || !upper.is(Blocks.OAK_DOOR)

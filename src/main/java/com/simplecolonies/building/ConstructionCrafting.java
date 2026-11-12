@@ -27,6 +27,11 @@ public final class ConstructionCrafting {
             stock.add(PLANKS, 4);
             return stock.consume(PLANKS, 1);
         }
+        if (id.equals("minecraft:furnace")) {
+            if (stock.count("minecraft:cobblestone") < 8 || !stock.consume("minecraft:cobblestone", 8)) return false;
+            stock.add(id, 1);
+            return stock.consume(id, 1);
+        }
         if (id.equals("minecraft:torch")) {
             int missingPlanks = stock.count("minecraft:stick") > 0 ? 0 : Math.max(0, 2 - stock.count(PLANKS));
             int neededLogs = (missingPlanks + 3) / 4;

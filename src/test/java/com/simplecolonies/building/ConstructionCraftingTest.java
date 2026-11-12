@@ -41,4 +41,14 @@ class ConstructionCraftingTest {
         assertTrue(ConstructionCrafting.take(s, "minecraft:oak_slab"));
         assertEquals(0, s.count("minecraft:oak_slab"));
     }
+    @Test void buildsFurnaceOnlyFromEightCobblestone() {
+        Stock s = new Stock(); s.add("minecraft:cobblestone", 7);
+        assertFalse(ConstructionCrafting.take(s, "minecraft:furnace"));
+        assertEquals(7, s.count("minecraft:cobblestone"));
+        s.add("minecraft:cobblestone", 1);
+        assertTrue(ConstructionCrafting.take(s, "minecraft:furnace"));
+        assertEquals(0, s.count("minecraft:cobblestone"));
+        assertEquals(0, s.count("minecraft:furnace"));
+    }
+
 }

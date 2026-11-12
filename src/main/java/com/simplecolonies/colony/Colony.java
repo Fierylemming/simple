@@ -254,8 +254,11 @@ public class Colony {
         for (var pair : java.util.List.of(
                 Map.entry(JobType.BUILDER, BuildingType.BUILDER_HUT),
                 Map.entry(JobType.LUMBERJACK, BuildingType.LUMBERJACK_HUT),
-                Map.entry(JobType.MINER, BuildingType.MINE))) {
-            if (buildings.stream().anyMatch(b -> b.getType() == pair.getValue())) continue;
+                Map.entry(JobType.MINER, BuildingType.MINE),
+                Map.entry(JobType.BLACKSMITH, BuildingType.BLACKSMITH),
+                Map.entry(JobType.BUTCHER, BuildingType.BUTCHER_HUT))) {
+            if (buildings.stream().anyMatch(b -> b.getType() == pair.getValue()
+                    && (b.isPlayerPlaced || b.hasSupportedPlan() || b.getState() == com.simplecolonies.building.BuildingState.COMPLETE))) continue;
             for (CitizenData citizen : citizens.values()) {
                 if (citizen.job != pair.getKey()) continue;
                 if (!(level.getEntity(citizen.uuid) instanceof com.simplecolonies.entity.ColonyVillager worker)
