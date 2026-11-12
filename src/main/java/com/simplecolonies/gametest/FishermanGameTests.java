@@ -57,6 +57,48 @@ public class FishermanGameTests {
         return worker;
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 3600)
+    public static void constructedHarborLetsFishermanReachShore(GameTestHelper helper) {
+        Colony colony = setup(helper);
+        colony.depositToWarehouse("minecraft:oak_log", 200);
+        colony.depositToWarehouse("minecraft:cobblestone", 100);
+        colony.depositToWarehouse("minecraft:coal", 10);
+        var harbor = new Building(BuildingType.HARBOR, helper.absolutePos(SITE), CultureType.ROMAN);
+        colony.registerPlayerBuilding(harbor);
+        Cod first = wildCod(helper, new BlockPos(58, 0, 56));
+        Cod second = wildCod(helper, new BlockPos(58, 0, 57));
+        Cod third = wildCod(helper, new BlockPos(58, 0, 58));
+        var builder = helper.spawn(EntityType.VILLAGER, new BlockPos(50, 1, 50));
+        var builderJob = new com.simplecolonies.villager.job.BuilderJob(builder, colony);
+        FishermanJob[] job = {null};
+        net.minecraft.world.entity.npc.Villager[] fisher = {null};
+        for (int tick = 1; tick < 3600; tick++) helper.runAtTickTime(tick, () -> {
+            if (harbor.getState() != com.simplecolonies.building.BuildingState.COMPLETE) {
+                builderJob.tick(helper.getLevel());
+            } else {
+                if (job[0] == null) {
+                    fisher[0] = helper.spawn(EntityType.VILLAGER, SITE.east());
+                    fisher[0].setVillagerData(fisher[0].getVillagerData().setProfession(ColonyProfessions.profession(JobType.FISHERMAN)));
+                    fisher[0].refreshBrain(helper.getLevel());
+                    fisher[0].getBrain().setMemory(MemoryModuleType.JOB_SITE,
+                            GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(SITE)));
+                    job[0] = new FishermanJob(fisher[0], colony);
+                }
+                job[0].tick(helper.getLevel());
+            }
+        });
+        helper.runAtTickTime(3400, () -> {
+            int alive = (first.isAlive() ? 1 : 0) + (second.isAlive() ? 1 : 0) + (third.isAlive() ? 1 : 0);
+            if (harbor.getState() != com.simplecolonies.building.BuildingState.COMPLETE || job[0] == null
+                    || alive != 2 || colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") != 1)
+                helper.fail("Constructed harbor-to-shore flow incomplete: building=" + harbor.getState()
+                        + " builder=" + builderJob.getState() + " fisher=" + (job[0] == null ? "not started" : job[0].getState())
+                        + " fisher pos=" + (fisher[0] == null ? "none" : fisher[0].position()) + " alive=" + alive);
+            helper.assertBlockPresent(Blocks.BARREL, SITE);
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 1400)
     public static void gathersOnlyExcessWildFishAtShore(GameTestHelper helper) {
         Colony colony = setup(helper);
