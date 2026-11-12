@@ -38,6 +38,7 @@ public class ColonyVillager extends Villager {
     private boolean suppressVanillaBrainReset;
     // The courier carries this actual stack across chunk unloads and restarts.
     private net.minecraft.world.item.ItemStack courierCargo = net.minecraft.world.item.ItemStack.EMPTY;
+    private CompoundTag minerMemory = new CompoundTag();
 
     // Needs
     private int hungerTicks = 0; // increments daily if no food, leads to damage
@@ -90,6 +91,8 @@ public class ColonyVillager extends Villager {
     public boolean isColonyCitizen() { return colonyId != -1; }
     public net.minecraft.world.item.ItemStack getCourierCargo() { return courierCargo; }
     public void setCourierCargo(net.minecraft.world.item.ItemStack cargo) { courierCargo = cargo; }
+    public CompoundTag getMinerMemory() { return minerMemory.copy(); }
+    public void setMinerMemory(CompoundTag memory) { minerMemory = memory.copy(); }
 
     public void setColony(Colony colony) {
         if (this.colonyId != -1 && this.colonyId != colony.getId()) {
@@ -338,6 +341,7 @@ public class ColonyVillager extends Villager {
         tag.putInt("hungerTicks", hungerTicks);
         tag.putInt("daysAlive", daysAlive);
         if (!courierCargo.isEmpty()) tag.put("courierCargo", courierCargo.save(registryAccess()));
+        if (!minerMemory.isEmpty()) tag.put("minerMemory", minerMemory.copy());
     }
 
     @Override
@@ -347,6 +351,7 @@ public class ColonyVillager extends Villager {
         if (tag.contains("colonyJob")) job = JobType.valueOf(tag.getString("colonyJob"));
         hungerTicks = tag.getInt("hungerTicks");
         daysAlive = tag.getInt("daysAlive");
+        minerMemory = tag.getCompound("minerMemory").copy();
         courierCargo = tag.contains("courierCargo")
                 ? net.minecraft.world.item.ItemStack.parseOptional(registryAccess(), tag.getCompound("courierCargo"))
                 : net.minecraft.world.item.ItemStack.EMPTY;
