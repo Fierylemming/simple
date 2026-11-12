@@ -30,7 +30,7 @@ public class CourierGameTests {
         from.setChanged();
         Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
         colony.setWarehouseCenter(helper.absolutePos(hub));
-        var villager = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 4));
+        var villager = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(7, 1, 8));
         var job = new CourierJob(villager, colony);
         boolean[] sawCargo = {false};
         for (int tick = 1; tick < 1200; tick++) helper.runAtTickTime(tick, () -> {
@@ -42,7 +42,7 @@ public class CourierGameTests {
                 CompoundTag data = new CompoundTag();
                 villager.addAdditionalSaveData(data);
                 ItemStack stored = ItemStack.parseOptional(helper.getLevel().registryAccess(), data.getCompound("courierCargo"));
-                if (!stored.is(Items.WHEAT) || stored.getCount() != 16) helper.fail("Cargo did not save");
+                if (!stored.is(Items.WHEAT) || stored.getCount() != 16) helper.fail("Cargo did not save or came from another test: actual=" + villager.getCourierCargo() + ", saved=" + stored);
                 sawCargo[0] = true;
             }
             if (!to.getItem(0).isEmpty() && villager.distanceToSqr(helper.absolutePos(hub).getX() + 0.5,
