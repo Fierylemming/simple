@@ -51,7 +51,12 @@ public class SoldierJob extends AbstractJob {
                 state = JobState.GOING_TO_WORK;
             } else {
                 villager.swing(InteractionHand.MAIN_HAND);
-                target.hurt(level.damageSources().mobAttack(villager), 2.0f);
+                var weapon = villager.getMainHandItem();
+                float damage = weapon.is(net.minecraft.world.item.Items.IRON_SWORD) ? 6.0f
+                        : weapon.is(net.minecraft.world.item.Items.STONE_SWORD) ? 5.0f : 2.0f;
+                if (target.hurt(level.damageSources().mobAttack(villager), damage)
+                        && (weapon.is(net.minecraft.world.item.Items.IRON_SWORD) || weapon.is(net.minecraft.world.item.Items.STONE_SWORD)))
+                    weapon.hurtAndBreak(1, villager, net.minecraft.world.entity.EquipmentSlot.MAINHAND);
                 state = JobState.WORKING;
             }
             ticksUntilNextWork = 20;
@@ -64,6 +69,7 @@ public class SoldierJob extends AbstractJob {
         } else {
             // Defense and following the commander always take priority over resupply.
             var equipment = GuardEquipment.collectChestplate(level, colony, villager);
+            if (equipment == GuardEquipment.Result.NONE) equipment = GuardEquipment.collectSword(level, colony, villager);
             state = switch (equipment) {
                 case MOVING -> JobState.GOING_TO_WORK;
                 case EQUIPPED -> JobState.WORKING;

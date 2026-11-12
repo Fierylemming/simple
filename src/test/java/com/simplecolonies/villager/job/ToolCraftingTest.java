@@ -34,6 +34,13 @@ class ToolCraftingTest {
         assertEquals(3, s.count("minecraft:iron_ingot")); assertEquals(2, s.count("minecraft:stick"));
         assertEquals(0, s.count("minecraft:iron_axe"));
     }
+    @Test void craftsSwordUsingTwoMaterialsAndOneStick() {
+        var s = new Stock(); s.add("minecraft:iron_ingot", 2); s.add("minecraft:oak_planks", 2);
+        assertTrue(ToolCrafting.make(s, "minecraft:iron_ingot", "minecraft:iron_sword"));
+        assertEquals(0, s.count("minecraft:iron_ingot"));
+        assertEquals(3, s.count("minecraft:stick"));
+        assertEquals(1, s.count("minecraft:iron_sword"));
+    }
     @Test void rejectsInvalidMaterialOrProduct() {
         var s = new Stock(); s.add("minecraft:cobblestone", 3); s.add("minecraft:stick", 2);
         assertFalse(ToolCrafting.make(s, "minecraft:cobblestone", "minecraft:iron_axe"));

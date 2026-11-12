@@ -21,8 +21,10 @@ public class BlacksmithJob extends AbstractJob {
         // deliberately not counted so there is a replacement ready when one breaks.
         boolean miners = colony.getCitizens().stream().anyMatch(c -> !c.isChild && c.job == JobType.MINER);
         boolean woodcutters = colony.getCitizens().stream().anyMatch(c -> !c.isChild && c.job == JobType.LUMBERJACK);
+        boolean defenders = colony.getCitizens().stream().anyMatch(c -> !c.isChild && c.job.isCombat);
         if (miners && noSpare(stock, "pickaxe") && makeTool(stock, "pickaxe")
-                || woodcutters && noSpare(stock, "axe") && makeTool(stock, "axe")) {
+                || woodcutters && noSpare(stock, "axe") && makeTool(stock, "axe")
+                || defenders && noSpare(stock, "sword") && makeTool(stock, "sword")) {
             villager.swing(InteractionHand.MAIN_HAND);
             state = JobState.WORKING; ticksUntilNextWork = 100; return;
         }

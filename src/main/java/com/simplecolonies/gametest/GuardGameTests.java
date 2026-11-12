@@ -38,6 +38,26 @@ public class GuardGameTests {
                     + ", health " + zombie.getHealth());
         });
     }
+    @GameTest(template = "isolated", timeoutTicks = 400)
+    public static void guardWearsRealSwordInCombat(GameTestHelper helper) {
+        for (int x = 48; x <= 64; x++) for (int z = 50; z <= 62; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        var guard = helper.spawn(EntityType.VILLAGER, new BlockPos(54, 1, 56));
+        var sword = new ItemStack(Items.IRON_SWORD);
+        sword.setDamageValue(8);
+        guard.setItemSlot(EquipmentSlot.MAINHAND, sword);
+        var zombie = helper.spawn(EntityType.ZOMBIE, new BlockPos(55, 1, 56));
+        zombie.setNoAi(true);
+        zombie.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
+        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(56, 1, 56)));
+        SoldierJob job = new SoldierJob(guard, colony);
+        float initial = zombie.getHealth();
+        for (int tick = 1; tick < 400; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.succeedWhen(() -> {
+            if (zombie.getHealth() >= initial || guard.getMainHandItem().getDamageValue() <= 8)
+                helper.fail("Sword did not deal damage and lose durability");
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 1000)
     public static void soldierFollowsLeaderAndStopsWhenReleased(GameTestHelper helper) {
         for (int x = 40; x <= 72; x++) for (int z = 40; z <= 72; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);

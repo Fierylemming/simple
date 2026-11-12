@@ -62,6 +62,29 @@ public class GuardEquipmentGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 1300)
+    public static void guardWalksToRealSwordPreservingDamage(GameTestHelper helper) {
+        Colony colony = setup(helper);
+        var chest = (Container) helper.getBlockEntity(CHEST);
+        var sword = new ItemStack(Items.IRON_SWORD);
+        sword.setDamageValue(13);
+        chest.setItem(0, sword);
+        var guard = helper.spawn(EntityType.VILLAGER, new BlockPos(50, 1, 56));
+        var job = new SoldierJob(guard, colony);
+        for (int tick = 1; tick < 1300; tick++) helper.runAtTickTime(tick, () -> {
+            boolean empty = guard.getMainHandItem().isEmpty();
+            job.tick(helper.getLevel());
+            if (empty && !guard.getMainHandItem().isEmpty()
+                    && guard.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(helper.absolutePos(CHEST))) > 6.25)
+                helper.fail("Guard collected sword remotely");
+        });
+        helper.succeedWhen(() -> {
+            var held = guard.getMainHandItem();
+            if (!held.is(Items.IRON_SWORD) || held.getDamageValue() != 13 || !chest.getItem(0).isEmpty())
+                helper.fail("Guard failed to collect actual sword: " + held + " state=" + job.getState());
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 600)
     public static void doesNotReplaceArmorOrTakeThroughWall(GameTestHelper helper) {
         Colony colony = setup(helper);
