@@ -43,7 +43,7 @@ public class BuilderJob extends AbstractJob {
             if (villager.distanceToSqr(next.pos.getX() + 0.5, next.pos.getY() + 0.5, next.pos.getZ() + 0.5) > 25.0) {
                 BlockPos groundTarget = next.pos.atY(currentJob.getPos().getY());
                 var path = villager.getNavigation().createPath(groundTarget, 3);
-                if (path == null) { state = JobState.STUCK; ticksUntilNextWork = 40; return; }
+                if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 40; return; }
                 villager.getNavigation().moveTo(path, 0.7);
                 state = JobState.GOING_TO_WORK;
                 ticksUntilNextWork = 10;
@@ -74,6 +74,21 @@ public class BuilderJob extends AbstractJob {
                     state = JobState.STUCK;
                     return;
                 }
+                // Never place a solid block into a person or animal. If the builder
+                // occupies the space, ask it to leave the plot before retrying.
+                var box = new net.minecraft.world.phys.AABB(next.pos);
+                if (door) box = box.expandTowards(0, 1, 0);
+                if (!level.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class, box,
+                        net.minecraft.world.entity.LivingEntity::isAlive).isEmpty()) {
+                    if (villager.getBoundingBox().intersects(box)) {
+                        BlockPos outside = currentJob.getPos().offset(0, 0, -5);
+                        var escape = villager.getNavigation().createPath(outside, 1);
+                        if (escape != null && escape.canReach()) villager.getNavigation().moveTo(escape, 0.7);
+                    }
+                    state = JobState.STUCK;
+                    ticksUntilNextWork = 20;
+                    return;
+                }
                 if (!ConstructionCrafting.take(stock, next.itemId)) {
                     currentJob.setState(BuildingState.NEEDS_RESOURCES);
                     ColonyManager.getInstance().markDirty(colony);
@@ -84,6 +99,7 @@ public class BuilderJob extends AbstractJob {
                     level.setBlock(next.pos, next.state, 2);
                     level.setBlock(next.pos.above(), next.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3);
                 } else level.setBlock(next.pos, next.state, 3);
+                villager.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
                 currentJob.markPlaced(next);
             }
             currentJob.setState(BuildingState.UNDER_CONSTRUCTION);

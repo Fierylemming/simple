@@ -53,7 +53,10 @@ public class WarehouseManager {
     /** Scan colony radius for containers (chests, barrels, trapped chests, shulkers, etc). Cheap — runs every 10s. */
     public void scan(ServerLevel level) {
         long gameTime = level.getGameTime();
-        if (gameTime - lastScanGameTime < 200) return;
+        if (gameTime - lastScanGameTime < 200) {
+            refreshCounts(level);
+            return;
+        }
         lastScanGameTime = gameTime;
         cachedChests.clear();
         aggregatedCounts.clear();
@@ -88,6 +91,23 @@ public class WarehouseManager {
         }
         // Debug
         // System.out.println("[Warehouse] Scanned " + chestCount + " chests for colony #" + colony.getId());
+    }
+
+    /** Refresh player-edited inventories and discard unloaded or replaced block entities. */
+    private void refreshCounts(ServerLevel level) {
+        aggregatedCounts.clear();
+        cachedChests.entrySet().removeIf(entry -> !level.isLoaded(entry.getKey())
+                || level.getBlockEntity(entry.getKey()) != entry.getValue());
+        chestCount = cachedChests.size();
+        for (Container container : cachedChests.values()) {
+            for (int slot = 0; slot < container.getContainerSize(); slot++) {
+                ItemStack stack = container.getItem(slot);
+                if (!stack.isEmpty()) {
+                    String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+                    aggregatedCounts.merge(id, stack.getCount(), Integer::sum);
+                }
+            }
+        }
     }
 
     /** Quick count from cache (no level needed if scan fresh). */

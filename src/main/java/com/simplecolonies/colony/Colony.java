@@ -175,6 +175,7 @@ public class Colony {
     private int countFoodInWarehouse(ServerLevel level) {
         int chestFood = 0;
         if (level != null) {
+            warehouseManager.scan(level);
             for (var e : warehouseManager.snapshot().entrySet()) {
                 if (isFood(e.getKey())) chestFood += e.getValue();
             }
@@ -241,7 +242,7 @@ public class Colony {
         if (citizens.values().stream().noneMatch(c -> c.job == JobType.BUILDER)) {
             expansionStatus = "No builder assigned"; return;
         }
-        if (buildings.stream().anyMatch(b -> b.getState() != com.simplecolonies.building.BuildingState.COMPLETE)) {
+        if (buildings.stream().anyMatch(b -> b.hasSupportedPlan() && b.getState() != com.simplecolonies.building.BuildingState.COMPLETE)) {
             expansionStatus = "Construction already queued"; return;
         }
         int housing = shelterCapacity();
@@ -260,7 +261,7 @@ public class Colony {
 
     /** Queues a house only when there is no unfinished construction and a safe site exists. */
     public Building queueHouse(ServerLevel level) {
-        if (buildings.stream().anyMatch(b -> b.getState() != com.simplecolonies.building.BuildingState.COMPLETE)) return null;
+        if (buildings.stream().anyMatch(b -> b.hasSupportedPlan() && b.getState() != com.simplecolonies.building.BuildingState.COMPLETE)) return null;
         BlockPos site = findBuildSite(level, BuildingType.HOUSE);
         if (site == null) return null;
         Building building = new Building(BuildingType.HOUSE, site, culture);
@@ -395,7 +396,10 @@ public class Colony {
     /** Consume from chest and virtual stockpile, exactly once, or not at all. */
     public boolean consumeStock(ServerLevel level, String itemId, int amount) {
         if (amount <= 0) return true;
-        if (getWarehouseCount(level, itemId) < amount) return false;
+        // Simulate against live, loaded containers. Cached counts can be stale when players
+        // move items between scans; never partially consume if the full amount is absent.
+        int available = level == null ? 0 : warehouseManager.extract(level, center, itemId, amount, true);
+        if ((long) available + warehouse.getOrDefault(itemId, 0) < amount) return false;
         int taken = level == null ? 0 : warehouseManager.extract(level, center, itemId, amount, false);
         int remaining = amount - taken;
         if (remaining > warehouse.getOrDefault(itemId, 0)) return false;
@@ -423,6 +427,7 @@ public class Colony {
     }
 
     public int getWarehouseCount(ServerLevel level, String itemId) {
+        if (level != null) warehouseManager.scan(level);
         if (level != null && warehouseManager.getChestCount() > 0) {
             int chestCount = warehouseManager.count(itemId);
             int abstractCount = warehouse.getOrDefault(itemId, 0);
@@ -436,6 +441,7 @@ public class Colony {
     public Map<String, Integer> getWarehouseSnapshot(ServerLevel level) {
         Map<String, Integer> out = new HashMap<>(warehouse);
         if (level != null) {
+            warehouseManager.scan(level);
             for (var e : warehouseManager.snapshot().entrySet()) {
                 out.merge(e.getKey(), e.getValue(), Integer::sum);
             }
