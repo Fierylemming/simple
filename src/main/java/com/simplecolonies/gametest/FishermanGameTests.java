@@ -73,6 +73,8 @@ public class FishermanGameTests {
         var builderJob = new com.simplecolonies.villager.job.BuilderJob(builder, colony);
         FishermanJob[] job = {null};
         net.minecraft.world.entity.npc.Villager[] fisher = {null};
+        StringBuilder trace = new StringBuilder();
+        int[] workTicks = {0};
         for (int tick = 1; tick < 3600; tick++) helper.runAtTickTime(tick, () -> {
             if (harbor.getState() != com.simplecolonies.building.BuildingState.COMPLETE) {
                 builderJob.tick(helper.getLevel());
@@ -86,6 +88,12 @@ public class FishermanGameTests {
                     job[0] = new FishermanJob(fisher[0], colony);
                 }
                 job[0].tick(helper.getLevel());
+                if (++workTicks[0] % 60 == 0 && workTicks[0] <= 720) {
+                    var path = fisher[0].getNavigation().getPath();
+                    trace.append(workTicks[0]).append(":").append(job[0].getState()).append("/")
+                            .append(fisher[0].blockPosition().toShortString()).append("/")
+                            .append(path == null ? "null" : path.canReach() + ":" + path.getEndNode()).append(";");
+                }
             }
         });
         helper.runAtTickTime(3400, () -> {
@@ -99,7 +107,7 @@ public class FishermanGameTests {
                         + " water=" + first.isInWater() + "/" + second.isInWater() + "/" + third.isInWater()
                         + " door=" + helper.getBlockState(SITE.north(2))
                         + " site=" + helper.getBlockState(SITE) + " stock=" + colony.getWarehouseSnapshot(helper.getLevel())
-                        + " active path=" + (fisher[0] == null ? "none" : fisher[0].getNavigation().getPath()));
+                        + " trace=" + trace);
             helper.assertBlockPresent(Blocks.BARREL, SITE);
             helper.succeed();
         });
