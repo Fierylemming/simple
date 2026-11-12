@@ -24,4 +24,4 @@ Expansion now checks on normal colony ticks, reports blockers and does not stall
 
 ## Latest test status
 
-CI on the work-in-progress branch has compiled the mod and exercised house variants, worksite shells, miner, courier, guard, farmer, woodcutter and bedless shelter. The miner test passes after removing a GameTest-only barrier ceiling, but the courier test has been intermittent and is being investigated. Passing isolated GameTests is not a substitute for single-player and dedicated-server integration testing. No overhaul release has been published.
+CI on the work-in-progress branch has compiled the mod and exercised house variants, worksite shells, miner, courier, guard, farmer, woodcutter and bedless shelter. The miner test passes after removing a GameTest-only barrier ceiling and verifies that the worker advances down the quarry. Courier and guard tests were intermittently affected by storage and hostiles in nearby test structures; isolated fixtures now pass, but should be repeated. Passing isolated GameTests is not a substitute for single-player and dedicated-server integration testing. No overhaul release has been published.
