@@ -1,85 +1,88 @@
 package com.simplecolonies.villager.job;
 
 import com.simplecolonies.colony.Colony;
-import com.simplecolonies.warehouse.WarehouseManager;
+import com.simplecolonies.entity.ColonyVillager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.Container;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 
-/**
- * Courier — the dedicated logistics job you asked for.
- * Why separate from normal villagers?
- *  - Normal villagers carry 1-3 items per trip, walk speed 0.5
- *  - Courier carries up to 9 stacks per trip, speed 1.2, and pathfinds to warehouse hub
- *  - Couriers consolidate scattered village chests into the Warehouse building,
- *    and deliver requested items from warehouse to workers' chests.
- *
- * This makes the distributed-chest design performant: farmers dump to nearest farm chest,
- * courier bulk-moves to warehouse, blacksmith pulls from warehouse via courier.
- */
+/** A courier carries one real stack from a local storage container to a designated hub. */
 public class CourierJob extends AbstractJob {
-    private int tripsMade = 0;
-    private BlockPos lastWorkplace;
-    // How many item types we handle per tick - simulates carrying capacity
+    private BlockPos source;
+    private BlockPos hub;
 
-    public CourierJob(Villager villager, Colony colony) {
-        super(villager, colony, JobType.COURIER);
-    }
+    public CourierJob(ColonyVillager villager, Colony colony) { super(villager, colony, JobType.COURIER); }
+    private ColonyVillager worker() { return (ColonyVillager) villager; }
 
-    @Override
-    protected void doWork(ServerLevel level) {
-        if (workplacePos == null) {
-            workplacePos = colony.getCenter(); // fallback, but WarehouseManager will route to nearest chest hub
-            // Prefer warehouse center if set
-            var wm = getWarehouseManager();
-            if (wm != null && wm.getWarehouseCenter() != null) workplacePos = wm.getWarehouseCenter();
+    @Override protected void doWork(ServerLevel level) {
+        var warehouse = getWarehouse();
+        var center = warehouse.getConfiguredWarehouseCenter();
+        if (center == null || !level.isLoaded(center)) { state = JobState.STUCK; ticksUntilNextWork = 100; return; }
+        var storage = warehouse.courierStoragePositions(level);
+        if (hub == null || !storage.contains(hub) || hub.distSqr(center) > 100) {
+            hub = storage.stream().filter(p -> p.distSqr(center) <= 100)
+                    .min(java.util.Comparator.comparingDouble(p -> p.distSqr(center))).orElse(null);
         }
-        state = JobState.WORKING;
-
-        WarehouseManager wm = getWarehouseManager();
-        if (wm == null) {
-            state = JobState.STUCK;
-            ticksUntilNextWork = 100;
+        if (hub == null) { state = JobState.WAITING_FOR_CHEST; ticksUntilNextWork = 100; return; }
+        if (!worker().getCourierCargo().isEmpty()) {
+            if (!walkTo(hub)) return;
+            Container destination = warehouse.courierContainer(level, hub);
+            if (destination == null) { hub = null; state = JobState.STUCK; return; }
+            insert(destination, worker().getCourierCargo());
+            if (worker().getCourierCargo().isEmpty()) worker().setCourierCargo(ItemStack.EMPTY);
+            villager.swing(InteractionHand.MAIN_HAND);
+            state = worker().getCourierCargo().isEmpty() ? JobState.WORKING : JobState.WAITING_FOR_CHEST;
+            ticksUntilNextWork = 40;
             return;
         }
-        wm.scan(level);
-
-        // 1. Consolidate scattered chests → warehouse hub (bulk move)
-        int moved = wm.courierMoveToWarehouse(level, 3); // up to 3 stacks per courier tick
-        if (moved > 0) {
-            tripsMade++;
-            // Visual: courier holds chest minecart? For now just message every 10 trips
-            if (tripsMade % 20 == 0) {
-                colony.broadcast(net.minecraft.network.chat.Component.literal("§7[Courier] Consolidated " + tripsMade + " stacks to warehouse hub"));
-            }
-            ticksUntilNextWork = 15; // fast
-            return;
+        if (source == null || !storage.contains(source) || source.distSqr(center) <= 100) {
+            source = storage.stream().filter(p -> p.distSqr(center) > 100)
+                    .filter(p -> hasItems(warehouse.courierContainer(level, p)))
+                    .min(java.util.Comparator.comparingDouble(p -> p.distSqr(villager.blockPosition()))).orElse(null);
         }
-
-        // 2. Check pending supply requests (from SupplyChain board) and deliver to requester chest
-        // e.g. leatherworker needs leather at leather shop chest — courier pulls from warehouse and drops there
-        // For MVP, we simulate by just ensuring warehouse is balanced; actual delivery to worker chest is via same deposit logic
-        // but with bulk: normal villagers request 4 items, courier delivers 16.
-
-        // 3. If nothing to consolidate, idle near warehouse
-        ticksUntilNextWork = 60;
-        state = JobState.IDLE;
+        if (source == null) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
+        if (!walkTo(source)) return;
+        Container from = warehouse.courierContainer(level, source);
+        if (from == null) { source = null; state = JobState.STUCK; return; }
+        for (int slot = 0; slot < from.getContainerSize(); slot++) {
+            ItemStack stack = from.getItem(slot);
+            if (stack.isEmpty()) continue;
+            worker().setCourierCargo(from.removeItem(slot, stack.getCount()));
+            from.setChanged();
+            villager.swing(InteractionHand.MAIN_HAND);
+            source = null;
+            state = JobState.WORKING; ticksUntilNextWork = 20; return;
+        }
+        source = null; state = JobState.IDLE; ticksUntilNextWork = 40;
     }
 
-    private WarehouseManager getWarehouseManager() {
-        try {
-            var f = Colony.class.getDeclaredField("warehouseManager");
-            f.setAccessible(true);
-            return (WarehouseManager) f.get(colony);
-        } catch (Exception e) {
-            return null;
+    private boolean walkTo(BlockPos target) {
+        if (villager.distanceToSqr(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5) <= 9) return true;
+        var path = villager.getNavigation().createPath(target, 1);
+        if (path == null || !path.canReach()) {
+            source = null; state = JobState.STUCK; ticksUntilNextWork = 60; return false;
+        }
+        villager.getNavigation().moveTo(path, 1.0);
+        state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return false;
+    }
+    private static boolean hasItems(Container c) {
+        if (c == null) return false;
+        for (int i = 0; i < c.getContainerSize(); i++) if (!c.getItem(i).isEmpty()) return true;
+        return false;
+    }
+    private static void insert(Container c, ItemStack cargo) {
+        for (int i = 0; i < c.getContainerSize() && !cargo.isEmpty(); i++) {
+            ItemStack stack = c.getItem(i);
+            if (stack.isEmpty() || !ItemStack.isSameItemSameComponents(stack, cargo) || !c.canPlaceItem(i, cargo)) continue;
+            int n = Math.min(cargo.getCount(), Math.min(stack.getMaxStackSize(), c.getMaxStackSize()) - stack.getCount());
+            if (n > 0) { stack.grow(n); cargo.shrink(n); c.setChanged(); }
+        }
+        for (int i = 0; i < c.getContainerSize() && !cargo.isEmpty(); i++) {
+            if (!c.getItem(i).isEmpty() || !c.canPlaceItem(i, cargo)) continue;
+            int n = Math.min(cargo.getCount(), Math.min(cargo.getMaxStackSize(), c.getMaxStackSize()));
+            c.setItem(i, cargo.split(n)); c.setChanged();
         }
     }
-
-    @Override
-    protected int getWorkInterval() { return 10; } // courier is quick
-
-    // Make courier pathfind faster
-    protected void doWorkPatched(ServerLevel level) { doWork(level); } // placeholder for speed modifier hook
 }

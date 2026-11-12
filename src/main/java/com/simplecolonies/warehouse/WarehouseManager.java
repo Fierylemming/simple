@@ -50,6 +50,25 @@ public class WarehouseManager {
 
     public int getChestCount() { return chestCount; }
 
+    /** Explicit hub; unlike getWarehouseCenter(), null means none has been designated. */
+    public BlockPos getConfiguredWarehouseCenter() { return warehouseCenter; }
+
+    /** Loaded storage positions only: furnaces and other processing inventories are not courier sources. */
+    public List<BlockPos> courierStoragePositions(ServerLevel level) {
+        scan(level);
+        return cachedChests.keySet().stream().filter(p -> courierContainer(level, p) != null).toList();
+    }
+
+    public Container courierContainer(ServerLevel level, BlockPos pos) {
+        if (!level.isLoaded(pos)) return null;
+        var be = level.getBlockEntity(pos);
+        if (be instanceof net.minecraft.world.level.block.entity.ChestBlockEntity
+                || be instanceof net.minecraft.world.level.block.entity.BarrelBlockEntity
+                || be instanceof net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity) return (Container) be;
+        return null;
+    }
+
+
     /** Scan colony radius for containers (chests, barrels, trapped chests, shulkers, etc). Cheap — runs every 10s. */
     public void scan(ServerLevel level) {
         long gameTime = level.getGameTime();

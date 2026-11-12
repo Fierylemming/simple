@@ -36,6 +36,8 @@ public class ColonyVillager extends Villager {
     private JobType job = JobType.UNEMPLOYED;
     private AbstractJob jobInstance;
     private boolean suppressVanillaBrainReset;
+    // The courier carries this actual stack across chunk unloads and restarts.
+    private net.minecraft.world.item.ItemStack courierCargo = net.minecraft.world.item.ItemStack.EMPTY;
 
     // Needs
     private int hungerTicks = 0; // increments daily if no food, leads to damage
@@ -86,6 +88,8 @@ public class ColonyVillager extends Villager {
         return jobInstance == null ? "IDLE" : jobInstance.getState().name();
     }
     public boolean isColonyCitizen() { return colonyId != -1; }
+    public net.minecraft.world.item.ItemStack getCourierCargo() { return courierCargo; }
+    public void setCourierCargo(net.minecraft.world.item.ItemStack cargo) { courierCargo = cargo; }
 
     public void setColony(Colony colony) {
         this.colonyId = colony.getId();
@@ -99,6 +103,10 @@ public class ColonyVillager extends Villager {
     public void setJob(JobType newJob) {
         boolean changed = this.job != newJob;
         if (changed && !level().isClientSide) {
+            if (!courierCargo.isEmpty()) {
+                spawnAtLocation(courierCargo);
+                courierCargo = net.minecraft.world.item.ItemStack.EMPTY;
+            }
             if (getTradingPlayer() instanceof ServerPlayer player) player.closeContainer();
             setTradingPlayer(null);
             clearWorkMemories();
@@ -139,6 +147,7 @@ public class ColonyVillager extends Villager {
             case LEATHERWORKER -> new LeatherworkerJob(this, colony);
             case BLACKSMITH -> new BlacksmithJob(this, colony);
             case BAKER -> new BakerJob(this, colony);
+            case COURIER -> new CourierJob(this, colony);
             default -> null;
         };
     }
@@ -325,6 +334,7 @@ public class ColonyVillager extends Villager {
         tag.putString("colonyJob", job.name());
         tag.putInt("hungerTicks", hungerTicks);
         tag.putInt("daysAlive", daysAlive);
+        if (!courierCargo.isEmpty()) tag.put("courierCargo", courierCargo.save(registryAccess()));
     }
 
     @Override
@@ -334,11 +344,18 @@ public class ColonyVillager extends Villager {
         if (tag.contains("colonyJob")) job = JobType.valueOf(tag.getString("colonyJob"));
         hungerTicks = tag.getInt("hungerTicks");
         daysAlive = tag.getInt("daysAlive");
+        courierCargo = tag.contains("courierCargo")
+                ? net.minecraft.world.item.ItemStack.parseOptional(registryAccess(), tag.getCompound("courierCargo"))
+                : net.minecraft.world.item.ItemStack.EMPTY;
     }
 
     @Override
     public void die(net.minecraft.world.damagesource.DamageSource source) {
         if (!level().isClientSide) {
+            if (!courierCargo.isEmpty()) {
+                spawnAtLocation(courierCargo);
+                courierCargo = net.minecraft.world.item.ItemStack.EMPTY;
+            }
             ColonyManager.getInstance().getColony(colonyId).ifPresent(c -> c.removeCitizen(getUUID()));
         }
         super.die(source);
