@@ -322,7 +322,7 @@ public class ColonyVillager extends Villager {
             // The central 3x3 is inside all generated shells, including old houses.
             for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++) {
                 var pos = new net.minecraft.core.BlockPos(shelter.getPos().getX() + x, y, shelter.getPos().getZ() + z);
-                if (usableShelterSpot(level, pos)) candidates.add(pos);
+                if (usableShelterSpot(level, pos) && ShelterSafety.enclosed(level, pos)) candidates.add(pos);
             }
             candidates.sort(java.util.Comparator.comparingDouble(p -> p.distSqr(blockPosition())));
             for (var target : candidates) {

@@ -44,6 +44,29 @@ public class ShelterGameTests {
             if (!state.is(Blocks.OAK_DOOR) || state.getValue(DoorBlock.OPEN)) helper.fail("Hall door is not closed");
         });
     }
+    @GameTest(template = "empty")
+    public static void rejectsRoofedShelterWithWallOpening(GameTestHelper helper) {
+        BlockPos hall = new BlockPos(8, 1, 9);
+        for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) {
+            helper.setBlock(hall.offset(x, -1, z), Blocks.GRASS_BLOCK);
+            for (int y = 0; y <= 2; y++) if (Math.abs(x) == 3 || Math.abs(z) == 3)
+                helper.setBlock(hall.offset(x, y, z), Blocks.COBBLESTONE);
+            helper.setBlock(hall.offset(x, 3, z), Blocks.OAK_PLANKS);
+        }
+        BlockPos door = helper.absolutePos(hall.north(3));
+        var low = Blocks.OAK_DOOR.defaultBlockState().setValue(DoorBlock.FACING, Direction.NORTH);
+        helper.getLevel().setBlock(door, low, 2);
+        helper.getLevel().setBlock(door.above(), low.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3);
+        BlockPos inside = helper.absolutePos(hall);
+        if (!ShelterSafety.enclosed(helper.getLevel(), inside)) helper.fail("Closed hall rejected");
+        helper.setBlock(hall.east(3), Blocks.AIR);
+        helper.setBlock(hall.east(3).above(), Blocks.AIR);
+        if (ShelterSafety.enclosed(helper.getLevel(), inside)) helper.fail("Roofed shelter with a wall opening was accepted");
+        helper.setBlock(hall.east(3), Blocks.OAK_FENCE);
+        if (ShelterSafety.enclosed(helper.getLevel(), inside)) helper.fail("Fence was treated as a solid wall");
+        helper.succeed();
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 1800)
     public static void villagersFindReachableConstructedHouse(GameTestHelper helper) {
         for (int x = 24; x <= 75; x++) for (int z = 25; z <= 70; z++) {
