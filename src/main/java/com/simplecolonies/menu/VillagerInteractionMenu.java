@@ -117,8 +117,17 @@ public class VillagerInteractionMenu extends AbstractContainerMenu {
         }
         if (id == BTN_COMMAND_FOLLOW) {
             if (!isLeader) { player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cOnly leader can command soldiers"), true); return true; }
-            citizen.isSoldier = true;
-            player.displayClientMessage(net.minecraft.network.chat.Component.literal("§6" + citizen.name + " will now follow you! Use Command Staff to rally."), false);
+            var ent = player.level().getEntity(entityId);
+            if (!(ent instanceof com.simplecolonies.entity.ColonyVillager cv) || !cv.getUUID().equals(citizen.uuid)
+                    || cv.getColonyId() != colony.getId() || !stillValid(player)) return false;
+            boolean follow = !cv.isFollowingCommander();
+            if (!cv.commandFollow(player, follow)) {
+                player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cOnly soldiers or guards can follow"), true);
+            } else {
+                player.displayClientMessage(net.minecraft.network.chat.Component.literal("§6" + citizen.name
+                        + (follow ? " will follow you." : " will stop following.")), false);
+                player.closeContainer();
+            }
             return true;
         }
         if (id == BTN_LEVEL_UP_JOB) {

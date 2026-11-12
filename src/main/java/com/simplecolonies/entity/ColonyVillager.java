@@ -173,6 +173,21 @@ public class ColonyVillager extends Villager {
         };
     }
 
+    /** Leader-only, session-local follow command; does not force-load citizens. */
+    public boolean commandFollow(Player player, boolean follow) {
+        if (level().isClientSide || !isAlive() || !job.isCombat || player.level() != level()) return false;
+        var colony = ColonyManager.getInstance().getColony(colonyId).orElse(null);
+        if (colony == null || !colony.isLeader(player)) return false;
+        if (jobInstance == null) jobInstance = createJobInstance(job);
+        if (!(jobInstance instanceof SoldierJob soldier)) return false;
+        soldier.setCommander(player, follow);
+        return true;
+    }
+
+    public boolean isFollowingCommander() {
+        return jobInstance instanceof SoldierJob soldier && soldier.isFollowing();
+    }
+
     // Vanilla ResetProfession/AssignProfessionFromJobSite must not overwrite a colony job.
     @Override
     public void setVillagerData(VillagerData data) {
@@ -255,7 +270,7 @@ public class ColonyVillager extends Villager {
             // Non-combat citizens seek shelter at night, even when there are no beds.
             if (sl.isNight() && !job.isCombat && !isTrading()) {
                 seekShelter(sl, colony);
-            } else if (!isBaby() && jobInstance != null && updateWorkstation(sl, colony)) {
+            } else if (!isBaby() && jobInstance != null && (job.isCombat || updateWorkstation(sl, colony))) {
                 jobInstance.tick(sl);
             }
 

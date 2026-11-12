@@ -38,4 +38,23 @@ public class GuardGameTests {
                     + ", health " + zombie.getHealth());
         });
     }
+    @GameTest(template = "isolated", timeoutTicks = 1000)
+    public static void soldierFollowsLeaderAndStopsWhenReleased(GameTestHelper helper) {
+        for (int x = 40; x <= 72; x++) for (int z = 40; z <= 72; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        var guard = helper.spawn(EntityType.VILLAGER, new BlockPos(50, 1, 56));
+        var leader = helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
+        var position = helper.absolutePos(new BlockPos(62, 1, 56));
+        leader.moveTo(position.getX() + 0.5, position.getY(), position.getZ() + 0.5);
+        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(56, 1, 56)));
+        colony.setLeader(leader);
+        SoldierJob job = new SoldierJob(guard, colony);
+        job.setCommander(leader, true);
+        for (int tick = 1; tick < 1000; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.succeedWhen(() -> {
+            if (!job.isFollowing() || guard.distanceToSqr(leader) > 36)
+                helper.fail("Soldier has not followed leader: " + job.getState() + " at " + guard.position());
+            job.setCommander(leader, false);
+            if (job.isFollowing() || !guard.getNavigation().isDone()) helper.fail("Follow command did not stop navigation");
+        });
+    }
 }

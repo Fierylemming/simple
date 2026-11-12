@@ -107,8 +107,16 @@ public class TownHallMenu extends AbstractContainerMenu {
                 return true;
             }
             case BTN_RALLY_SOLDIERS -> {
-                if (isLeader) player.displayClientMessage(net.minecraft.network.chat.Component.literal("§6Rallying soldiers..."), false);
-                else deny(player);
+                if (!isLeader) { deny(player); return true; }
+                if (level == null) return true;
+                int rallied = 0;
+                for (var citizen : colony.getCitizens()) {
+                    if (!citizen.job.isCombat) continue;
+                    var entity = level.getEntity(citizen.uuid);
+                    if (entity instanceof com.simplecolonies.entity.ColonyVillager villager
+                            && villager.getColonyId() == colony.getId() && villager.commandFollow(player, true)) rallied++;
+                }
+                player.displayClientMessage(net.minecraft.network.chat.Component.literal("§6Rallied " + rallied + " loaded defenders."), false);
                 return true;
             }
             case BTN_DECLARE_WAR_NEXT -> {

@@ -14,7 +14,12 @@ public class SoldierJob extends AbstractJob {
     private boolean followingLeader;
 
     public SoldierJob(Villager villager, Colony colony) { super(villager, colony, JobType.SOLDIER); }
-    public void setCommander(Player player, boolean follow) { commander = player; followingLeader = follow; }
+    public void setCommander(Player player, boolean follow) {
+        if (!follow && followingLeader) villager.getNavigation().stop();
+        commander = follow ? player : null;
+        followingLeader = follow;
+    }
+    public boolean isFollowing() { return followingLeader; }
 
     @Override protected void onTick(ServerLevel level) {
         // Vanilla villagers panic and replace the combat path with a flee target.
@@ -30,7 +35,7 @@ public class SoldierJob extends AbstractJob {
 
     @Override protected void doWork(ServerLevel level) {
         LivingEntity target = null;
-        if (followingLeader && commander != null && commander.isAlive() && commander.level() == level) {
+        if (followingLeader && commander != null && commander.isAlive() && !commander.isRemoved() && commander.level() == level && colony.isLeader(commander)) {
             LivingEntity recent = commander.getLastHurtMob();
             if (recent instanceof Monster && recent.isAlive() && villager.distanceToSqr(recent) < 400) target = recent;
         }
@@ -52,7 +57,7 @@ public class SoldierJob extends AbstractJob {
             ticksUntilNextWork = 20;
             return;
         }
-        if (followingLeader && commander != null && commander.isAlive() && commander.level() == level
+        if (followingLeader && commander != null && commander.isAlive() && !commander.isRemoved() && commander.level() == level && colony.isLeader(commander)
                 && villager.distanceToSqr(commander) > 36) {
             villager.getNavigation().moveTo(commander, 1.0);
             state = JobState.GOING_TO_WORK;

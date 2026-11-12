@@ -83,7 +83,7 @@ public class VillagerInteractionScreen extends AbstractContainerScreen<VillagerI
         int hp=menu.citizen.health; String hearts="♥".repeat(Math.max(0, Math.min(10, hp/2)));
         g.drawString(font, hearts+"  "+hp+"/20 HP  •  "+menu.citizen.daysEmployed+"d employed", x,y+20, C_MUTED,false);
         g.drawString(font, "Colony: "+colInfo, x,y+30, C_MUTED,false);
-        if(menu.citizen.isSoldier) { g.fill(x0+50,y0+62, x1-10, y0+72, 0xFFFFE8E8); g.fill(x0+50,y0+62, x0+52,y0+72, C_RED); g.drawString(font,"⚔ Soldier — follows leader with Command Staff when rallied", x0+56,y0+64, C_RED,false); }
+        if(menu.citizen.isSoldier) { g.fill(x0+50,y0+62, x1-10, y0+72, 0xFFFFE8E8); g.fill(x0+50,y0+62, x0+52,y0+72, C_RED); g.drawString(font,"Defender — use Follow to toggle", x0+56,y0+64, C_RED,false); }
 
         g.drawString(font, "Assign job — needs 30 rep (soldier 50):", x0+12,y0+76, C_TEXT,false);
         g.drawString(font, "Jobs require reputation and applicable research.", x0+12,y1-10, C_MUTED,false);
