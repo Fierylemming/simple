@@ -48,8 +48,9 @@ public class ShelterGameTests {
     public static void villagersFindReachableConstructedHouse(GameTestHelper helper) {
         for (int x = 24; x <= 75; x++) for (int z = 25; z <= 70; z++) {
             helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
-            // The GameTest structure adds a barrier ceiling at y=5; it is not a real roof.
-            helper.setBlock(x, 5, z, Blocks.AIR);
+            // Clear the artificial barrier ceiling and terrain immediately above it.
+            // Otherwise a roofless marker appears sheltered in the underground test world.
+            for (int y = 5; y <= 8; y++) helper.setBlock(x, y, z, Blocks.AIR);
         }
         var level = helper.getLevel();
         BlockPos blocked = new BlockPos(40, 1, 46), open = new BlockPos(58, 1, 46);
