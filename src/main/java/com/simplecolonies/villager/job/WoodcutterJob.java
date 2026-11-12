@@ -45,8 +45,19 @@ public class WoodcutterJob extends AbstractJob {
         }
         BlockPos log = tree.get(remaining - 1);
         if (villager.distanceToSqr(log.getX() + 0.5, log.getY() + 0.5, log.getZ() + 0.5) > 20.25) {
-            var path = villager.getNavigation().createPath(treeBase, 1);
-            if (path == null || !path.canReach()) { treeBase = null; state = JobState.STUCK; ticksUntilNextWork = 60; return; }
+            net.minecraft.world.level.pathfinder.Path path = null;
+            var candidates = new java.util.ArrayList<BlockPos>();
+            for (Direction d : Direction.Plane.HORIZONTAL) candidates.add(treeBase.relative(d));
+            candidates.sort(java.util.Comparator.comparingDouble(p -> villager.distanceToSqr(p.getX() + 0.5, p.getY(), p.getZ() + 0.5)));
+            for (BlockPos candidate : candidates) {
+                if (!level.isLoaded(candidate) || !level.isLoaded(candidate.above()) || !level.isLoaded(candidate.below())) continue;
+                if (!level.getBlockState(candidate).getCollisionShape(level, candidate).isEmpty()
+                        || !level.getBlockState(candidate.above()).getCollisionShape(level, candidate.above()).isEmpty()
+                        || !level.getBlockState(candidate.below()).isFaceSturdy(level, candidate.below(), Direction.UP)) continue;
+                var attempt = villager.getNavigation().createPath(candidate, 0);
+                if (attempt != null && attempt.canReach()) { path = attempt; break; }
+            }
+            if (path == null) { treeBase = null; state = JobState.STUCK; ticksUntilNextWork = 60; return; }
             villager.getNavigation().moveTo(path, 0.7);
             state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
         }
@@ -60,8 +71,10 @@ public class WoodcutterJob extends AbstractJob {
         if (remaining == 0) {
             // No free saplings: replant only from real colony stock, at the tree's original base.
             if (level.getBlockState(treeBase).isAir() && view.soil(treeBase.below())
-                    && colony.consumeStock(level, "minecraft:oak_sapling", 1))
-                level.setBlock(treeBase, Blocks.OAK_SAPLING.defaultBlockState(), 3);
+                    && colony.consumeStock(level, "minecraft:oak_sapling", 1)) {
+                if (!level.setBlock(treeBase, Blocks.OAK_SAPLING.defaultBlockState(), 3))
+                    colony.depositToWarehouse("minecraft:oak_sapling", 1);
+            }
             treeBase = null;
         }
         state = JobState.WORKING;

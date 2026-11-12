@@ -38,7 +38,9 @@ public class WoodcutterGameTests {
         helper.succeedWhen(() -> {
             if (!helper.getBlockState(root).is(Blocks.OAK_SAPLING)
                     || colony.getWarehouseCount(helper.getLevel(), "minecraft:oak_log") < 4)
-                helper.fail("Tree not harvested and replanted: " + job.getState() + " at " + villager.blockPosition().toShortString());
+                helper.fail("Tree not harvested and replanted: " + job.getState() + " at " + villager.blockPosition().toShortString()
+                        + " root " + helper.getBlockState(root) + " top " + helper.getBlockState(root.above(3))
+                        + " logs " + colony.getWarehouseCount(helper.getLevel(), "minecraft:oak_log"));
         });
     }
 }
