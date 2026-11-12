@@ -68,6 +68,7 @@ public class BlacksmithGameTests {
     @GameTest(template = "isolated", timeoutTicks = 1600)
     public static void smithSuppliesGuardAndReplacesSword(GameTestHelper helper) {
         Colony colony = colony(helper);
+        colony.getCitizens().forEach(c -> c.job = JobType.UNEMPLOYED);
         colony.addCitizen(new CitizenData(UUID.randomUUID(), "Guard", JobType.GUARD));
         BlockPos chest = new BlockPos(60, 1, 56);
         helper.setBlock(chest, Blocks.CHEST);
