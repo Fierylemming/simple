@@ -80,4 +80,26 @@ public class BlacksmithGameTests {
             helper.succeed();
         });
     }
+    @GameTest(template = "isolated", timeoutTicks = 700)
+    public static void replacesWithdrawnIronToolWithoutFreeMaterials(GameTestHelper helper) {
+        Colony colony = colony(helper);
+        colony.depositToWarehouse("minecraft:iron_ingot", 6);
+        colony.depositToWarehouse("minecraft:stick", 4);
+        var worker = worker(helper, new BlockPos(54, 1, 56));
+        var job = new BlacksmithJob(worker, colony);
+        for (int tick = 1; tick < 700; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(15, () -> {
+            var taken = colony.takeStockItem(helper.getLevel(), helper.absolutePos(SITE), net.minecraft.world.item.Items.IRON_PICKAXE);
+            if (!taken.is(net.minecraft.world.item.Items.IRON_PICKAXE)) helper.fail("Smith did not provide the first iron pickaxe");
+        });
+        helper.runAtTickTime(600, () -> {
+            if (colony.getWarehouseCount(helper.getLevel(), "minecraft:iron_pickaxe") != 1
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:iron_axe") != 0
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:iron_ingot") != 0
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:stick") != 0)
+                helper.fail("Replacement recipe or inputs incorrect: " + colony.getWarehouseSnapshot(helper.getLevel()));
+            helper.succeed();
+        });
+    }
+
 }

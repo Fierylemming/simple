@@ -44,7 +44,8 @@ public class BlacksmithJob extends AbstractJob {
     private static boolean noSpare(ToolCrafting.Stock stock, String kind) {
         for (String tier : new String[]{"stone", "iron", "diamond", "netherite"})
             if (stock.count("minecraft:" + tier + "_" + kind) > 0) return false;
-        return true;
+        // Woodcutters can use these too; miners cannot use them in the quarry.
+        return !kind.equals("axe") || (stock.count("minecraft:wooden_axe") == 0 && stock.count("minecraft:golden_axe") == 0);
     }
     private static boolean makeTool(ToolCrafting.Stock stock, String kind) {
         if (ToolCrafting.make(stock, IRON, "minecraft:iron_" + kind)) return true;
