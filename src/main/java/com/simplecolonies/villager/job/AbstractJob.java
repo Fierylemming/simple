@@ -20,6 +20,7 @@ public abstract class AbstractJob {
     protected final Colony colony;
     protected final JobType type;
     protected BlockPos workplacePos;
+    private BlockPos claimedSite;
     protected int ticksUntilNextWork = 0;
     protected JobState state = JobState.IDLE;
 
@@ -43,7 +44,10 @@ public abstract class AbstractJob {
             return;
         }
         // Ensure workplace is set — for player-designated buildings via Building Marker, workplacePos will be that marker pos
-        if (workplacePos == null) {
+        var remembered = villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE);
+        BlockPos currentSite = remembered.filter(p -> p.dimension().equals(level.dimension())).map(p -> p.pos()).orElse(null);
+        if (!java.util.Objects.equals(currentSite, claimedSite) || workplacePos == null) {
+            claimedSite = currentSite;
             workplacePos = findWorkplace(level);
         }
         ticksUntilNextWork = getWorkInterval();
@@ -51,12 +55,14 @@ public abstract class AbstractJob {
     }
 
     protected BlockPos findWorkplace(ServerLevel level) {
-        // Prefer building of matching job type placed via marker or generated
-        for (var b : colony.getBuildings()) {
-            if (b.getType().job == type) return b.getPos();
-        }
-        // Fallback to colony center
-        return colony.getCenter();
+        if (claimedSite == null) return colony.getCenter();
+        // A farm's registered center can be several blocks from its composter.
+        // Prefer the nearest matching completed building to this villager's own POI.
+        return colony.getBuildings().stream()
+                .filter(b -> b.getType().job == type && b.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
+                .filter(b -> b.getPos().distSqr(claimedSite) <= 144)
+                .min(java.util.Comparator.comparingDouble(b -> b.getPos().distSqr(claimedSite)))
+                .map(com.simplecolonies.building.Building::getPos).orElse(claimedSite);
     }
 
     /** Move to the villager's claimed POI before workstation-based production. */

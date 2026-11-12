@@ -17,6 +17,7 @@ import net.minecraft.world.level.block.state.BlockState;
 /** Harvests real drops and replants only when seed or produce is available. */
 public class FarmerJob extends AbstractJob {
     private BlockPos target;
+    private final java.util.Map<BlockPos, Long> unreachableUntil = new java.util.HashMap<>();
     public FarmerJob(Villager villager, Colony colony) { super(villager, colony, JobType.FARMER); }
 
     @Override protected void doWork(ServerLevel level) {
@@ -24,7 +25,10 @@ public class FarmerJob extends AbstractJob {
         if (target == null) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
         if (villager.distanceToSqr(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5) > 9.0) {
             var path = villager.getNavigation().createPath(target, 2);
-            if (path == null) { state = JobState.STUCK; target = null; ticksUntilNextWork = 40; return; }
+            if (path == null || !path.canReach()) {
+                unreachableUntil.put(target, level.getGameTime() + 400);
+                state = JobState.STUCK; target = null; ticksUntilNextWork = 40; return;
+            }
             villager.getNavigation().moveTo(path, 0.7);
             state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
         }
@@ -39,8 +43,9 @@ public class FarmerJob extends AbstractJob {
                     int count = drop.getCount();
                     if (!replanted && drop.is(seed) && count > 0 && level.getBlockState(target).isAir()
                             && level.getBlockState(target.below()).is(Blocks.FARMLAND)) {
-                        level.setBlock(target, crop.getStateForAge(0), 3);
-                        count--; replanted = true;
+                        if (level.setBlock(target, crop.getStateForAge(0), 3)) {
+                            count--; replanted = true;
+                        }
                     }
                     if (count > 0) depositToColony(level, BuiltInRegistries.ITEM.getKey(drop.getItem()).toString(), count);
                 }
@@ -52,8 +57,13 @@ public class FarmerJob extends AbstractJob {
                 Block crop = seed == Items.WHEAT_SEEDS ? Blocks.WHEAT : seed == Items.CARROT ? Blocks.CARROTS
                         : seed == Items.POTATO ? Blocks.POTATOES : Blocks.BEETROOTS;
                 if (colony.consumeStock(level, id, 1)) {
-                    level.setBlock(target, crop.defaultBlockState(), 3);
-                    villager.swing(InteractionHand.MAIN_HAND); state = JobState.WORKING; break;
+                    if (level.setBlock(target, crop.defaultBlockState(), 3)) {
+                        villager.swing(InteractionHand.MAIN_HAND); state = JobState.WORKING;
+                    } else {
+                        colony.depositToWarehouse(id, 1);
+                        state = JobState.STUCK;
+                    }
+                    break;
                 }
             }
         }
@@ -69,9 +79,10 @@ public class FarmerJob extends AbstractJob {
 
     private BlockPos findWork(ServerLevel level) {
         BlockPos center = workplacePos == null ? villager.blockPosition() : workplacePos;
+        unreachableUntil.entrySet().removeIf(e -> e.getValue() <= level.getGameTime());
         BlockPos empty = null;
         for (BlockPos p : BlockPos.betweenClosed(center.offset(-6, -3, -6), center.offset(6, 3, 6))) {
-            if (!level.isLoaded(p) || !colony.isInside(p) || !eligible(level, p)) continue;
+            if (!level.isLoaded(p) || !colony.isInside(p) || unreachableUntil.containsKey(p) || !eligible(level, p)) continue;
             if (!level.getBlockState(p).isAir()) return p.immutable();
             if (empty == null) empty = p.immutable();
         }
