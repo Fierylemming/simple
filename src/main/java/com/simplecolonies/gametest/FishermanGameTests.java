@@ -86,19 +86,13 @@ public class FishermanGameTests {
                     fisher[0].getBrain().setMemory(MemoryModuleType.JOB_SITE,
                             GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(SITE)));
                     job[0] = new FishermanJob(fisher[0], colony);
-                    for (int z = 55; z <= 57; z++) {
-                        var stand = helper.absolutePos(new BlockPos(57, 1, z));
-                        var path = fisher[0].getNavigation().createPath(stand, 0);
-                        trace.append("z").append(z).append("=")
-                                .append(path == null ? "null" : path.canReach() + "/" + path.getEndNode()).append(";");
-                    }
                 }
                 job[0].tick(helper.getLevel());
-                if (++workTicks[0] % 60 == 0 && workTicks[0] <= 300) {
+                if (++workTicks[0] % 100 == 0 && workTicks[0] <= 400) {
                     var path = fisher[0].getNavigation().getPath();
                     trace.append(workTicks[0]).append(":").append(job[0].getState()).append("/")
                             .append(fisher[0].blockPosition().toShortString()).append("/")
-                            .append(path == null ? "null" : path.canReach() + ":" + path.getEndNode()).append(";");
+                            .append(job[0].getRouteDebug()).append(";");
                 }
             }
         });

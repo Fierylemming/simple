@@ -20,6 +20,8 @@ import net.minecraft.world.phys.AABB;
 public class FishermanJob extends AbstractJob {
     private static final int MIN_SCHOOL = 2;
     private static final double REACH_SQ = 6.25;
+    private String routeDebug = "not started";
+    public String getRouteDebug() { return routeDebug; }
     public FishermanJob(Villager villager, Colony colony) { super(villager, colony, JobType.FISHERMAN); }
 
     @Override protected void onTick(ServerLevel level) {
@@ -49,6 +51,7 @@ public class FishermanJob extends AbstractJob {
                         && !f.hasCustomName() && !f.fromBucket() && !f.isPersistenceRequired() && !f.requiresCustomPersistence());
         var candidates = fish.stream().filter(f -> fish.stream().filter(other -> other.getType() == f.getType()).count() > MIN_SCHOOL)
                 .sorted(Comparator.comparingDouble(villager::distanceToSqr)).limit(4).toList();
+        routeDebug = "fish=" + fish.size() + " candidates=" + candidates.size();
         net.minecraft.world.level.pathfinder.Path partial = null;
         double bestProgress = 0;
         for (var target : candidates) {
@@ -80,12 +83,14 @@ public class FishermanJob extends AbstractJob {
                         || level.getBlockState(p.below()).is(Blocks.MAGMA_BLOCK)) continue;
                 stands.add(p);
             }
+            routeDebug += " stands=" + stands.size();
             stands.sort(Comparator.comparingDouble(p -> p.distSqr(villager.blockPosition())));
             int attempts = 0;
             for (BlockPos stand : stands) {
                 if (stand.equals(villager.blockPosition())) continue;
                 if (++attempts > 8) break;
                 var path = villager.getNavigation().createPath(stand, 0);
+                routeDebug += path == null ? " N" : (path.canReach() ? " R" : " P") + (dryPath(level, path) ? "d" : "w");
                 if (path == null || !dryPath(level, path)) continue;
                 if (path.canReach()) {
                     villager.getNavigation().moveTo(path, 0.7);
