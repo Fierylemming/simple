@@ -45,4 +45,30 @@ public class ButcherGameTests {
             helper.succeed();
         });
     }
+    @GameTest(template = "isolated", timeoutTicks = 650)
+    public static void protectsBreedingPairNamedAndYoungAnimals(GameTestHelper helper) {
+        for (int x = 40; x <= 72; x++) for (int z = 40; z <= 72; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
+        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(54, 1, 56));
+        var first = helper.spawn(EntityType.COW, new BlockPos(57, 1, 56));
+        var second = helper.spawn(EntityType.COW, new BlockPos(58, 1, 56));
+        var named = helper.spawn(EntityType.COW, new BlockPos(59, 1, 56));
+        named.setCustomName(net.minecraft.network.chat.Component.literal("Pet"));
+        var calf = helper.spawn(EntityType.COW, new BlockPos(60, 1, 56));
+        calf.setBaby(true);
+        first.setNoAi(true); second.setNoAi(true); named.setNoAi(true); calf.setNoAi(true);
+        var job = new ButcherJob(worker, colony);
+        for (int tick = 1; tick < 650; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(600, () -> {
+            if (!first.isAlive() || !second.isAlive() || !named.isAlive() || !calf.isAlive()
+                    || first.getHealth() != first.getMaxHealth() || second.getHealth() != second.getMaxHealth()
+                    || named.getHealth() != named.getMaxHealth() || calf.getHealth() != calf.getMaxHealth()
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:beef") != 0)
+                helper.fail("Butcher attacked protected livestock or created meat");
+            helper.succeed();
+        });
+    }
+
 }
