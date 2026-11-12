@@ -65,6 +65,34 @@ public class BlacksmithGameTests {
             helper.succeed();
         });
     }
+    @GameTest(template = "isolated", timeoutTicks = 1600)
+    public static void smithSuppliesGuardAndReplacesSword(GameTestHelper helper) {
+        Colony colony = colony(helper);
+        colony.addCitizen(new CitizenData(UUID.randomUUID(), "Guard", JobType.GUARD));
+        BlockPos chest = new BlockPos(60, 1, 56);
+        helper.setBlock(chest, Blocks.CHEST);
+        colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest));
+        var storage = (net.minecraft.world.Container) helper.getBlockEntity(chest);
+        storage.setItem(0, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_INGOT, 4));
+        storage.setItem(1, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.STICK, 2));
+        var smith = worker(helper, new BlockPos(54, 1, 56));
+        var guard = helper.spawn(EntityType.VILLAGER, new BlockPos(50, 1, 56));
+        var crafting = new BlacksmithJob(smith, colony);
+        var defense = new com.simplecolonies.villager.job.SoldierJob(guard, colony);
+        for (int tick = 1; tick < 1600; tick++) helper.runAtTickTime(tick, () -> {
+            crafting.tick(helper.getLevel()); defense.tick(helper.getLevel());
+        });
+        helper.runAtTickTime(1400, () -> {
+            if (!guard.getMainHandItem().is(net.minecraft.world.item.Items.IRON_SWORD)
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:iron_sword") != 1
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:iron_ingot") != 0
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:stick") != 0)
+                helper.fail("Smith-to-guard supply chain failed: " + colony.getWarehouseSnapshot(helper.getLevel())
+                        + " guard=" + guard.getMainHandItem() + " status=" + defense.getState());
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 500)
     public static void missingSticksDoNotConsumeStone(GameTestHelper helper) {
         Colony colony = colony(helper);
