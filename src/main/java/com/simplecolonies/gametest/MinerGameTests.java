@@ -50,7 +50,8 @@ public class MinerGameTests {
                 helper.fail("Miner " + job.getState() + " at " + villager.blockPosition().toShortString()
                         + " " + job.diagnostic() + " tool=" + villager.getMainHandItem()
                         + " stone=" + helper.getBlockState(stone) + " cobble=" + colony.getWarehouseCount(helper.getLevel(), "minecraft:cobblestone"));
-            if (!villager.getMinerMemory().contains("entrance")) helper.fail("Quarry progress was not saved");
+            if (!villager.getMinerMemory().contains("entrance") || villager.getMinerMemory().getInt("step") < 2)
+                helper.fail("Miner has not advanced into its persisted quarry: " + job.diagnostic());
         });
     }
 }
