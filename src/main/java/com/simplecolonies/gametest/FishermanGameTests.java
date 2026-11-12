@@ -122,8 +122,10 @@ public class FishermanGameTests {
                 helper.fail("Airborne worker should wait for a path rather than report stuck");
             worker.setOnGround(true);
             job.tick(helper.getLevel());
-            if (worker.getNavigation().getPath() == null)
-                helper.fail("Worker did not retry the shore path immediately after landing");
+            var path = worker.getNavigation().getPath();
+            if (path == null) helper.fail("Worker did not retry the shore path immediately after landing");
+            if (worker.getBrain().getMemory(MemoryModuleType.PATH).orElse(null) != path)
+                helper.fail("Door AI cannot see the active fishing path");
             helper.succeed();
         });
     }
