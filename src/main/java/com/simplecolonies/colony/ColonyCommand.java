@@ -241,16 +241,18 @@ public class ColonyCommand {
         boolean builder = colony.getCitizens().stream().anyMatch(c -> c.job == com.simplecolonies.villager.job.JobType.BUILDER);
         src.sendSuccess(() -> Component.literal("Colony #" + colony.getId() + " construction: builder assigned " + builder
                 + ", oak logs " + colony.getWarehouseCount(level, "minecraft:oak_log")
+                + ", cobblestone " + colony.getWarehouseCount(level, "minecraft:cobblestone")
                 + ", food " + colony.getFoodCount(level) + " (expansion needs " + colony.citizenCount() * 2 + ")"), false);
         if (com.simplecolonies.config.ColonyConfig.ENABLE_NATURAL_EXPANSION.get()) {
             src.sendSuccess(() -> Component.literal("Next natural expansion check in " + colony.getDaysUntilExpansion()
                     + " in-game day(s), while the colony is loaded. Checks also require food, a builder and a clear site."), false);
         } else src.sendSuccess(() -> Component.literal("Natural expansion is disabled in config."), false);
         for (var citizen : colony.getCitizens()) {
-            if (citizen.job != com.simplecolonies.villager.job.JobType.BUILDER) continue;
+            if (citizen.job != com.simplecolonies.villager.job.JobType.BUILDER
+                    && citizen.job != com.simplecolonies.villager.job.JobType.MINER) continue;
             var entity = level.getEntity(citizen.uuid);
             String status = entity instanceof com.simplecolonies.entity.ColonyVillager cv ? cv.getWorkStatus() : "NOT LOADED OR MISSING";
-            src.sendSuccess(() -> Component.literal("Builder " + citizen.name + ": " + status), false);
+            src.sendSuccess(() -> Component.literal(citizen.job.displayName + " " + citizen.name + ": " + status), false);
         }
         boolean unfinished = false;
         for (var building : colony.getBuildings()) {

@@ -11,7 +11,7 @@ import java.util.Set;
  * so a village left alone can walk the whole tree miner→builder→iron without player hand-holding.
  *
  * Tier 0 (free): wood-tier only, villagers use wooden tools (1.0×)
- *  - TOOL_WOOD, PROF_FARMER, PROF_LUMBERJACK, UNLOCK_BUILDER
+ *  - TOOL_WOOD, PROF_FARMER, PROF_LUMBERJACK, UNLOCK_BUILDER, UNLOCK_MINER
  *
  * Tier 1 — Stone Age (needs only wood/cobble/coal/wheat/string/wool — all from Tier0 farmer/lumberjack):
  *  - TOOL_STONE [32 cobble,16 planks,4 coal] → 1.3×, lets miner actually mine iron/stone tier
@@ -19,7 +19,6 @@ import java.util.Set;
  *  - UNLOCK_BAKER [32 wheat,1 furnace] → doubles food
  *  - UNLOCK_FISHERMAN [8 string,8 planks] → coastal food
  *  - Then after TOOL_STONE:
- *     - UNLOCK_MINER [16 cobble,8 coal] → quarry (now with stone pick, can mine iron/redstone later)
  *     - EFFICIENCY_1 [4 wheat*8→emeralds? but village can trade: cost 16 wheat,8 planks,4 coal] → +15%
  *     - HOUSING_EFFICIENT [8 wool,16 planks] → +2 beds/house
  *
@@ -45,7 +44,7 @@ public enum ColonyUpgrade {
     TOOL_STONE("Stone Tools", "Stone tools, 1.3× speed, miners can mine iron & redstone", 1,
             Map.of("minecraft:cobblestone", 32, "minecraft:oak_planks", 16, "minecraft:coal", 4),
             Set.of(TOOL_WOOD), UpgradeCategory.TOOLS,
-            "First upgrade — gather cobble/planks with wood"),
+            "First upgrade — gather cobble from the starter miner"),
 
     // === Profession unlocks — Tier 0 (free) ===
     PROF_FARMER("Farmer", "Unlocks Farmer job", 0,
@@ -69,11 +68,9 @@ public enum ColonyUpgrade {
             Set.of(PROF_FARMER), UpgradeCategory.PROFESSION,
             "For Greek/Mesopotamian, needs string from spiders/looms"),
 
-    // Tier 1 after stone tools — needs cobble/planks/coal (gatherable with stone)
-    UNLOCK_MINER("Miner", "Unlocks Miner (quarry) — can now mine iron/redstone", 1,
-            Map.of("minecraft:cobblestone", 16, "minecraft:coal", 8),
-            Set.of(TOOL_STONE), UpgradeCategory.PROFESSION,
-            "Needs stone tools, mines tier2 resources"),
+    UNLOCK_MINER("Miner", "Unlocks Miner (quarry)", 0,
+            Map.of(), Set.of(), UpgradeCategory.PROFESSION,
+            "Available from the start; needs a pickaxe and furnace"),
     UNLOCK_BUILDER("Builder", "Constructs house blueprints", 0,
             Map.of(), Set.of(), UpgradeCategory.PROFESSION,
             "Available from the start"),
@@ -164,6 +161,6 @@ public enum ColonyUpgrade {
     }
 
     public static Set<ColonyUpgrade> defaultsUnlocked() {
-        return Set.of(TOOL_WOOD, PROF_FARMER, PROF_LUMBERJACK, UNLOCK_BUILDER);
+        return Set.of(TOOL_WOOD, PROF_FARMER, PROF_LUMBERJACK, UNLOCK_BUILDER, UNLOCK_MINER);
     }
 }

@@ -83,6 +83,7 @@ public class ColonyManager {
             colony.depositToWarehouse("minecraft:oak_log", 16);
             colony.depositToWarehouse("minecraft:bread", 16);
             colony.depositToWarehouse("minecraft:cobblestone", 32);
+            colony.depositToWarehouse("minecraft:stone_pickaxe", 1);
             colony.depositToWarehouse("minecraft:coal", 8);
             colony.depositToWarehouse("minecraft:stick", 16);
             var tier = com.simplecolonies.building.MaterialProgression.get(culture, 1);
@@ -113,6 +114,7 @@ public class ColonyManager {
         spawnVillagerAt(level, house.offset(0, 0, -5), colony, com.simplecolonies.villager.job.JobType.LUMBERJACK);
         spawnVillagerAt(level, farm.offset(0, 0, -6), colony, com.simplecolonies.villager.job.JobType.FARMER);
         spawnVillagerAt(level, house.offset(2, 0, -5), colony, com.simplecolonies.villager.job.JobType.BUILDER);
+        spawnVillagerAt(level, house.offset(-2, 0, -5), colony, com.simplecolonies.villager.job.JobType.MINER);
     }
 
     private void spawnVillagerAt(ServerLevel level, BlockPos pos, Colony colony, com.simplecolonies.villager.job.JobType job) {

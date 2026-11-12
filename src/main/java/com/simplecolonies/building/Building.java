@@ -19,6 +19,8 @@ public class Building {
     private final CultureType culture;
     private BuildingState state = BuildingState.BLUEPRINT;
     private int level = 1;
+    // Version 1 is the old all-log plan, retained for buildings saved before 0.1.28.
+    private int planVersion = 2;
     private final Map<String, Integer> requiredResources = new HashMap<>();
     private final Queue<BlockPlacement> placements = new ArrayDeque<>();
     private final List<BlockPlacement> completed = new ArrayList<>();
@@ -65,7 +67,9 @@ public class Building {
             for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
                 if (Math.abs(x) != 2 && Math.abs(z) != 2) continue;
                 if (x == 0 && z == -2 && y < 2) continue; // doorway
-                addPlacement(pos.offset(x, y, z), timber, "minecraft:oak_log");
+                boolean stoneFoundation = planVersion >= 2 && y == 0;
+                addPlacement(pos.offset(x, y, z), stoneFoundation ? net.minecraft.world.level.block.Blocks.COBBLESTONE.defaultBlockState() : timber,
+                        stoneFoundation ? "minecraft:cobblestone" : "minecraft:oak_log");
             }
         }
         for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
@@ -136,6 +140,7 @@ public class Building {
         tag.putString("culture", culture.id);
         tag.putString("state", state.name());
         tag.putInt("level", level);
+        tag.putInt("planVersion", planVersion);
         tag.putBoolean("isPlayerPlaced", isPlayerPlaced);
         CompoundTag req = new CompoundTag();
         requiredResources.forEach((k,v) -> req.putInt(k, v));
@@ -151,6 +156,7 @@ public class Building {
         CultureType culture = CultureType.byId(tag.getString("culture"));
         boolean isPlayer = tag.getBoolean("isPlayerPlaced");
         Building b = new Building(type, pos, culture, isPlayer);
+        b.planVersion = tag.contains("planVersion") ? tag.getInt("planVersion") : 1;
         b.state = BuildingState.valueOf(tag.getString("state"));
         b.level = tag.getInt("level");
         // Regenerate the deterministic plan and discard exactly the completed prefix.
