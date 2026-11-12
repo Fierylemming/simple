@@ -109,4 +109,31 @@ public class ButcherGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 1300)
+    public static void feedsPigsWithRealCarrots(GameTestHelper helper) {
+        for (int x = 40; x <= 72; x++) for (int z = 40; z <= 72; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        for (int i = 50; i <= 62; i++) {
+            helper.setBlock(i, 1, 50, Blocks.OAK_FENCE); helper.setBlock(i, 1, 62, Blocks.OAK_FENCE);
+            helper.setBlock(50, 1, i, Blocks.OAK_FENCE); helper.setBlock(62, 1, i, Blocks.OAK_FENCE);
+        }
+        BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
+        colony.depositToWarehouse("minecraft:carrot", 4);
+        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(54, 1, 56));
+        var first = helper.spawn(EntityType.PIG, new BlockPos(56, 1, 56));
+        var second = helper.spawn(EntityType.PIG, new BlockPos(58, 1, 56));
+        var job = new ButcherJob(worker, colony);
+        for (int tick = 1; tick < 1300; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(1200, () -> {
+            var pigs = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.animal.Pig.class,
+                    new AABB(center).inflate(8, 4, 8), net.minecraft.world.entity.animal.Pig::isAlive);
+            if (!first.isAlive() || !second.isAlive() || pigs.stream().noneMatch(net.minecraft.world.entity.animal.Pig::isBaby)
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:carrot") != 2)
+                helper.fail("Pig breeding incomplete: pigs=" + pigs.size() + " carrots="
+                        + colony.getWarehouseCount(helper.getLevel(), "minecraft:carrot") + " state=" + job.getState());
+            helper.succeed();
+        });
+    }
+
 }

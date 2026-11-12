@@ -73,8 +73,8 @@ public class SmithFurnaceGameTests {
         });
     }
     @GameTest(template = "isolated", timeoutTicks = 450)
-    public static void ignoresUndesignatedAndOccupiedFurnaces(GameTestHelper helper) {
-        Colony colony = setup(helper, false);
+    public static void ignoresOccupiedFurnaces(GameTestHelper helper) {
+        Colony colony = setup(helper, true);
         Container furnace = (Container) helper.getBlockEntity(FURNACE);
         furnace.setItem(0, new ItemStack(Items.GOLD_ORE, 2));
         var job = smith(helper, colony);
@@ -120,6 +120,21 @@ public class SmithFurnaceGameTests {
             if (!other.isEmpty() || colony.getWarehouseCount(helper.getLevel(), "minecraft:raw_iron") != 3
                     || colony.getWarehouseCount(helper.getLevel(), "minecraft:coal") != 1)
                 helper.fail("Smith started a second batch before finishing the first");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 450)
+    public static void leavesEmptyUndesignatedFurnaceAlone(GameTestHelper helper) {
+        Colony colony = setup(helper, false);
+        Container furnace = (Container) helper.getBlockEntity(FURNACE);
+        var job = smith(helper, colony);
+        for (int tick = 1; tick < 450; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(400, () -> {
+            if (!furnace.isEmpty() || colony.getWarehouseCount(helper.getLevel(), "minecraft:raw_iron") != 3
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:coal") != 1
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:iron_ingot") != 0)
+                helper.fail("Smith used an undesignated furnace or smelted remotely");
             helper.succeed();
         });
     }
