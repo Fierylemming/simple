@@ -22,6 +22,18 @@ final class SmithFurnace {
         boolean designated = colony.getBuildings().stream().anyMatch(b -> b.getType() == BuildingType.BLACKSMITH
                 && b.getState() == BuildingState.COMPLETE && b.getPos().distSqr(station) <= 144);
         if (!designated) return Result.UNAVAILABLE;
+        // Finish an existing batch before starting another, even if another furnace
+        // appears earlier in the scan or a different smith takes over the station.
+        boolean activeBatch = false;
+        for (var direction : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+            BlockPos pos = station.relative(direction);
+            if (!level.isLoaded(pos)) continue;
+            if (level.getBlockEntity(pos) instanceof AbstractFurnaceBlockEntity furnace
+                    && furnace.getPersistentData().contains(TAG)
+                    && furnace.getPersistentData().getCompound(TAG).getInt("colony") == colony.getId()) {
+                activeBatch = true; break;
+            }
+        }
         // Only an immediately adjacent regular furnace or blast furnace is eligible.
         // Arbitrary machines in the colony and pre-existing contents are not touched.
         for (var direction : net.minecraft.core.Direction.Plane.HORIZONTAL) {
@@ -34,6 +46,7 @@ final class SmithFurnace {
             boolean owned = data.contains(TAG) && batch.getInt("colony") == colony.getId();
             // Never take over another colony's batch or a busy, unmarked player furnace.
             if (data.contains(TAG) && !owned) continue;
+            if (activeBatch && !owned) continue;
             if (!owned && (!furnace.isEmpty() || level.getBlockState(pos).getValue(AbstractFurnaceBlock.LIT))) continue;
             if (worker.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > 9) {
                 var path = worker.getNavigation().createPath(pos, 1);

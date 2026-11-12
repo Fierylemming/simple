@@ -103,4 +103,22 @@ public class SmithFurnaceGameTests {
             helper.succeed();
         });
     }
+    @GameTest(template = "isolated", timeoutTicks = 350)
+    public static void finishesClaimedBatchBeforeStartingAnother(GameTestHelper helper) {
+        Colony colony = setup(helper, true);
+        colony.depositToWarehouse("minecraft:raw_iron", 3);
+        colony.depositToWarehouse("minecraft:coal", 1);
+        var job = smith(helper, colony);
+        for (int tick = 1; tick < 350; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        BlockPos extra = new BlockPos(56, 1, 55);
+        helper.runAtTickTime(10, () -> helper.setBlock(extra, Blocks.FURNACE));
+        helper.runAtTickTime(160, () -> {
+            var other = (Container) helper.getBlockEntity(extra);
+            if (!other.isEmpty() || colony.getWarehouseCount(helper.getLevel(), "minecraft:raw_iron") != 3
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:coal") != 1)
+                helper.fail("Smith started a second batch before finishing the first");
+            helper.succeed();
+        });
+    }
+
 }
