@@ -23,7 +23,7 @@ public enum JobType {
     SOLDIER("Soldier", "Defends colony and follows leader into war", true, List.of()),
     GUARD("Guard", "Patrols walls, attacks hostiles/war enemies", true, List.of()),
     BAKER("Baker", "Turns farmer wheat into bread for efficient feeding", false, List.of(Items.BREAD)),
-    FISHERMAN("Fisherman", "Supplies food alternative in coastal/Mesopotamian villages", false, List.of(Items.COD, Items.SALMON)),
+    FISHERMAN("Fisherman", "Gathers wild fish by hand near a designated harbor", false, List.of(Items.COD, Items.SALMON)),
     COURIER("Courier", "Fast logistics: bulk-moves items between chests and warehouse hub", false, List.of());
 
     public final String displayName;

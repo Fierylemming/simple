@@ -11,9 +11,9 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.living.LivingDropsEvent;
 
-/** Capture only the drop entities from this synchronous butcher attack. */
+/** Capture only drop entities from a synchronous worker attack. */
 @EventBusSubscriber(modid = SimpleColonies.MOD_ID)
-public final class ButcherDrops {
+public final class WorkerDrops {
     private record Attack(Villager worker, LivingEntity target, List<ItemEntity> drops) {}
     private static final ThreadLocal<Attack> ACTIVE = new ThreadLocal<>();
 
@@ -34,5 +34,5 @@ public final class ButcherDrops {
         if (attack != null && event.getEntity() == attack.target() && event.getSource().getEntity() == attack.worker())
             attack.drops().addAll(event.getDrops());
     }
-    private ButcherDrops() {}
+    private WorkerDrops() {}
 }

@@ -39,7 +39,7 @@ public class ButcherJob extends AbstractJob {
         }
         villager.getLookControl().setLookAt(target);
         villager.swing(InteractionHand.MAIN_HAND);
-        var drops = ButcherDrops.attack(villager, target, 4.0f);
+        var drops = WorkerDrops.attack(villager, target, 4.0f);
         // Transfer only actual, unmodified vanilla livestock drops from this attack,
         // only after the server has spawned them and while they are within reach.
         // Existing nearby items, cancelled drops and component-bearing modded loot
