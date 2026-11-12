@@ -37,7 +37,7 @@ public class WorksiteExpansionGameTests {
     public static void leatherShopExpansionUsesAssignedStation(GameTestHelper helper) {
         testExpansion(helper, JobType.LEATHERWORKER, BuildingType.LEATHER_SHOP, Blocks.CAULDRON);
     }
-    @GameTest(template = "isolated", timeoutTicks = 600)
+    @GameTest(template = "isolated", timeoutTicks = 800)
     public static void warehouseExpansionUsesRegisteredCourierBarrel(GameTestHelper helper) {
         testExpansion(helper, JobType.COURIER, BuildingType.WAREHOUSE, Blocks.BARREL);
     }
@@ -142,13 +142,28 @@ public class WorksiteExpansionGameTests {
             if (colony.getBuildings().stream().anyMatch(b -> b.getType() == buildingType && b.hasSupportedPlan()))
                 helper.fail("Worksite queued with a blocked entrance");
             helper.setBlock(site.north(3), Blocks.AIR);
+            if (buildingType == BuildingType.WAREHOUSE) colony.getWarehouseManager().unregisterStorage(helper.getLevel(), absSite);
         });
         helper.runAtTickTime(400, () -> {
             colony.tick(helper.getLevel());
-            var plan = colony.getBuildings().stream().filter(b -> b.getType() == buildingType && b.hasSupportedPlan()).findFirst().orElse(null);
-            if (plan == null || !plan.getPos().equals(absSite) || legacy.hasSupportedPlan() || !legacy.getRemainingPlacements().isEmpty())
-                helper.fail("No supported plan at claimed station, or legacy placeholder changed: " + colony.getExpansionStatus());
-            helper.succeed();
+            if (buildingType == BuildingType.WAREHOUSE) {
+                if (colony.getBuildings().stream().anyMatch(b -> b.getType() == buildingType && b.hasSupportedPlan()))
+                    helper.fail("Warehouse queued around an unshared barrel");
+                colony.getWarehouseManager().registerStorage(helper.getLevel(), absSite);
+            } else {
+                verifyExpansion(helper, colony, buildingType, legacy, absSite);
+            }
         });
+        if (buildingType == BuildingType.WAREHOUSE) helper.runAtTickTime(600, () -> {
+            colony.tick(helper.getLevel());
+            verifyExpansion(helper, colony, buildingType, legacy, absSite);
+        });
+    }
+
+    private static void verifyExpansion(GameTestHelper helper, Colony colony, BuildingType type, Building legacy, BlockPos station) {
+        var plan = colony.getBuildings().stream().filter(b -> b.getType() == type && b.hasSupportedPlan()).findFirst().orElse(null);
+        if (plan == null || !plan.getPos().equals(station) || legacy.hasSupportedPlan() || !legacy.getRemainingPlacements().isEmpty())
+            helper.fail("No supported plan at claimed station, or legacy placeholder changed: " + colony.getExpansionStatus());
+        helper.succeed();
     }
 }
