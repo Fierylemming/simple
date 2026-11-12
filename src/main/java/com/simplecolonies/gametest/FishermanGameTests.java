@@ -94,7 +94,12 @@ public class FishermanGameTests {
                     || alive != 2 || colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") != 1)
                 helper.fail("Constructed harbor-to-shore flow incomplete: building=" + harbor.getState()
                         + " builder=" + builderJob.getState() + " fisher=" + (job[0] == null ? "not started" : job[0].getState())
-                        + " fisher pos=" + (fisher[0] == null ? "none" : fisher[0].position()) + " alive=" + alive);
+                        + " fisher pos=" + (fisher[0] == null ? "none" : fisher[0].position()) + " alive=" + alive
+                        + " fish=" + first.position() + "/" + second.position() + "/" + third.position()
+                        + " water=" + first.isInWater() + "/" + second.isInWater() + "/" + third.isInWater()
+                        + " door=" + helper.getBlockState(SITE.north(2))
+                        + " site=" + helper.getBlockState(SITE) + " stock=" + colony.getWarehouseSnapshot(helper.getLevel())
+                        + " path=" + (fisher[0] == null ? "none" : fisher[0].getNavigation().createPath(helper.absolutePos(new BlockPos(57, 1, 56)), 0)));
             helper.assertBlockPresent(Blocks.BARREL, SITE);
             helper.succeed();
         });
