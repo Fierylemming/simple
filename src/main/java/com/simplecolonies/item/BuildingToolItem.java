@@ -14,6 +14,13 @@ public class BuildingToolItem extends Item {
     public BuildingToolItem(Properties props) { super(props); }
 
     @Override
+    public void appendHoverText(net.minecraft.world.item.ItemStack stack, Item.TooltipContext context,
+                                java.util.List<Component> lines, net.minecraft.world.item.TooltipFlag flag) {
+        lines.add(Component.literal("§7Sneak-use a chest, barrel or shulker to share or unshare it."));
+        lines.add(Component.literal("§7Double chests: designate each half separately."));
+    }
+
+    @Override
     public InteractionResult useOn(UseOnContext ctx) {
         Level level = ctx.getLevel();
         BlockPos pos = ctx.getClickedPos();
@@ -40,7 +47,7 @@ public class BuildingToolItem extends Item {
                 return InteractionResult.FAIL;
             }
             ctx.getPlayer().displayClientMessage(Component.literal("§aTip: Place a Building Marker block here and right-click it to designate as House/Farm/Warehouse etc. Or right-click marker directly."), false);
-            ctx.getPlayer().displayClientMessage(Component.literal("§7Tool use: marker at " + pos.toShortString() + " would become building. Place Building Marker for GUI."), false);
+            ctx.getPlayer().displayClientMessage(Component.literal("§7Sneak-use this tool on a container to share or unshare colony storage."), false);
         } else {
             ctx.getPlayer().displayClientMessage(Component.literal("§cNeed 20 reputation to designate colony storage."), true);
             return InteractionResult.FAIL;
