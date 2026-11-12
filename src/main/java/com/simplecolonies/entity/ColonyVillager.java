@@ -284,21 +284,35 @@ public class ColonyVillager extends Villager {
 
     /** Brief idle conversations use vanilla gossip rather than inventing reputation. */
     void trySocialize(ServerLevel level) {
-        if (colonyId == -1 || isBaby() || isTrading() || isSleeping() || level.getGameTime() < nextConversationTime
-                || !getNavigation().isDone() || (jobInstance != null && jobInstance.getState() == AbstractJob.JobState.WORKING)) return;
-        var other = level.getEntitiesOfClass(ColonyVillager.class, getBoundingBox().inflate(3),
-                v -> v != this && v.isAlive() && v.colonyId == colonyId && !v.isBaby() && !v.isTrading()
-                        && !v.isSleeping() && v.getNavigation().isDone() && level.getGameTime() >= v.nextConversationTime
-                        && (v.jobInstance == null || v.jobInstance.getState() != AbstractJob.JobState.WORKING))
+        if (!availableForConversation(level)) return;
+        var other = level.getEntitiesOfClass(ColonyVillager.class, getBoundingBox().inflate(8),
+                v -> v != this && v.isAlive() && v.colonyId == colonyId && v.availableForConversation(level))
                 .stream().min(java.util.Comparator.comparingDouble(this::distanceToSqr)).orElse(null);
         nextConversationTime = level.getGameTime() + 200;
-        if (other == null || distanceToSqr(other) > 9 || !hasLineOfSight(other)) return;
+        if (other == null || distanceToSqr(other) > 64) return;
+        if (distanceToSqr(other) > 9 || !hasLineOfSight(other)) {
+            // Let the vanilla brain walk toward an idle neighbor, so door handling
+            // and unreachable paths keep their ordinary Minecraft behavior.
+            getBrain().setMemory(MemoryModuleType.WALK_TARGET,
+                    new net.minecraft.world.entity.ai.memory.WalkTarget(other, 0.5f, 2));
+            nextConversationTime = level.getGameTime() + 100;
+            return;
+        }
         nextConversationTime = other.nextConversationTime = level.getGameTime() + 1200;
         getLookControl().setLookAt(other);
         other.getLookControl().setLookAt(this);
         gossip(level, other, level.getGameTime());
         playSound(net.minecraft.sounds.SoundEvents.VILLAGER_AMBIENT, 0.5f, 1.0f);
         other.playSound(net.minecraft.sounds.SoundEvents.VILLAGER_AMBIENT, 0.5f, 1.1f);
+    }
+
+    private boolean availableForConversation(ServerLevel level) {
+        if (colonyId == -1 || isBaby() || isTrading() || isSleeping() || level.getGameTime() < nextConversationTime
+                || !getNavigation().isDone() || getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET)
+                || getBrain().hasMemoryValue(MemoryModuleType.IS_PANICKING)
+                || getBrain().hasMemoryValue(MemoryModuleType.NEAREST_HOSTILE)) return false;
+        return jobInstance == null || (jobInstance.getState() != AbstractJob.JobState.WORKING
+                && jobInstance.getState() != AbstractJob.JobState.GOING_TO_WORK);
     }
 
     void seekShelter(ServerLevel level, Colony colony) {
