@@ -49,6 +49,8 @@ public class FishermanJob extends AbstractJob {
                         && !f.hasCustomName() && !f.fromBucket() && !f.isPersistenceRequired() && !f.requiresCustomPersistence());
         var candidates = fish.stream().filter(f -> fish.stream().filter(other -> other.getType() == f.getType()).count() > MIN_SCHOOL)
                 .sorted(Comparator.comparingDouble(villager::distanceToSqr)).limit(4).toList();
+        net.minecraft.world.level.pathfinder.Path partial = null;
+        double bestProgress = 0;
         for (var target : candidates) {
             if (villager.distanceToSqr(target) <= REACH_SQ && !villager.isInWater()
                     && villager.hasLineOfSight(target)) {
@@ -84,13 +86,34 @@ public class FishermanJob extends AbstractJob {
                 if (stand.equals(villager.blockPosition())) continue;
                 if (++attempts > 8) break;
                 var path = villager.getNavigation().createPath(stand, 0);
-                if (path != null && path.canReach()) {
+                if (path == null || !dryPath(level, path)) continue;
+                if (path.canReach()) {
                     villager.getNavigation().moveTo(path, 0.7);
                     state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
                 }
+                // Villager pathfinding has a finite range. A safe partial path
+                // can approach a distant shore without loading extra chunks.
+                var end = path.getEndNode();
+                if (end != null && colony.isInside(end.asBlockPos())
+                        && villager.blockPosition().distSqr(end.asBlockPos()) >= 4) {
+                    double progress = stand.distSqr(villager.blockPosition()) - stand.distSqr(end.asBlockPos());
+                    if (progress > bestProgress + 4) { bestProgress = progress; partial = path; }
+                }
             }
+        }
+        if (partial != null) {
+            villager.getNavigation().moveTo(partial, 0.7);
+            state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
         }
         state = candidates.isEmpty() ? JobState.NEEDS_RESOURCE : JobState.STUCK;
         ticksUntilNextWork = 100;
+    }
+
+    private static boolean dryPath(ServerLevel level, net.minecraft.world.level.pathfinder.Path path) {
+        for (int i = 0; i < path.getNodeCount(); i++) {
+            BlockPos pos = path.getNode(i).asBlockPos();
+            if (!level.isLoaded(pos) || !level.getFluidState(pos).isEmpty()) return false;
+        }
+        return true;
     }
 }
