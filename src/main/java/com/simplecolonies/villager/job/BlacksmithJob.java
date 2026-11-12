@@ -5,7 +5,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.npc.Villager;
 
-/** Supplies modest reserves of real tools; existing smelting remains provisional. */
+/** Crafts modest tool reserves and operates a real designated furnace. */
 public class BlacksmithJob extends AbstractJob {
     private static final String IRON = "minecraft:iron_ingot", COBBLE = "minecraft:cobblestone";
     public BlacksmithJob(Villager villager, Colony colony) { super(villager, colony, JobType.BLACKSMITH); }
@@ -26,20 +26,16 @@ public class BlacksmithJob extends AbstractJob {
             villager.swing(InteractionHand.MAIN_HAND);
             state = JobState.WORKING; ticksUntilNextWork = 100; return;
         }
-        int iron = colony.getWarehouseCount(level, "minecraft:raw_iron");
-        int coal = colony.getWarehouseCount(level, "minecraft:coal");
-        if (iron >= 3 && coal >= 1 && colony.getWarehouseCount(level, IRON) < 12
-                && colony.consumeStock(level, "minecraft:raw_iron", 3)) {
-            if (colony.consumeStock(level, "minecraft:coal", 1)) {
-                depositToColony(level, IRON, 3);
-                villager.swing(InteractionHand.MAIN_HAND);
-                state = JobState.WORKING;
-            } else {
-                colony.depositToWarehouse("minecraft:raw_iron", 3);
-                state = JobState.NEEDS_RESOURCE;
-            }
-        } else state = JobState.NEEDS_RESOURCE;
-        ticksUntilNextWork = 180;
+        var site = villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE);
+        var result = site.isEmpty() ? SmithFurnace.Result.UNAVAILABLE
+                : SmithFurnace.work(level, colony, villager, site.get().pos());
+        state = switch (result) {
+            case MOVING -> JobState.GOING_TO_WORK;
+            case WAITING, WORKED -> JobState.WORKING;
+            case UNAVAILABLE -> JobState.NEEDS_RESOURCE;
+        };
+        if (result == SmithFurnace.Result.WORKED) villager.swing(InteractionHand.MAIN_HAND);
+        ticksUntilNextWork = result == SmithFurnace.Result.MOVING ? 10 : 40;
     }
     private static boolean noSpare(ToolCrafting.Stock stock, String kind) {
         for (String tier : new String[]{"stone", "iron", "diamond", "netherite"})
