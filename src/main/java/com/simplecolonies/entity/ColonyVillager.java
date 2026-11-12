@@ -39,6 +39,7 @@ public class ColonyVillager extends Villager {
     // The courier carries this actual stack across chunk unloads and restarts.
     private net.minecraft.world.item.ItemStack courierCargo = net.minecraft.world.item.ItemStack.EMPTY;
     private CompoundTag minerMemory = new CompoundTag();
+    private long nextConversationTime;
 
     // Needs
     private int hungerTicks = 0; // increments daily if no food, leads to damage
@@ -244,11 +245,31 @@ public class ColonyVillager extends Villager {
                 jobInstance.tick(sl);
             }
 
+            if (!sl.isNight()) trySocialize(sl);
             colony.getCitizens().stream().filter(c -> c.uuid.equals(getUUID())).findFirst()
                     .ifPresent(this::applyPendingDailyHealth);
             // Show job icon above head if client config enabled
             // (handled via custom renderer; placeholder is nameplate)
         }
+    }
+
+    /** Brief idle conversations use vanilla gossip rather than inventing reputation. */
+    void trySocialize(ServerLevel level) {
+        if (colonyId == -1 || isBaby() || isTrading() || isSleeping() || level.getGameTime() < nextConversationTime
+                || !getNavigation().isDone() || (jobInstance != null && jobInstance.getState() == AbstractJob.JobState.WORKING)) return;
+        var other = level.getEntitiesOfClass(ColonyVillager.class, getBoundingBox().inflate(3),
+                v -> v != this && v.isAlive() && v.colonyId == colonyId && !v.isBaby() && !v.isTrading()
+                        && !v.isSleeping() && v.getNavigation().isDone() && level.getGameTime() >= v.nextConversationTime
+                        && (v.jobInstance == null || v.jobInstance.getState() != AbstractJob.JobState.WORKING))
+                .stream().min(java.util.Comparator.comparingDouble(this::distanceToSqr)).orElse(null);
+        nextConversationTime = level.getGameTime() + 200;
+        if (other == null || distanceToSqr(other) > 9 || !hasLineOfSight(other)) return;
+        nextConversationTime = other.nextConversationTime = level.getGameTime() + 1200;
+        getLookControl().setLookAt(other);
+        other.getLookControl().setLookAt(this);
+        gossip(level, other, level.getGameTime());
+        playSound(net.minecraft.sounds.SoundEvents.VILLAGER_AMBIENT, 0.5f, 1.0f);
+        other.playSound(net.minecraft.sounds.SoundEvents.VILLAGER_AMBIENT, 0.5f, 1.1f);
     }
 
     void seekShelter(ServerLevel level, Colony colony) {
