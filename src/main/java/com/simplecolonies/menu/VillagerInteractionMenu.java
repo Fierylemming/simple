@@ -30,6 +30,31 @@ public class VillagerInteractionMenu extends AbstractContainerMenu {
     public static final int BTN_SET_BLACKSMITH = 108;
     public static final int BTN_COMMAND_FOLLOW = 110;
     public static final int BTN_LEVEL_UP_JOB = 111;
+    public static final int BTN_SET_GUARD = 112;
+    public static final int BTN_SET_BAKER = 113;
+    public static final int BTN_SET_FISHERMAN = 114;
+    public static final int BTN_SET_COURIER = 115;
+    public static final int BTN_SET_UNEMPLOYED = 116;
+
+    /** Explicit mapping keeps assignment buttons separate from commands. */
+    public static JobType assignmentForButton(int id) {
+        return switch (id) {
+            case BTN_SET_FARMER -> JobType.FARMER;
+            case BTN_SET_LUMBERJACK -> JobType.LUMBERJACK;
+            case BTN_SET_MINER -> JobType.MINER;
+            case BTN_SET_BUILDER -> JobType.BUILDER;
+            case BTN_SET_SOLDIER -> JobType.SOLDIER;
+            case BTN_SET_BUTCHER -> JobType.BUTCHER;
+            case BTN_SET_LEATHERWORKER -> JobType.LEATHERWORKER;
+            case BTN_SET_BLACKSMITH -> JobType.BLACKSMITH;
+            case BTN_SET_GUARD -> JobType.GUARD;
+            case BTN_SET_BAKER -> JobType.BAKER;
+            case BTN_SET_FISHERMAN -> JobType.FISHERMAN;
+            case BTN_SET_COURIER -> JobType.COURIER;
+            case BTN_SET_UNEMPLOYED -> JobType.UNEMPLOYED;
+            default -> null;
+        };
+    }
 
     public VillagerInteractionMenu(int containerId, Inventory inv, int entityId, Colony colony, CitizenData citizen) {
         super(ModMenuTypes.VILLAGER.get(), containerId);
@@ -53,22 +78,19 @@ public class VillagerInteractionMenu extends AbstractContainerMenu {
     public boolean clickMenuButton(Player player, int id) {
         if (colony == null || citizen == null) return false;
         boolean isLeader = colony.isLeader(player);
-        if (id >= BTN_SET_FARMER && id <= BTN_SET_BLACKSMITH) {
-            if (!isLeader && colony.getReputation(player) < 30) {
-                player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cNeed 30 rep to assign jobs"), true);
+        JobType newJob = assignmentForButton(id);
+        if (newJob != null) {
+            int requiredRep = newJob.isCombat ? 50 : 30;
+            if (!isLeader && colony.getReputation(player) < requiredRep) {
+                player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cNeed " + requiredRep + " rep to assign this job"), true);
                 return true;
             }
-            JobType newJob = switch (id) {
-                case BTN_SET_FARMER -> JobType.FARMER;
-                case BTN_SET_LUMBERJACK -> JobType.LUMBERJACK;
-                case BTN_SET_MINER -> JobType.MINER;
-                case BTN_SET_BUILDER -> JobType.BUILDER;
-                case BTN_SET_SOLDIER -> JobType.SOLDIER;
-                case BTN_SET_BUTCHER -> JobType.BUTCHER;
-                case BTN_SET_LEATHERWORKER -> JobType.LEATHERWORKER;
-                case BTN_SET_BLACKSMITH -> JobType.BLACKSMITH;
-                default -> JobType.UNEMPLOYED;
-            };
+            var target = player.level().getEntity(entityId);
+            if (!(target instanceof com.simplecolonies.entity.ColonyVillager cv) || !cv.isAlive()
+                    || !cv.getUUID().equals(citizen.uuid) || cv.getColonyId() != colony.getId() || !stillValid(player)) {
+                player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cVillager is no longer available"), true);
+                return true;
+            }
             // Progression gate: must have researched profession (farmer/lumberjack always free)
             if (!colony.getResearch().isProfessionUnlocked(newJob)) {
                 player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cProfession locked — unlock in Town Hall Research tab (need mats + prereqs)"), true);
@@ -81,12 +103,12 @@ public class VillagerInteractionMenu extends AbstractContainerMenu {
                 player.displayClientMessage(net.minecraft.network.chat.Component.literal("§eWarning: Stone Tools not yet researched — job will be 30% slower"), false);
             }
             citizen.job = newJob;
+            citizen.isSoldier = newJob.isCombat;
             ColonyManager.getInstance().markDirty(colony);
-            var ent = player.level().getEntity(entityId);
-            if (ent instanceof com.simplecolonies.entity.ColonyVillager cv) {
-                cv.setJob(newJob);
-            }
-            player.displayClientMessage(net.minecraft.network.chat.Component.literal("§aSet " + citizen.name + " to " + newJob.displayName + (colony.getResearch().isProfessionUnlocked(newJob)?"":" §c(locked)")), false);
+            cv.setJob(newJob);
+            player.displayClientMessage(net.minecraft.network.chat.Component.literal("§aSet " + citizen.name + " to " + newJob.displayName), false);
+            // The menu carries a snapshot; reopen it to display the new profession.
+            player.closeContainer();
             return true;
         }
         if (id == BTN_TRADE) {

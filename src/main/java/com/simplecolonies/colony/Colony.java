@@ -562,7 +562,9 @@ public class Colony {
         tag.putLong("lastSimulatedDay", lastSimulatedDay);
         tag.putString("state", state.name());
         if (leaderId != null) tag.putUUID("leader", leaderId);
-        if (warehouseManager.getWarehouseCenter() != null) tag.putLong("warehouseCenter", warehouseManager.getWarehouseCenter().asLong());
+        // Do not persist the display fallback (colony center) as a designated hub.
+        if (warehouseManager.getConfiguredWarehouseCenter() != null)
+            tag.putLong("warehouseCenter", warehouseManager.getConfiguredWarehouseCenter().asLong());
         ListTag citizensTag = new ListTag();
         for (CitizenData c : citizens.values()) citizensTag.add(c.save());
         tag.put("citizens", citizensTag);

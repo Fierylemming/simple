@@ -32,4 +32,19 @@ public class WarehouseGameTests {
                 || !machine.getItem(0).is(Items.NETHER_STAR)) helper.fail("Machine inventory was used as warehouse stock");
         helper.succeed();
     }
+    @GameTest(template = "empty")
+    public static void warehouseHubDesignationSurvivesReloadWithoutInventingOne(GameTestHelper helper) {
+        BlockPos center = helper.absolutePos(new BlockPos(8, 1, 8));
+        Colony colony = new Colony(0, CultureType.GREEK, center);
+        var noHub = Colony.load(colony.save());
+        if (noHub.getWarehouseManager().getConfiguredWarehouseCenter() != null
+                || !noHub.getWarehouseManager().getWarehouseCenter().equals(center))
+            helper.fail("Reload turned the display fallback into a designated hub");
+        BlockPos hub = center.east(5);
+        colony.setWarehouseCenter(hub);
+        var restored = Colony.load(colony.save());
+        if (!hub.equals(restored.getWarehouseManager().getConfiguredWarehouseCenter()))
+            helper.fail("Designated warehouse hub did not survive reload");
+        helper.succeed();
+    }
 }

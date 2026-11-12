@@ -141,6 +141,7 @@ public class ColonyVillager extends Villager {
             for (CitizenData cd : colony.getCitizens()) {
                 if (cd.uuid.equals(getUUID())) {
                     cd.job = newJob;
+                    cd.isSoldier = newJob.isCombat;
                     break;
                 }
             }

@@ -32,28 +32,32 @@ public class VillagerInteractionScreen extends AbstractContainerScreen<VillagerI
     public VillagerInteractionScreen(VillagerInteractionMenu menu, Inventory inv, Component title) {
         super(menu, inv, title);
         this.imageWidth = 280;
-        this.imageHeight = 200;
+        this.imageHeight = 236;
         this.inventoryLabelY = 999;
     }
 
     @Override protected void init(){
         super.init();
         int x=leftPos, y=topPos;
-        String[] labels={"Wheat Farmer","Lumberjack","Miner","Builder","Soldier","Butcher","Leather","Smith"};
-        String[] icons = {"⚘","♠","⛏","⚒","⚔","B","⬢","H"};
-        int[] ids={VillagerInteractionMenu.BTN_SET_FARMER,VillagerInteractionMenu.BTN_SET_LUMBERJACK,VillagerInteractionMenu.BTN_SET_MINER,VillagerInteractionMenu.BTN_SET_BUILDER,VillagerInteractionMenu.BTN_SET_SOLDIER,VillagerInteractionMenu.BTN_SET_BUTCHER,VillagerInteractionMenu.BTN_SET_LEATHERWORKER,VillagerInteractionMenu.BTN_SET_BLACKSMITH};
+        String[] labels={"Farmer","Woodcutter","Miner","Builder","Soldier","Butcher","Leather","Smith",
+                "Guard","Baker","Fisherman","Courier","Unemployed"};
+        int[] ids={VillagerInteractionMenu.BTN_SET_FARMER,VillagerInteractionMenu.BTN_SET_LUMBERJACK,
+                VillagerInteractionMenu.BTN_SET_MINER,VillagerInteractionMenu.BTN_SET_BUILDER,
+                VillagerInteractionMenu.BTN_SET_SOLDIER,VillagerInteractionMenu.BTN_SET_BUTCHER,
+                VillagerInteractionMenu.BTN_SET_LEATHERWORKER,VillagerInteractionMenu.BTN_SET_BLACKSMITH,
+                VillagerInteractionMenu.BTN_SET_GUARD,VillagerInteractionMenu.BTN_SET_BAKER,
+                VillagerInteractionMenu.BTN_SET_FISHERMAN,VillagerInteractionMenu.BTN_SET_COURIER,
+                VillagerInteractionMenu.BTN_SET_UNEMPLOYED};
         for(int i=0;i<labels.length;i++){
             int col=i%4, row=i/4;
-            int bx=x+8+col*66, by=y+78+row*22;
-            final int idx=i;
-            Component lbl=Component.literal(icons[idx]+" "+labels[idx]);
-            int id = ids[idx];
-            addRenderableWidget(Button.builder(lbl,b->sendBtn(id)).bounds(bx,by,64,18).build());
+            int bx=x+8+col*66, by=y+90+row*22;
+            int id = ids[i];
+            addRenderableWidget(Button.builder(Component.literal(labels[i]),b->sendBtn(id)).bounds(bx,by,64,18).build());
         }
-        addRenderableWidget(Button.builder(Component.literal("◐ Trade (vanilla)"), b->sendBtn(VillagerInteractionMenu.BTN_TRADE)).bounds(x+8,y+126, 130,18).build());
-        addRenderableWidget(Button.builder(Component.literal("⚑ Follow Me"), b->sendBtn(VillagerInteractionMenu.BTN_COMMAND_FOLLOW)).bounds(x+142,y+126, 130,18).build());
-        addRenderableWidget(Button.builder(Component.literal("▲ Level Job"), b->sendBtn(VillagerInteractionMenu.BTN_LEVEL_UP_JOB)).bounds(x+8,y+148, 130,18).build());
-        addRenderableWidget(Button.builder(Component.literal("✕ Close"), b->onClose()).bounds(x+142,y+148, 130,18).build());
+        addRenderableWidget(Button.builder(Component.literal("Trade (vanilla)"), b->sendBtn(VillagerInteractionMenu.BTN_TRADE)).bounds(x+8,y+180, 130,18).build());
+        addRenderableWidget(Button.builder(Component.literal("Follow Me"), b->sendBtn(VillagerInteractionMenu.BTN_COMMAND_FOLLOW)).bounds(x+142,y+180, 130,18).build());
+        addRenderableWidget(Button.builder(Component.literal("Level Job"), b->sendBtn(VillagerInteractionMenu.BTN_LEVEL_UP_JOB)).bounds(x+8,y+202, 130,18).build());
+        addRenderableWidget(Button.builder(Component.literal("Close"), b->onClose()).bounds(x+142,y+202, 130,18).build());
     }
     private void sendBtn(int id){ if(minecraft!=null && minecraft.gameMode!=null) minecraft.gameMode.handleInventoryButtonClick(menu.containerId, id); }
 
@@ -65,7 +69,7 @@ public class VillagerInteractionScreen extends AbstractContainerScreen<VillagerI
         // portrait + info panel
         g.fill(x0+6,y0+24,x1-6,y0+74, C_PANEL); g.fill(x0+6,y0+24,x0+7,y0+74, C_DIV); g.fill(x1-7,y0+24,x1-6,y0+74, C_DIV); g.fill(x0+6,y0+74,x1-6,y0+75, C_DIV);
         // job panel
-        g.fill(x0+6,y0+76,y0+122==y0+76?y0+76:x1-6, y0+122, C_PANEL);
+        g.fill(x0+6,y0+76,x1-6,y0+178, C_PANEL);
         g.fill(x0+3,y1-14,x1-3,y1-3, 0xFFEBE2C8); g.fill(x0+3,y1-14,x1-3,y1-13, C_DIV);
 
         int x=x0+50, y=y0+28;
@@ -82,7 +86,7 @@ public class VillagerInteractionScreen extends AbstractContainerScreen<VillagerI
         if(menu.citizen.isSoldier) { g.fill(x0+50,y0+62, x1-10, y0+72, 0xFFFFE8E8); g.fill(x0+50,y0+62, x0+52,y0+72, C_RED); g.drawString(font,"⚔ Soldier — follows leader with Command Staff when rallied", x0+56,y0+64, C_RED,false); }
 
         g.drawString(font, "Assign job — needs 30 rep (soldier 50):", x0+12,y0+76, C_TEXT,false);
-        g.drawString(font, "Jobs respect research: Farmer, Lumberjack & Builder free; others need unlocks via Town Hall.", x0+12,y1-10, C_MUTED,false);
+        g.drawString(font, "Jobs require reputation and applicable research.", x0+12,y1-10, C_MUTED,false);
     }
     @Override protected void renderLabels(GuiGraphics g,int mx,int my){ g.drawString(font, "☺ "+title.getString(), 12,6, 0xFFF5E6A3,true); }
 }

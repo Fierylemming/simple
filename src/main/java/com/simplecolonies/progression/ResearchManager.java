@@ -65,16 +65,16 @@ public class ResearchManager {
         return base;
     }
 
+    private ResearchCosts.Stock stock(ServerLevel level) {
+        return new ResearchCosts.Stock() {
+            public int count(String id) { return colony.getWarehouseCount(level, id); }
+            public boolean take(String id, int amount) { return colony.consumeStock(level, id, amount); }
+            public void refund(String id, int amount) { colony.depositToWarehouse(id, amount); }
+        };
+    }
+
     public boolean canAfford(ColonyUpgrade upgrade, ServerLevel level) {
-        for (var e : upgrade.cost.entrySet()) {
-            int have = colony.getWarehouseCount(level, e.getKey());
-            // Also check chest manager if level present
-            try {
-                if (level != null) have = colony.getWarehouseManager().count(e.getKey()) + colony.getWarehouseCount(e.getKey());
-            } catch (Exception ignored) {}
-            if (have < e.getValue()) return false;
-        }
-        return true;
+        return ResearchCosts.affordable(stock(level), upgrade.cost);
     }
 
     public boolean canUnlock(ColonyUpgrade upgrade) {
@@ -98,27 +98,15 @@ public class ResearchManager {
             }
             return false;
         }
-        // Consume
-        for (var e : upgrade.cost.entrySet()) {
-            consume(level, e.getKey(), e.getValue());
+        if (!ResearchCosts.pay(stock(level), upgrade.cost)) {
+            if (player != null) player.displayClientMessage(Component.literal("§cResources changed before research could be paid for"), true);
+            return false;
         }
         unlocked.add(upgrade);
         colony.broadcast(Component.literal("§6Colony #" + colony.getId() + " unlocked " + upgrade.displayName + " — " + upgrade.description));
         if (player != null) player.displayClientMessage(Component.literal("§aUnlocked " + upgrade.displayName + "!"), false);
         com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
         return true;
-    }
-
-    private void consume(ServerLevel level, String itemId, int amount) {
-        if (level != null) {
-            int chestHave = colony.getWarehouseManager().count(itemId);
-            int fromChest = Math.min(chestHave, amount);
-            if (fromChest > 0) colony.getWarehouseManager().extract(level, colony.getCenter(), itemId, fromChest, false);
-            int remaining = amount - fromChest;
-            if (remaining > 0) colony.depositToWarehouse(itemId, -remaining);
-        } else {
-            colony.depositToWarehouse(itemId, -amount);
-        }
     }
 
     /** Called daily in Colony.tick — auto-progress if village has surplus. */
@@ -130,8 +118,8 @@ public class ResearchManager {
             if (canUnlock(up) && canAfford(up, level)) {
                 // Auto-buy if tier 1 and colony has 2× mats (surplus) to not starve
                 // We check food surplus implicitly via canAfford after food tick
+                if (!ResearchCosts.pay(stock(level), up.cost)) continue;
                 unlocked.add(up);
-                for (var e : up.cost.entrySet()) consume(level, e.getKey(), e.getValue());
                 colony.broadcast(Component.literal("§eColony #" + colony.getId() + " self-unlocked " + up.displayName + " (had enough resources)"));
                 com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
                 break; // one per 5 days max
