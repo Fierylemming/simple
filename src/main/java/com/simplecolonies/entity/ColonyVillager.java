@@ -286,22 +286,55 @@ public class ColonyVillager extends Villager {
 
     void seekShelter(ServerLevel level, Colony colony) {
         if (level.getGameTime() % 60 != 0) return;
-        var shelter = colony.getBuildings().stream()
-                .filter(b -> b.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
-                .filter(b -> b.getType() == com.simplecolonies.building.BuildingType.TOWN_HALL
-                        || b.getType() == com.simplecolonies.building.BuildingType.HOUSE)
-                .filter(b -> level.isLoaded(b.getPos()))
-                .min(java.util.Comparator.comparingDouble(b -> b.getPos().distSqr(blockPosition())))
-                .orElse(null);
-        if (shelter == null) return;
-        var target = shelter.getPos().offset(1, shelter.isPlayerPlaced ? 0 : 1, 0);
         if (getNavigation() instanceof net.minecraft.world.entity.ai.navigation.GroundPathNavigation ground) {
             ground.setCanOpenDoors(true);
             ground.setCanPassDoors(true);
         }
-        if (distanceToSqr(target.getX() + 0.5, target.getY(), target.getZ() + 0.5) > 2.25) {
-            getNavigation().moveTo(target.getX() + 0.5, target.getY(), target.getZ() + 0.5, 0.7);
+        // Markers can refer to destroyed, obstructed or inaccessible buildings. Try other
+        // completed shelters instead of repeatedly walking toward the nearest marker.
+        var shelters = colony.getBuildings().stream()
+                .filter(b -> b.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
+                .filter(b -> b.getType() == com.simplecolonies.building.BuildingType.TOWN_HALL
+                        || b.getType() == com.simplecolonies.building.BuildingType.HOUSE)
+                .filter(b -> level.isLoaded(b.getPos()))
+                .sorted(java.util.Comparator.comparingDouble(b -> b.getPos().distSqr(blockPosition())))
+                .toList();
+        for (var shelter : shelters) {
+            int y = shelter.isPlayerPlaced ? shelter.getPos().getY() : shelter.constructionWalkY();
+            var candidates = new java.util.ArrayList<net.minecraft.core.BlockPos>();
+            // The central 3x3 is inside all generated shells, including old houses.
+            for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++) {
+                var pos = new net.minecraft.core.BlockPos(shelter.getPos().getX() + x, y, shelter.getPos().getZ() + z);
+                if (usableShelterSpot(level, pos)) candidates.add(pos);
+            }
+            candidates.sort(java.util.Comparator.comparingDouble(p -> p.distSqr(blockPosition())));
+            for (var target : candidates) {
+                if (blockPosition().equals(target)) {
+                    getNavigation().stop();
+                    return;
+                }
+                var path = getNavigation().createPath(target, 0);
+                if (path != null && path.canReach()) {
+                    getNavigation().moveTo(path, 0.7);
+                    return;
+                }
+            }
         }
+    }
+
+    private static boolean usableShelterSpot(ServerLevel level, net.minecraft.core.BlockPos pos) {
+        if (!level.isLoaded(pos.below()) || !level.isLoaded(pos.above(5))) return false;
+        var floor = level.getBlockState(pos.below());
+        if (!floor.isFaceSturdy(level, pos.below(), net.minecraft.core.Direction.UP)
+                || floor.is(net.minecraft.world.level.block.Blocks.MAGMA_BLOCK)
+                || !level.getBlockState(pos).isAir() || !level.getBlockState(pos.above()).isAir()) return false;
+        // A solid ceiling near the standing position is required; a bare marker or
+        // a roof that has been removed is not shelter. This is not an enclosure proof.
+        for (int dy = 2; dy <= 5; dy++) {
+            var roof = pos.above(dy);
+            if (level.getBlockState(roof).isFaceSturdy(level, roof, net.minecraft.core.Direction.DOWN)) return true;
+        }
+        return false;
     }
 
     /** Apply exactly the days simulated by the colony, even after a chunk reload. */

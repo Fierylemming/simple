@@ -44,4 +44,52 @@ public class ShelterGameTests {
             if (!state.is(Blocks.OAK_DOOR) || state.getValue(DoorBlock.OPEN)) helper.fail("Hall door is not closed");
         });
     }
+    @GameTest(template = "isolated", timeoutTicks = 1800)
+    public static void villagersFindReachableConstructedHouse(GameTestHelper helper) {
+        for (int x = 24; x <= 75; x++) for (int z = 25; z <= 70; z++)
+            helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        var level = helper.getLevel();
+        BlockPos blocked = new BlockPos(40, 1, 46), open = new BlockPos(58, 1, 46);
+        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(blocked));
+        // A completed marker without a roof must not be treated as shelter.
+        colony.registerPlayerBuilding(new Building(BuildingType.TOWN_HALL,
+                helper.absolutePos(new BlockPos(40, 1, 37)), CultureType.ROMAN, true));
+        var blockedHouse = placeHouse(helper, blocked);
+        var openHouse = placeHouse(helper, open);
+        colony.registerPlayerBuilding(blockedHouse);
+        colony.registerPlayerBuilding(openHouse);
+        // Seal the nearer house after construction. Its roof and floor still exist,
+        // but none of its interior spots can be reached from outside.
+        int doorZ = blockedHouse.getRemainingPlacements().stream()
+                .filter(p -> p.state.getBlock() instanceof DoorBlock).findFirst().orElseThrow().pos.getZ();
+        BlockPos door = new BlockPos(blockedHouse.getPos().getX(), blockedHouse.getPos().getY() + 1, doorZ);
+        level.setBlock(door, Blocks.COBBLESTONE.defaultBlockState(), 3);
+        level.setBlock(door.above(), Blocks.COBBLESTONE.defaultBlockState(), 3);
+        var first = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(39, 1, 36));
+        var second = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(41, 1, 36));
+        for (int tick = 1; tick < 1800; tick++) helper.runAtTickTime(tick, () -> {
+            first.seekShelter(level, colony);
+            second.seekShelter(level, colony);
+        });
+        helper.succeedWhen(() -> {
+            for (var villager : new ColonyVillager[]{first, second}) {
+                BlockPos p = villager.blockPosition(), origin = openHouse.getPos();
+                if (p.getY() != origin.getY() + 1 || Math.abs(p.getX() - origin.getX()) > 1
+                        || Math.abs(p.getZ() - origin.getZ()) > 1)
+                    helper.fail("Villager did not reach the accessible house: " + p.toShortString());
+            }
+        });
+    }
+
+    private static Building placeHouse(GameTestHelper helper, BlockPos relative) {
+        var level = helper.getLevel();
+        var house = new Building(BuildingType.HOUSE, helper.absolutePos(relative), CultureType.ROMAN);
+        for (var placement : house.getRemainingPlacements()) {
+            level.setBlock(placement.pos, placement.state, 2);
+            if (placement.state.getBlock() instanceof DoorBlock)
+                level.setBlock(placement.pos.above(), placement.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3);
+        }
+        house.setState(com.simplecolonies.building.BuildingState.COMPLETE);
+        return house;
+    }
 }
