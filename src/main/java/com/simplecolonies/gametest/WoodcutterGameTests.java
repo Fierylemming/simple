@@ -21,7 +21,14 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public class WoodcutterGameTests {
     private static final BlockPos ROOT = new BlockPos(56, 1, 56);
     private static void makeTree(GameTestHelper helper) {
-        for (int x = 40; x <= 66; x++) for (int z = 50; z <= 62; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        for (int x = 35; x <= 75; x++) for (int z = 35; z <= 75; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        // The isolated fixture has an artificial barrier ceiling inside the tree's
+        // safety envelope. Remove just this roof section, never the side barriers.
+        for (int x = 50; x <= 62; x++) for (int z = 50; z <= 62; z++) for (int y = 5; y <= 8; y++) {
+            BlockPos pos = helper.absolutePos(new BlockPos(x, y, z));
+            if (helper.getLevel().getBlockState(pos).is(Blocks.BARRIER))
+                helper.getLevel().setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
+        }
         for (int y = 0; y < 4; y++) helper.setBlock(ROOT.above(y), Blocks.OAK_LOG);
         for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++)
             if (x != 0 || z != 0) helper.setBlock(ROOT.offset(x, 3, z), Blocks.OAK_LEAVES);
