@@ -236,8 +236,8 @@ public class Colony {
         }
         var stock = getWarehouseSnapshot(level);
         String housingReason = "Housing capacity sufficient";
-        if (citizens.size() < com.simplecolonies.config.ColonyConfig.MAX_CITIZENS_PER_COLONY.get()
-                && shelterCapacity() <= citizens.size() + 2) {
+        if (HousingNeeds.needsHouse(citizens.size(), shelterCapacity(),
+                com.simplecolonies.config.ColonyConfig.MAX_CITIZENS_PER_COLONY.get())) {
             // Different footprints have different costs. Check all three before
             // searching, then select a site whose actual variant is affordable.
             boolean[] affordable = new boolean[3];
