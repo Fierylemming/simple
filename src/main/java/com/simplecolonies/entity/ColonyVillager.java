@@ -248,7 +248,7 @@ public class ColonyVillager extends Villager {
         }
     }
 
-    private void seekShelter(ServerLevel level, Colony colony) {
+    void seekShelter(ServerLevel level, Colony colony) {
         if (level.getGameTime() % 60 != 0) return;
         var shelter = colony.getBuildings().stream()
                 .filter(b -> b.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
