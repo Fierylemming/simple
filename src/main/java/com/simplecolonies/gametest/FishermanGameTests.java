@@ -109,7 +109,7 @@ public class FishermanGameTests {
         });
     }
 
-    @GameTest(template = "isolated", timeoutTicks = 900)
+    @GameTest(template = "isolated", timeoutTicks = 1400)
     public static void requiresHarborAndRespectsStockLimit(GameTestHelper helper) {
         Colony colony = setup(helper);
         Cod a = wildCod(helper, new BlockPos(58, 0, 56));
@@ -117,7 +117,7 @@ public class FishermanGameTests {
         Cod c = wildCod(helper, new BlockPos(58, 0, 58));
         var worker = worker(helper);
         var job = new FishermanJob(worker, colony);
-        for (int tick = 1; tick < 900; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        for (int tick = 1; tick < 1400; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
         helper.runAtTickTime(300, () -> {
             if (!a.isAlive() || !b.isAlive() || !c.isAlive() || colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") != 0)
                 helper.fail("Worked without a designated harbor");
@@ -127,6 +127,43 @@ public class FishermanGameTests {
         helper.runAtTickTime(800, () -> {
             if (!a.isAlive() || !b.isAlive() || !c.isAlive() || colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") != 0)
                 helper.fail("Caught fish despite a full reserve");
+            colony.depositToWarehouse("minecraft:salmon", -8);
+            helper.setBlock(SITE, Blocks.AIR);
+        });
+        helper.runAtTickTime(1300, () -> {
+            if (!a.isAlive() || !b.isAlive() || !c.isAlive() || colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") != 0)
+                helper.fail("Worked after the barrel was removed");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 1300)
+    public static void catchesSalmonWithoutTakingTheLastCod(GameTestHelper helper) {
+        Colony colony = setup(helper);
+        colony.registerPlayerBuilding(new Building(BuildingType.HARBOR, colony.getCenter(), CultureType.ROMAN, true));
+        Cod a = wildCod(helper, new BlockPos(60, 0, 56));
+        Cod b = wildCod(helper, new BlockPos(60, 0, 59));
+        var salmon = new net.minecraft.world.entity.animal.Salmon[3];
+        for (int i = 0; i < salmon.length; i++) {
+            salmon[i] = EntityType.SALMON.create(helper.getLevel());
+            if (salmon[i] == null) throw new IllegalStateException("Could not create salmon");
+            BlockPos p = helper.absolutePos(new BlockPos(58, 0, 56 + i));
+            salmon[i].moveTo(p.getX() + 0.5, p.getY() + 0.15, p.getZ() + 0.5);
+            salmon[i].setNoAi(true);
+            salmon[i].setNoGravity(true);
+            helper.getLevel().addFreshEntity(salmon[i]);
+        }
+        var worker = worker(helper);
+        var job = new FishermanJob(worker, colony);
+        for (int tick = 1; tick < 1300; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(1100, () -> {
+            int alive = 0;
+            for (var fish : salmon) if (fish.isAlive()) alive++;
+            if (!a.isAlive() || !b.isAlive() || alive != 2
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") != 0
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:salmon") != 1)
+                helper.fail("Wrong species, school conservation or salmon loot: " + colony.getWarehouseSnapshot(helper.getLevel())
+                        + " salmon=" + alive + " state=" + job.getState());
             helper.succeed();
         });
     }
