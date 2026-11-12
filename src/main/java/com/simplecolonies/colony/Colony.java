@@ -257,9 +257,9 @@ public class Colony {
                 Map.entry(JobType.MINER, BuildingType.MINE),
                 Map.entry(JobType.BLACKSMITH, BuildingType.BLACKSMITH),
                 Map.entry(JobType.BUTCHER, BuildingType.BUTCHER_HUT),
+                Map.entry(JobType.BAKER, BuildingType.BAKERY),
+                Map.entry(JobType.LEATHERWORKER, BuildingType.LEATHER_SHOP),
                 Map.entry(JobType.FISHERMAN, BuildingType.HARBOR))) {
-            if (buildings.stream().anyMatch(b -> b.getType() == pair.getValue()
-                    && (b.isPlayerPlaced || b.hasSupportedPlan() || b.getState() == com.simplecolonies.building.BuildingState.COMPLETE))) continue;
             for (CitizenData citizen : citizens.values()) {
                 if (citizen.job != pair.getKey()) continue;
                 if (!(level.getEntity(citizen.uuid) instanceof com.simplecolonies.entity.ColonyVillager worker)

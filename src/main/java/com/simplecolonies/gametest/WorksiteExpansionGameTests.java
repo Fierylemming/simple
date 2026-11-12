@@ -29,6 +29,14 @@ public class WorksiteExpansionGameTests {
     public static void butcherExpansionUsesAssignedStation(GameTestHelper helper) {
         testExpansion(helper, JobType.BUTCHER, BuildingType.BUTCHER_HUT, Blocks.SMOKER);
     }
+    @GameTest(template = "isolated", timeoutTicks = 400)
+    public static void bakeryExpansionUsesAssignedStation(GameTestHelper helper) {
+        testExpansion(helper, JobType.BAKER, BuildingType.BAKERY, Blocks.SMOKER);
+    }
+    @GameTest(template = "isolated", timeoutTicks = 400)
+    public static void leatherShopExpansionUsesAssignedStation(GameTestHelper helper) {
+        testExpansion(helper, JobType.LEATHERWORKER, BuildingType.LEATHER_SHOP, Blocks.CAULDRON);
+    }
     @GameTest(template = "isolated", timeoutTicks = 1300)
     public static void harborExpansionNeedsDeepWaterAndClearPlot(GameTestHelper helper) {
         for (int x = 20; x <= 75; x++) for (int z = 35; z <= 75; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
@@ -112,6 +120,8 @@ public class WorksiteExpansionGameTests {
         colony.depositToWarehouse("minecraft:oak_log", 300);
         colony.depositToWarehouse("minecraft:cobblestone", 300);
         colony.depositToWarehouse("minecraft:coal", 10);
+        // An existing worksite elsewhere must not suppress a second worker's site.
+        colony.registerPlayerBuilding(new Building(buildingType, center.south(18), CultureType.ROMAN, true));
         // Unsupported old placeholders must remain untouched and not prevent new work.
         var legacyTag = new Building(buildingType, center.south(14), CultureType.ROMAN).save();
         legacyTag.putInt("planVersion", 6);

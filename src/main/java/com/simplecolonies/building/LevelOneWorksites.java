@@ -10,11 +10,12 @@ import java.util.function.BiConsumer;
 
 /** Compact early workshops built around an existing workstation, not over it. */
 final class LevelOneWorksites {
-    static boolean supports(BuildingType type) { return supports(type, 8); }
+    static boolean supports(BuildingType type) { return supports(type, 9); }
     static boolean supports(BuildingType type, int version) {
         return type == BuildingType.LUMBERJACK_HUT || type == BuildingType.MINE || type == BuildingType.BUILDER_HUT
                 || (version >= 7 && (type == BuildingType.BLACKSMITH || type == BuildingType.BUTCHER_HUT))
-                || (version >= 8 && type == BuildingType.HARBOR);
+                || (version >= 8 && type == BuildingType.HARBOR)
+                || (version >= 9 && (type == BuildingType.BAKERY || type == BuildingType.LEATHER_SHOP));
     }
 
     static void generate(BuildingType type, BlockPos station, BiConsumer<BlockPos, BlockState> add) {
@@ -34,6 +35,9 @@ final class LevelOneWorksites {
                         : Blocks.OAK_PLANKS.defaultBlockState();
                 case HARBOR -> y == 0 ? Blocks.OAK_LOG.defaultBlockState()
                         : corner ? Blocks.COBBLESTONE.defaultBlockState() : Blocks.OAK_PLANKS.defaultBlockState();
+                case BAKERY -> corner || y == 0 ? Blocks.OAK_LOG.defaultBlockState() : Blocks.COBBLESTONE.defaultBlockState();
+                case LEATHER_SHOP -> y == 0 || (corner && y == 2) ? Blocks.OAK_PLANKS.defaultBlockState()
+                        : corner ? Blocks.OAK_LOG.defaultBlockState() : Blocks.COBBLESTONE.defaultBlockState();
                 default -> throw new IllegalStateException();
             };
             add.accept(station.offset(x, y, z), wall);

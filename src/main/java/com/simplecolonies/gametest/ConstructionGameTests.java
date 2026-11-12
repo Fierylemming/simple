@@ -80,6 +80,12 @@ public class ConstructionGameTests {
     public static void butcherHut(GameTestHelper helper) { runBuilder(helper, BuildingType.BUTCHER_HUT, Blocks.SMOKER, CultureType.ROMAN, -1); }
 
     @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void bakery(GameTestHelper helper) { runBuilder(helper, BuildingType.BAKERY, Blocks.SMOKER, CultureType.ROMAN, -1); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void leatherShop(GameTestHelper helper) { runBuilder(helper, BuildingType.LEATHER_SHOP, Blocks.CAULDRON, CultureType.ROMAN, -1); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
     public static void harborWorksite(GameTestHelper helper) { runBuilder(helper, BuildingType.HARBOR, Blocks.BARREL, CultureType.ROMAN, -1); }
 
     @GameTest(template = "empty", timeoutTicks = 200)
