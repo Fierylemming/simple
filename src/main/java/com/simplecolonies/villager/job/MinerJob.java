@@ -29,6 +29,7 @@ public class MinerJob extends AbstractJob {
     private boolean restored;
 
     public MinerJob(Villager villager, Colony colony) { super(villager, colony, JobType.MINER); }
+    public String diagnostic() { return "entrance=" + entrance + ", direction=" + direction + ", step=" + step + ", nextSite=" + siteIndex; }
 
     @Override protected void doWork(ServerLevel level) {
         if (!restored) { readMemory(); restored = true; }

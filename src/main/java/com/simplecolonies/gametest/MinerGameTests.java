@@ -40,7 +40,9 @@ public class MinerGameTests {
         helper.succeedWhen(() -> {
             if (!sawCut[0] || colony.getWarehouseCount(helper.getLevel(), "minecraft:cobblestone") < 1
                     || !villager.getMainHandItem().is(Items.STONE_PICKAXE))
-                helper.fail("Miner has not gathered cobblestone: " + job.getState() + " at " + villager.blockPosition().toShortString());
+                helper.fail("Miner " + job.getState() + " at " + villager.blockPosition().toShortString()
+                        + " " + job.diagnostic() + " tool=" + villager.getMainHandItem()
+                        + " stone=" + helper.getBlockState(stone) + " cobble=" + colony.getWarehouseCount(helper.getLevel(), "minecraft:cobblestone"));
             if (!villager.getMinerMemory().contains("entrance")) helper.fail("Quarry progress was not saved");
         });
     }
