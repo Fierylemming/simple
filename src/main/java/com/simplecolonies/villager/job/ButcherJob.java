@@ -38,8 +38,24 @@ public class ButcherJob extends AbstractJob {
         }
         villager.getLookControl().setLookAt(target);
         villager.swing(InteractionHand.MAIN_HAND);
-        target.hurt(level.damageSources().mobAttack(villager), 4.0f);
-        // Minecraft produces the actual loot on death. Automatic collection is not implemented yet.
+        var drops = ButcherDrops.attack(villager, target, 4.0f);
+        // Transfer only actual, unmodified vanilla livestock drops from this attack,
+        // only after the server has spawned them and while they are within reach.
+        // Existing nearby items, cancelled drops and component-bearing modded loot
+        // are left alone. Other professions still use the provisional stock network.
+        for (var drop : drops) {
+            if (drop.isRemoved() || level.getEntity(drop.getUUID()) != drop || villager.distanceToSqr(drop) > 6.25) continue;
+            var stack = drop.getItem();
+            var item = stack.getItem();
+            if (!(stack.is(net.minecraft.world.item.Items.BEEF) || stack.is(net.minecraft.world.item.Items.PORKCHOP)
+                    || stack.is(net.minecraft.world.item.Items.COOKED_BEEF) || stack.is(net.minecraft.world.item.Items.COOKED_PORKCHOP)
+                    || stack.is(net.minecraft.world.item.Items.LEATHER))
+                    || !net.minecraft.world.item.ItemStack.isSameItemSameComponents(stack, item.getDefaultInstance())) continue;
+            int count = stack.getCount();
+            if (count <= 0) continue;
+            depositToColony(level, net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString(), count);
+            drop.discard();
+        }
         state = JobState.WORKING;
         ticksUntilNextWork = 40;
     }
