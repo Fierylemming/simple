@@ -111,7 +111,10 @@ public class FishermanJob extends AbstractJob {
             state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
         }
         state = candidates.isEmpty() ? JobState.NEEDS_RESOURCE : JobState.STUCK;
-        ticksUntilNextWork = 100;
+        // A just-spawned villager may not yet be on the ground, in which case
+        // Minecraft cannot calculate a path. Retry before vanilla idle wandering
+        // carries it far away from an otherwise reachable shore.
+        ticksUntilNextWork = candidates.isEmpty() ? 100 : 20;
     }
 
     private static boolean dryPath(ServerLevel level, net.minecraft.world.level.pathfinder.Path path) {

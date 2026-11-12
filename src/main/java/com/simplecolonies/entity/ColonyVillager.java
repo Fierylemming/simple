@@ -87,7 +87,7 @@ public class ColonyVillager extends Villager {
     public JobType getColonyJob() { return job; }
     public String getWorkStatus() {
         if (isBaby()) return "CHILD";
-        if (job != JobType.UNEMPLOYED && !getBrain().hasMemoryValue(MemoryModuleType.JOB_SITE)) return "WAITING_FOR_WORKSTATION";
+        if (job != JobType.UNEMPLOYED && !job.isCombat && !getBrain().hasMemoryValue(MemoryModuleType.JOB_SITE)) return "WAITING_FOR_WORKSTATION";
         return jobInstance == null ? "IDLE" : jobInstance.getState().name();
     }
     public boolean isColonyCitizen() { return colonyId != -1; }
