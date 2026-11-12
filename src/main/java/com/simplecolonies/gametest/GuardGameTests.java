@@ -17,14 +17,14 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder("simplecolonies")
 @PrefixGameTestTemplate(false)
 public class GuardGameTests {
-    @GameTest(template = "empty", timeoutTicks = 1200)
+    @GameTest(template = "isolated", timeoutTicks = 1200)
     public static void guardApproachesAndAttacksHostile(GameTestHelper helper) {
-        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
-        var guard = helper.spawn(EntityType.VILLAGER, new BlockPos(3, 1, 8));
-        var zombie = helper.spawn(EntityType.ZOMBIE, new BlockPos(12, 1, 8));
+        for (int x = 45; x <= 67; x++) for (int z = 50; z <= 62; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        var guard = helper.spawn(EntityType.VILLAGER, new BlockPos(51, 1, 56));
+        var zombie = helper.spawn(EntityType.ZOMBIE, new BlockPos(60, 1, 56));
         zombie.setNoAi(true);
         zombie.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
-        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
+        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(56, 1, 56)));
         SoldierJob job = new SoldierJob(guard, colony);
         for (int tick = 1; tick < 1200; tick++) helper.runAtTickTime(tick, () -> {
             float health = zombie.getHealth();

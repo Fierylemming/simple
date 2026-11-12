@@ -18,19 +18,19 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder("simplecolonies")
 @PrefixGameTestTemplate(false)
 public class CourierGameTests {
-    @GameTest(template = "empty", timeoutTicks = 1200)
+    @GameTest(template = "isolated", timeoutTicks = 1200)
     public static void courierWalksAndCarriesRealPersistentStack(GameTestHelper helper) {
-        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
-        BlockPos source = new BlockPos(2, 1, 8), hub = new BlockPos(14, 1, 8);
+        for (int x = 45; x <= 67; x++) for (int z = 50; z <= 62; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos source = new BlockPos(50, 1, 56), hub = new BlockPos(62, 1, 56);
         helper.setBlock(source, Blocks.CHEST);
         helper.setBlock(hub, Blocks.CHEST);
         Container from = (Container) helper.getBlockEntity(source);
         Container to = (Container) helper.getBlockEntity(hub);
         from.setItem(0, new ItemStack(Items.WHEAT, 16));
         from.setChanged();
-        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
+        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(56, 1, 56)));
         colony.setWarehouseCenter(helper.absolutePos(hub));
-        var villager = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(7, 1, 8));
+        var villager = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(55, 1, 56));
         var job = new CourierJob(villager, colony);
         boolean[] sawCargo = {false};
         for (int tick = 1; tick < 1200; tick++) helper.runAtTickTime(tick, () -> {
