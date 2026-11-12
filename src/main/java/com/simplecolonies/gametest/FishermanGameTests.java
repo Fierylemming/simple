@@ -112,16 +112,20 @@ public class FishermanGameTests {
         wildCod(helper, new BlockPos(58, 0, 57));
         wildCod(helper, new BlockPos(58, 0, 58));
         var worker = worker(helper);
+        worker.setNoAi(true);
         var job = new FishermanJob(worker, colony);
-        worker.setOnGround(false);
-        job.tick(helper.getLevel());
-        if (job.getState() != com.simplecolonies.villager.job.AbstractJob.JobState.GOING_TO_WORK)
-            helper.fail("Airborne worker should wait for a path rather than report stuck");
-        worker.setOnGround(true);
-        job.tick(helper.getLevel());
-        if (worker.getNavigation().getPath() == null)
-            helper.fail("Worker did not retry the shore path immediately after landing");
-        helper.succeed();
+        // Give the newly spawned fish a tick to update their in-water state.
+        helper.runAtTickTime(5, () -> {
+            worker.setOnGround(false);
+            job.tick(helper.getLevel());
+            if (job.getState() != com.simplecolonies.villager.job.AbstractJob.JobState.GOING_TO_WORK)
+                helper.fail("Airborne worker should wait for a path rather than report stuck");
+            worker.setOnGround(true);
+            job.tick(helper.getLevel());
+            if (worker.getNavigation().getPath() == null)
+                helper.fail("Worker did not retry the shore path immediately after landing");
+            helper.succeed();
+        });
     }
 
     @GameTest(template = "isolated", timeoutTicks = 1400)
