@@ -367,10 +367,8 @@ public class Colony {
         int nextRadius = 32 + (this.level + 1) * 16;
         for (Colony other : ColonyManager.getInstance().getAll()) {
             if (other == this || other.getId() == id) continue;
-            long dx = (long) center.getX() - other.center.getX();
-            long dz = (long) center.getZ() - other.center.getZ();
-            long separation = (long) nextRadius + other.radius;
-            if (dx * dx + dz * dz < separation * separation) return "Expansion would overlap another colony";
+            if (!GrowthBounds.separated(center, nextRadius, other.center, other.radius))
+                return "Expansion would overlap another colony";
         }
         return null;
     }
