@@ -144,6 +144,33 @@ public class FishermanGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 300)
+    public static void routesAroundWaterToReachShore(GameTestHelper helper) {
+        Colony colony = setup(helper);
+        colony.registerPlayerBuilding(new Building(BuildingType.HARBOR, colony.getCenter(), CultureType.ROMAN, true));
+        wildCod(helper, new BlockPos(58, 0, 56));
+        wildCod(helper, new BlockPos(58, 0, 57));
+        wildCod(helper, new BlockPos(58, 0, 58));
+        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(64, 1, 57));
+        worker.setNoAi(true);
+        worker.setVillagerData(worker.getVillagerData().setProfession(ColonyProfessions.profession(JobType.FISHERMAN)));
+        worker.refreshBrain(helper.getLevel());
+        worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(SITE)));
+        var job = new FishermanJob(worker, colony);
+        helper.runAtTickTime(5, () -> {
+            worker.setOnGround(true);
+            float original = worker.getPathfindingMalus(net.minecraft.world.level.pathfinder.PathType.WATER);
+            job.tick(helper.getLevel());
+            var path = worker.getNavigation().getPath();
+            if (path == null || !path.canReach()) helper.fail("No reachable path around pond");
+            for (int i = 0; i < path.getNodeCount(); i++)
+                if (!helper.getLevel().getFluidState(path.getNode(i).asBlockPos()).isEmpty()) helper.fail("Shore path enters water");
+            if (worker.getPathfindingMalus(net.minecraft.world.level.pathfinder.PathType.WATER) != original)
+                helper.fail("Fishing path changed the worker's water malus permanently");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 1400)
     public static void gathersOnlyExcessWildFishAtShore(GameTestHelper helper) {
         Colony colony = setup(helper);

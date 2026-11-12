@@ -110,7 +110,16 @@ public class FishermanJob extends AbstractJob {
             for (BlockPos stand : stands) {
                 if (stand.equals(villager.blockPosition())) continue;
                 if (++attempts > 8) break;
-                var path = villager.getNavigation().createPath(stand, 0);
+                // Ask the pathfinder for a dry route, not merely reject its
+                // preferred shortcut through water when dry land goes around it.
+                float oldWaterMalus = villager.getPathfindingMalus(net.minecraft.world.level.pathfinder.PathType.WATER);
+                net.minecraft.world.level.pathfinder.Path path;
+                villager.setPathfindingMalus(net.minecraft.world.level.pathfinder.PathType.WATER, -1.0f);
+                try {
+                    path = villager.getNavigation().createPath(stand, 0);
+                } finally {
+                    villager.setPathfindingMalus(net.minecraft.world.level.pathfinder.PathType.WATER, oldWaterMalus);
+                }
                 if (path == null || !dryPath(level, path)) continue;
                 if (path.canReach()) {
                     followJobPath(path);
