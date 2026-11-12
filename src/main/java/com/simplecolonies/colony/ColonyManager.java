@@ -71,6 +71,10 @@ public class ColonyManager {
     }
 
     public Colony createColony(ServerLevel level, CultureType culture, BlockPos center) {
+        return createColony(level, culture, center, null);
+    }
+
+    private Colony createColony(ServerLevel level, CultureType culture, BlockPos center, StarterPlan plan) {
         if (colonies.size() >= com.simplecolonies.config.ColonyConfig.MAX_COLONIES_PER_DIMENSION.get()) return null;
         int id = nextId++;
         Colony colony = new Colony(id, culture, center);
@@ -89,7 +93,8 @@ public class ColonyManager {
         markDirty(colony);
         if (level == null && server != null) level = server.getLevel(Level.OVERWORLD);
         if (level != null) {
-            placeStarterStructures(level, colony);
+            if (plan == null) placeStarterStructures(level, colony);
+            else placePlannedStarters(level, colony, plan);
             spawnInitialVillagers(level, colony);
             placeTownHallIfNeeded(level, colony);
         }
@@ -208,10 +213,15 @@ public class ColonyManager {
             } else SimpleColonies.LOGGER.warn("No safe starter house site for colony #{}", colony.getId());
         }
         if (colony.getBuildings().stream().noneMatch(b -> b.getType() == com.simplecolonies.building.BuildingType.FARM)) {
-            BlockPos farmPos = findStarterSite(level, colony, 5, 14);
+            int farmHalfSize = 5;
+            BlockPos farmPos = findStarterSite(level, colony, farmHalfSize, 14);
+            if (farmPos == null) {
+                farmHalfSize = 3;
+                farmPos = findStarterSite(level, colony, farmHalfSize, 14);
+            }
             if (farmPos != null) {
-                prepareStarterPlot(level, farmPos, 5);
-                placeSimpleFarm(level, farmPos);
+                prepareStarterPlot(level, farmPos, farmHalfSize);
+                placeSimpleFarm(level, farmPos, farmHalfSize);
                 colony.registerPlayerBuilding(new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.FARM, farmPos, colony.getCulture(), true));
             } else SimpleColonies.LOGGER.warn("No safe starter farm site for colony #{}", colony.getId());
         }
@@ -244,57 +254,69 @@ public class ColonyManager {
                 || state.is(Blocks.RED_SAND) || state.is(Blocks.GRAVEL);
     }
 
-    /** Find safe terrain with at most two blocks of slope; never replace structures or water. */
-    private BlockPos findStarterSite(ServerLevel level, Colony colony, int halfSize, int minRadius) {
-        return findStarterSite(level, colony, halfSize, minRadius, null);
+    /** Natural foliage may be cleared, but player-placed leaves and logs are protected. */
+    private boolean isClearable(net.minecraft.world.level.block.state.BlockState state) {
+        if (!state.getFluidState().isEmpty()) return false;
+        if (state.is(net.minecraft.tags.BlockTags.LEAVES)) {
+            return state.hasProperty(net.minecraft.world.level.block.LeavesBlock.PERSISTENT)
+                    && !state.getValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT);
+        }
+        return state.isAir() || state.canBeReplaced();
     }
 
-    private BlockPos findStarterSite(ServerLevel level, Colony colony, int halfSize, int minRadius, BlockPos avoid) {
-        BlockPos center = colony.getCenter();
-        for (int radius = minRadius; radius <= 42; radius += 4) {
-            for (int angle = 0; angle < 360; angle += 30) {
-                double rad = Math.toRadians(angle);
-                int x = center.getX() + (int)(Math.cos(rad) * radius);
-                int z = center.getZ() + (int)(Math.sin(rad) * radius);
-                BlockPos probe = new BlockPos(x, center.getY(), z);
-                if (!level.isLoaded(probe)) continue;
-                int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
-                BlockPos candidate = new BlockPos(x, y, z);
-                if (!colony.isInside(candidate)) continue;
-                if (avoid != null) {
-                    long ax = avoid.getX() - x, az = avoid.getZ() - z;
-                    if (ax * ax + az * az < 225) continue;
-                }
-                // Distances are horizontal: different elevations must not overlap footprints.
-                if (colony.getBuildings().stream().anyMatch(b -> {
-                    long dx = b.getPos().getX() - x, dz = b.getPos().getZ() - z;
-                    return dx * dx + dz * dz < 225;
-                })) continue;
-                boolean clear = true;
-                for (int dx = -halfSize; dx <= halfSize && clear; dx++) for (int dz = -halfSize; dz <= halfSize && clear; dz++) {
-                    BlockPos column = candidate.offset(dx, 0, dz);
-                    if (!level.isLoaded(column)) { clear = false; break; }
-                    int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, column.getX(), column.getZ());
-                    if (surface < y - 2 || surface > y + 2 || !isNaturalGround(level.getBlockState(column.atY(surface - 1)))) { clear = false; break; }
-                    for (int dy = -3; dy <= 4; dy++) {
-                        BlockPos pos = column.offset(0, dy, 0);
-                        var state = level.getBlockState(pos);
-                        if (!state.getFluidState().isEmpty()) { clear = false; break; }
-                        if (dy >= 0 && !state.isAir() && !state.canBeReplaced() && !isNaturalGround(state)) { clear = false; break; }
-                    }
-                }
-                if (clear) return candidate;
-            }
+    /** Find actual soil below foliage, but never search through timber or buildings. */
+    private BlockPos naturalSurface(ServerLevel level, int x, int z) {
+        BlockPos probe = new BlockPos(x, level.getMinBuildHeight(), z);
+        if (!level.isLoaded(probe)) return null;
+        int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        for (int y = top - 1; y >= Math.max(level.getMinBuildHeight(), top - 16); y--) {
+            BlockPos p = new BlockPos(x, y, z);
+            var state = level.getBlockState(p);
+            if (isNaturalGround(state) && state.getFluidState().isEmpty()) return p.above();
+            if (!isClearable(state) || level.getBlockEntity(p) != null) return null;
         }
         return null;
     }
 
-    /** Level only the natural ground which was checked by findStarterSite. */
+    /** Validate every block we may alter, including the foundation and roof clearance. */
+    private boolean isSafeStarterPlot(ServerLevel level, BlockPos origin, int halfSize) {
+        int y = origin.getY();
+        for (int dx = -halfSize; dx <= halfSize; dx++) for (int dz = -halfSize; dz <= halfSize; dz++) {
+            BlockPos surface = naturalSurface(level, origin.getX() + dx, origin.getZ() + dz);
+            if (surface == null || Math.abs(surface.getY() - y) > 2) return false;
+            for (int dy = -3; dy <= 4; dy++) {
+                BlockPos p = origin.offset(dx, dy, dz);
+                var state = level.getBlockState(p);
+                if (!StarterSiteSearch.safeBlock(dy, !state.getFluidState().isEmpty(),
+                        level.getBlockEntity(p) != null, isNaturalGround(state), isClearable(state))) return false;
+            }
+        }
+        return true;
+    }
+
+    /** Find safe terrain, trying closer sites first without loading new chunks. */
+    private BlockPos findStarterSite(ServerLevel level, Colony colony, int halfSize, int minRadius) {
+        BlockPos center = colony.getCenter();
+        for (var offset : StarterSiteSearch.offsets(42, 2)) {
+            int dx = offset.x(), dz = offset.z();
+            if (dx * dx + dz * dz < minRadius * minRadius) continue;
+            BlockPos candidate = naturalSurface(level, center.getX() + dx, center.getZ() + dz);
+            if (candidate == null || !colony.isInside(candidate)) continue;
+            if (colony.getBuildings().stream().anyMatch(b -> {
+                long bx = b.getPos().getX() - candidate.getX(), bz = b.getPos().getZ() - candidate.getZ();
+                return bx * bx + bz * bz < 225;
+            })) continue;
+            if (isSafeStarterPlot(level, candidate, halfSize)) return candidate;
+        }
+        return null;
+    }
+
     private void prepareStarterPlot(ServerLevel level, BlockPos origin, int halfSize) {
         for (int x = -halfSize; x <= halfSize; x++) for (int z = -halfSize; z <= halfSize; z++) {
             for (int y = 0; y <= 4; y++) {
                 BlockPos p = origin.offset(x, y, z);
-                if (isNaturalGround(level.getBlockState(p))) level.setBlock(p, Blocks.AIR.defaultBlockState(), 3);
+                var state = level.getBlockState(p);
+                if (!state.isAir() && (isNaturalGround(state) || isClearable(state))) level.setBlock(p, Blocks.AIR.defaultBlockState(), 3);
             }
             for (int y = -1; y >= -3; y--) {
                 BlockPos p = origin.offset(x, y, z);
@@ -304,25 +326,67 @@ public class ColonyManager {
         }
     }
 
-    /** Find a dry, accessible centre without forcing chunks to load. */
-    public BlockPos findNaturalColonyCenter(ServerLevel level, BlockPos structurePos) {
-        for (int radius = 0; radius <= 40; radius += 8) {
-            for (int angle = 0; angle < 360; angle += 45) {
-                double rad = Math.toRadians(angle);
-                int x = structurePos.getX() + (int)(radius * Math.cos(rad));
-                int z = structurePos.getZ() + (int)(radius * Math.sin(rad));
-                BlockPos probe = new BlockPos(x, structurePos.getY(), z);
-                if (!level.isLoaded(probe)) continue;
-                int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
-                BlockPos pos = new BlockPos(x, y, z);
-                if (!isNaturalGround(level.getBlockState(pos.below())) || !isSpawnable(level, pos)
-                        || !level.getBlockState(pos.above()).isAir() || getColonyAt(pos).isPresent()) continue;
-                Colony probeColony = new Colony(-1, CultureType.ROMAN, pos);
-                BlockPos house = findStarterSite(level, probeColony, 3, 8);
-                if (house != null && findStarterSite(level, probeColony, 5, 14, house) != null) return pos;
+    public record StarterPlan(BlockPos center, BlockPos house, BlockPos farm, int farmHalfSize) {}
+
+    /** Plan both plots before creating a colony. Only already-loaded, dry land is considered. */
+    public StarterPlan findNaturalStarterPlan(ServerLevel level, BlockPos anchor) {
+        var houses = new ArrayList<BlockPos>();
+        var fullFarms = new ArrayList<BlockPos>();
+        var compactFarms = new ArrayList<BlockPos>();
+        for (var offset : StarterSiteSearch.offsets(52, 4)) {
+            BlockPos pos = naturalSurface(level, anchor.getX() + offset.x(), anchor.getZ() + offset.z());
+            if (pos == null || getColonyAt(pos).isPresent()) continue;
+            if (isSafeStarterPlot(level, pos, 3)) {
+                houses.add(pos);
+                compactFarms.add(pos);
+                if (isSafeStarterPlot(level, pos, 5)) fullFarms.add(pos);
+            }
+        }
+        StarterPlan plan = chooseStarterPlan(level, anchor, houses, fullFarms, 5);
+        return plan != null ? plan : chooseStarterPlan(level, anchor, houses, compactFarms, 3);
+    }
+
+    private StarterPlan chooseStarterPlan(ServerLevel level, BlockPos anchor, List<BlockPos> houses, List<BlockPos> farms, int farmHalfSize) {
+        int pairsExamined = 0;
+        Map<Long, Optional<BlockPos>> centers = new HashMap<>();
+        for (BlockPos house : houses) for (BlockPos farm : farms) {
+            if (++pairsExamined > 10000) return null;
+            if (!StarterSiteSearch.separated(house.getX(), house.getZ(), farm.getX(), farm.getZ(), 15)) continue;
+            int mx = (int) Math.floorDiv((long) house.getX() + farm.getX(), 2);
+            int mz = (int) Math.floorDiv((long) house.getZ() + farm.getZ(), 2);
+            for (var offset : StarterSiteSearch.offsets(12, 4)) {
+                int x = mx + offset.x(), z = mz + offset.z();
+                long ax = (long) x - anchor.getX(), az = (long) z - anchor.getZ();
+                if (ax * ax + az * az > 40L * 40L) continue;
+                long key = ((long) x << 32) | (z & 0xffffffffL);
+                BlockPos center = centers.computeIfAbsent(key, ignored -> {
+                    BlockPos p = naturalSurface(level, x, z);
+                    return p != null && getColonyAt(p).isEmpty() && isSpawnable(level, p) ? Optional.of(p) : Optional.empty();
+                }).orElse(null);
+                if (center == null || center.distSqr(house) > 48L * 48L || center.distSqr(farm) > 48L * 48L) continue;
+                if (Math.abs(center.getX() - house.getX()) <= 4 && Math.abs(center.getZ() - house.getZ()) <= 4) continue;
+                if (Math.abs(center.getX() - farm.getX()) <= farmHalfSize + 1 && Math.abs(center.getZ() - farm.getZ()) <= farmHalfSize + 1) continue;
+                return new StarterPlan(center, house, farm, farmHalfSize);
             }
         }
         return null;
+    }
+
+    public Colony createNaturalColony(ServerLevel level, CultureType culture, StarterPlan plan) {
+        // Recheck in case the terrain changed since planning; do not create partial colonies.
+        if (!isSafeStarterPlot(level, plan.house(), 3) || !isSafeStarterPlot(level, plan.farm(), plan.farmHalfSize())
+                || !isSpawnable(level, plan.center())) return null;
+        return createColony(level, culture, plan.center(), plan);
+    }
+
+    private void placePlannedStarters(ServerLevel level, Colony colony, StarterPlan plan) {
+        prepareStarterPlot(level, plan.house(), 3);
+        placeSimpleHouse(level, plan.house(), colony.getCulture());
+        colony.registerPlayerBuilding(new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.HOUSE, plan.house(), colony.getCulture(), true));
+        prepareStarterPlot(level, plan.farm(), plan.farmHalfSize());
+        placeSimpleFarm(level, plan.farm(), plan.farmHalfSize());
+        colony.registerPlayerBuilding(new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.FARM, plan.farm(), colony.getCulture(), true));
+        placeStarterWorkstations(level, colony);
     }
 
     private boolean hasValidFarmNearby(ServerLevel level, BlockPos farmPos) {
@@ -412,9 +476,9 @@ public class ColonyManager {
         level.setBlock(origin.offset(-3,1,0), Blocks.GLASS_PANE.defaultBlockState(),3);
     }
 
-    private void placeSimpleFarm(ServerLevel level, BlockPos origin) {
+    private void placeSimpleFarm(ServerLevel level, BlockPos origin, int halfSize) {
         // Build solid dirt base first — fixes your screenshot where fence floated over water
-        for (int x = -5; x <= 5; x++) for (int z = -5; z <= 5; z++) {
+        for (int x = -halfSize; x <= halfSize; x++) for (int z = -halfSize; z <= halfSize; z++) {
             BlockPos ground = origin.offset(x, -1, z);
             // Always ensure solid ground, overwriting water
             level.setBlock(ground, Blocks.DIRT.defaultBlockState(), 3);
@@ -434,7 +498,7 @@ public class ColonyManager {
             }
         }
         // Farmland + crops (9x9)
-        for (int x = -4; x <= 4; x++) for (int z = -4; z <= 4; z++) {
+        for (int x = -halfSize + 1; x < halfSize; x++) for (int z = -halfSize + 1; z < halfSize; z++) {
             BlockPos p = origin.offset(x, -1, z);
             BlockPos above = origin.offset(x, 0, z);
             if (x == 0) {
@@ -446,10 +510,10 @@ public class ColonyManager {
             }
         }
         // Border fence — now on solid dirt, not floating over water
-        for (int x = -5; x <= 5; x++) for (int z = -5; z <= 5; z++) if (x == -5 || x == 5 || z == -5 || z == 5) level.setBlock(origin.offset(x, 0, z), Blocks.OAK_FENCE.defaultBlockState(), 3);
+        for (int x = -halfSize; x <= halfSize; x++) for (int z = -halfSize; z <= halfSize; z++) if (x == -halfSize || x == halfSize || z == -halfSize || z == halfSize) level.setBlock(origin.offset(x, 0, z), Blocks.OAK_FENCE.defaultBlockState(), 3);
         // Gate gives villagers access without stepping on crops.
-        level.setBlock(origin.offset(0, 0, -5), Blocks.OAK_FENCE_GATE.defaultBlockState(), 3);
-        level.setBlock(origin.offset(5, 0, 0), Blocks.COMPOSTER.defaultBlockState(), 3);
+        level.setBlock(origin.offset(0, 0, -halfSize), Blocks.OAK_FENCE_GATE.defaultBlockState(), 3);
+        level.setBlock(origin.offset(halfSize, 0, 0), Blocks.COMPOSTER.defaultBlockState(), 3);
     }
 
     public Optional<Colony> getColony(int id) { return Optional.ofNullable(colonies.get(id)); }

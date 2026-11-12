@@ -22,7 +22,8 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  */
 @EventBusSubscriber(modid = SimpleColonies.MOD_ID)
 public class ColonyEventHandler {
-    private static int tickCounter = 0;
+    private static long tickCounter = 0;
+    private static final java.util.Map<java.util.UUID, Long> nextPlacementAttempt = new java.util.HashMap<>();
 
     @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
@@ -30,6 +31,7 @@ public class ColonyEventHandler {
         int interval = com.simplecolonies.config.ColonyConfig.TICKS_BETWEEN_COLONY_TICK.get();
         if (tickCounter % interval != 0) return;
         var server = event.getServer();
+        nextPlacementAttempt.keySet().removeIf(id -> server.getPlayerList().getPlayer(id) == null);
         for (ServerLevel level : server.getAllLevels()) {
             ColonyManager.getInstance().tickAll(level);
             trySpawnNaturalColonies(level);
@@ -41,6 +43,7 @@ public class ColonyEventHandler {
     private static void trySpawnNaturalColonies(ServerLevel level) {
         if (!level.dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) return;
         for (var player : level.players()) {
+            if (tickCounter < nextPlacementAttempt.getOrDefault(player.getUUID(), 0L)) continue;
             BlockPos playerPos = player.blockPosition();
             if (ColonyManager.getInstance().getColonyAt(playerPos).isPresent()) continue;
             FoundVillage found = findNearbyVillageStructure(level, playerPos, 32);
@@ -52,14 +55,17 @@ public class ColonyEventHandler {
                 return dx * dx + dz * dz < 96L * 96L;
             });
             if (alreadyKnown) continue;
-            BlockPos target = ColonyManager.getInstance().findNaturalColonyCenter(level, found.anchor());
-            if (target == null) {
+            nextPlacementAttempt.put(player.getUUID(), tickCounter + 600);
+            var plan = ColonyManager.getInstance().findNaturalStarterPlan(level, found.anchor());
+            if (plan == null) {
                 player.displayClientMessage(net.minecraft.network.chat.Component.literal(
                         "§eVillage structure found, but no safe loaded land for its starter buildings yet."), true);
                 continue;
             }
-            var colony = ColonyManager.getInstance().createColony(level, found.culture(), target);
+            var colony = ColonyManager.getInstance().createNaturalColony(level, found.culture(), plan);
             if (colony != null) {
+                nextPlacementAttempt.remove(player.getUUID());
+                BlockPos target = plan.center();
                 player.displayClientMessage(net.minecraft.network.chat.Component.literal(
                         "§aDiscovered " + found.culture().displayName + " colony #" + colony.getId()
                                 + " at " + target.toShortString() + " (" + colony.citizenCount() + " citizens, "
