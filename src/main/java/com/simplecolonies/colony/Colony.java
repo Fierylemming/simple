@@ -238,15 +238,22 @@ public class Colony {
         String housingReason = "Housing capacity sufficient";
         if (citizens.size() < com.simplecolonies.config.ColonyConfig.MAX_CITIZENS_PER_COLONY.get()
                 && shelterCapacity() <= citizens.size() + 2) {
-            BlockPos site = findBuildSite(level, BuildingType.HOUSE);
-            if (site == null) housingReason = "No safe loaded house site";
-            else {
-                Building house = new Building(BuildingType.HOUSE, site, culture);
-                if (com.simplecolonies.building.ConstructionCrafting.canBuild(stock, house.getRemainingPlacements())) {
-                    queueExpansion(house);
+            // Different footprints have different costs. Check all three before
+            // searching, then select a site whose actual variant is affordable.
+            boolean[] affordable = new boolean[3];
+            for (int i = 0; i < 3; i++) {
+                Building sample = new Building(BuildingType.HOUSE, center.east(i), culture);
+                affordable[sample.getHouseVariant()] = com.simplecolonies.building.ConstructionCrafting.canBuild(stock, sample.getRemainingPlacements());
+            }
+            if (!affordable[0] && !affordable[1] && !affordable[2]) {
+                housingReason = "Not enough materials for any house";
+            } else {
+                BlockPos site = findHouseSite(level, affordable);
+                if (site == null) housingReason = "No safe loaded site for an affordable house";
+                else {
+                    queueExpansion(new Building(BuildingType.HOUSE, site, culture));
                     return;
                 }
-                housingReason = "Not enough materials for the next house";
             }
         }
         // Worksite shells are planned around the POI actually claimed by an assigned worker.
@@ -292,6 +299,7 @@ public class Colony {
     /** Validate an unchanged five-by-five plot, optionally allowing the central workstation. */
     public boolean isClearWorksite(ServerLevel level, BlockPos station, boolean allowStation) {
         if (buildings.stream().anyMatch(b -> b.getPos().distSqr(station) < 144)) return false;
+        if (!clearEntrance(level, station.north(3))) return false;
         for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
             BlockPos ground = station.offset(x, -1, z);
             if (!level.isLoaded(ground) || !isInside(ground)) return false;
@@ -336,7 +344,7 @@ public class Colony {
     /** Queues a house only when there is no unfinished construction and a safe site exists. */
     public Building queueHouse(ServerLevel level) {
         if (buildings.stream().anyMatch(b -> b.hasSupportedPlan() && b.getState() != com.simplecolonies.building.BuildingState.COMPLETE)) return null;
-        BlockPos site = findBuildSite(level, BuildingType.HOUSE);
+        BlockPos site = findHouseSite(level, new boolean[]{true, true, true});
         if (site == null) return null;
         Building building = new Building(BuildingType.HOUSE, site, culture);
         buildings.add(building);
@@ -357,22 +365,33 @@ public class Colony {
         broadcast(Component.literal("§6§lColony #" + id + " leveled up to " + ColonyLevel.fromLevel(this.level).displayName + "! Radius now " + radius + " blocks."));
     }
 
-    private BlockPos findBuildSite(ServerLevel level, BuildingType type) {
-        BlockPos center = this.center;
-        for (int r = 12; r < radius; r += 4) {
-            for (int angle = 0; angle < 360; angle += 15) {
-                double rad = Math.toRadians(angle);
-                BlockPos candidate = center.offset((int)(Math.cos(rad)*r), 0, (int)(Math.sin(rad)*r));
-                if (!level.isLoaded(candidate)) continue;
-                BlockPos pos = new BlockPos(candidate.getX(), level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, candidate.getX(), candidate.getZ()), candidate.getZ());
-                if (isClearBuildSite(level, pos)) return pos;
-            }
+    /** Search a dense, nearest-first grid without loading chunks. */
+    private BlockPos findHouseSite(ServerLevel level, boolean[] affordable) {
+        for (var offset : StarterSiteSearch.offsets(radius - 4, 2)) {
+            if ((long) offset.x() * offset.x() + (long) offset.z() * offset.z() < 144) continue;
+            BlockPos candidate = center.offset(offset.x(), 0, offset.z());
+            if (!level.isLoaded(candidate)) continue;
+            BlockPos pos = new BlockPos(candidate.getX(), level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, candidate.getX(), candidate.getZ()), candidate.getZ());
+            if (affordable[Building.houseVariantAt(pos)] && isClearBuildSite(level, pos)) return pos;
         }
         return null;
     }
 
+    /** Validate an unobstructed, dry approach to a future doorway. */
+    private boolean clearEntrance(ServerLevel level, BlockPos feet) {
+        if (!isInside(feet) || !level.isLoaded(feet) || !level.isLoaded(feet.above()) || !level.isLoaded(feet.below())) return false;
+        var below = level.getBlockState(feet.below());
+        var at = level.getBlockState(feet);
+        var above = level.getBlockState(feet.above());
+        return below.isFaceSturdy(level, feet.below(), net.minecraft.core.Direction.UP)
+                && at.getFluidState().isEmpty() && above.getFluidState().isEmpty()
+                && at.getCollisionShape(level, feet).isEmpty() && above.getCollisionShape(level, feet.above()).isEmpty();
+    }
+
     public boolean isClearBuildSite(ServerLevel level, BlockPos pos) {
         if (buildings.stream().anyMatch(b -> b.getPos().distSqr(pos) < 144)) return false;
+        int variant = Building.houseVariantAt(pos);
+        if (!clearEntrance(level, pos.north(variant == 2 ? 4 : 3))) return false;
         for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) {
             BlockPos ground = pos.offset(x, -1, z);
             if (!level.isLoaded(ground) || !isInside(ground)) return false;

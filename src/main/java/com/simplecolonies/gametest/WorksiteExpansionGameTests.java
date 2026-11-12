@@ -21,19 +21,19 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder("simplecolonies")
 @PrefixGameTestTemplate(false)
 public class WorksiteExpansionGameTests {
-    @GameTest(template = "isolated", timeoutTicks = 400)
+    @GameTest(template = "isolated", timeoutTicks = 600)
     public static void smithyExpansionUsesAssignedStationAndPreservesLegacy(GameTestHelper helper) {
         testExpansion(helper, JobType.BLACKSMITH, BuildingType.BLACKSMITH, Blocks.SMITHING_TABLE);
     }
-    @GameTest(template = "isolated", timeoutTicks = 400)
+    @GameTest(template = "isolated", timeoutTicks = 600)
     public static void butcherExpansionUsesAssignedStation(GameTestHelper helper) {
         testExpansion(helper, JobType.BUTCHER, BuildingType.BUTCHER_HUT, Blocks.SMOKER);
     }
-    @GameTest(template = "isolated", timeoutTicks = 400)
+    @GameTest(template = "isolated", timeoutTicks = 600)
     public static void bakeryExpansionUsesAssignedStation(GameTestHelper helper) {
         testExpansion(helper, JobType.BAKER, BuildingType.BAKERY, Blocks.SMOKER);
     }
-    @GameTest(template = "isolated", timeoutTicks = 400)
+    @GameTest(template = "isolated", timeoutTicks = 600)
     public static void leatherShopExpansionUsesAssignedStation(GameTestHelper helper) {
         testExpansion(helper, JobType.LEATHERWORKER, BuildingType.LEATHER_SHOP, Blocks.CAULDRON);
     }
@@ -127,7 +127,14 @@ public class WorksiteExpansionGameTests {
         legacyTag.putInt("planVersion", 6);
         var legacy = Building.load(legacyTag);
         colony.registerPlayerBuilding(legacy);
+        helper.setBlock(site.north(3), Blocks.OBSIDIAN);
         helper.runAtTickTime(200, () -> {
+            colony.tick(helper.getLevel());
+            if (colony.getBuildings().stream().anyMatch(b -> b.getType() == buildingType && b.hasSupportedPlan()))
+                helper.fail("Worksite queued with a blocked entrance");
+            helper.setBlock(site.north(3), Blocks.AIR);
+        });
+        helper.runAtTickTime(400, () -> {
             colony.tick(helper.getLevel());
             var plan = colony.getBuildings().stream().filter(b -> b.getType() == buildingType && b.hasSupportedPlan()).findFirst().orElse(null);
             if (plan == null || !plan.getPos().equals(absSite) || legacy.hasSupportedPlan() || !legacy.getRemainingPlacements().isEmpty())

@@ -51,6 +51,8 @@ public class Building {
     public BuildingState getState() { return state; }
     public void setState(BuildingState state) { this.state = state; }
     public int getLevel() { return level; }
+    public int getHouseVariant() { return houseVariant; }
+    public static int houseVariantAt(BlockPos pos) { return LevelOneHouses.variant(pos); }
     public void setLevel(int lvl) { this.level = Math.clamp(lvl, 1, 5); }
     public int getWorkerSlots() { return BuildingUpgrade.workerSlotsForLevel(level); }
     public int getSize() { return BuildingUpgrade.sizeForLevel(level); }
