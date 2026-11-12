@@ -58,6 +58,9 @@ public class SmithFurnaceGameTests {
             var be = helper.getBlockEntity(FURNACE);
             var saved = be.saveWithFullMetadata(helper.getLevel().registryAccess());
             if (!saved.getCompound("NeoForgeData").contains("simplecolonies_smith_batch")) helper.fail("Furnace batch ownership was not persisted");
+            // Reload the block entity from NBT while it is actively smelting.
+            be.loadWithComponents(saved, helper.getLevel().registryAccess());
+            if (!be.getPersistentData().contains("simplecolonies_smith_batch")) helper.fail("Furnace lost ownership on reload");
         });
         helper.runAtTickTime(1200, () -> {
             if (colony.getWarehouseCount(helper.getLevel(), "minecraft:iron_ingot") != 3

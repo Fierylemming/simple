@@ -27,7 +27,8 @@ public class ButcherJob extends AbstractJob {
         var animals = level.getEntitiesOfClass(Animal.class, new AABB(center).inflate(8, 4, 8),
                 a -> a.isAlive() && !a.isBaby() && !a.hasCustomName() && (a instanceof Cow || a instanceof Pig));
         // Never slaughter the last two eligible adults of either species.
-        Animal target = animals.stream().filter(a -> animals.stream().filter(other -> other.getType() == a.getType()).count() > 2)
+        Animal target = animals.stream().filter(a -> !a.isInLove())
+                .filter(a -> animals.stream().filter(other -> other.getType() == a.getType()).count() > 2)
                 .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
         if (target == null) { breedLivestock(level, center); return; }
         if (villager.distanceToSqr(target) > 6.25) {
