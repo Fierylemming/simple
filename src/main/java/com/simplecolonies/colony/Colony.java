@@ -140,9 +140,9 @@ public class Colony {
             }
 
             if (com.simplecolonies.config.ColonyConfig.VILLAGERS_NEED_HOUSING.get()) {
-                int housingSlots = buildings.stream().filter(b -> b.getType() == BuildingType.HOUSE).mapToInt(Building::getHousingCapacity).sum();
+                int housingSlots = shelterCapacity();
                 if (housingSlots < citizens.size()) {
-                    broadcast(Component.literal("§eColony #" + id + " overcrowded: " + citizens.size() + "/" + housingSlots + " beds. Build more houses! Use Building Marker to designate your own houses."));
+                    broadcast(Component.literal("§eColony #" + id + " overcrowded: " + citizens.size() + "/" + housingSlots + " shelter slots. Build more houses! Use Building Marker to designate your own houses."));
                 }
             }
 
@@ -153,20 +153,16 @@ public class Colony {
                 }
             }
 
-            // Vanilla-like breeding: if housed + fed, consume 3 bread per baby and spawn near a House
+            // Breeding: if sheltered + fed, consume 3 bread per baby and spawn near a House
             tryBreed(level);
 
-            daysSinceExpansion++;
-            if (com.simplecolonies.config.ColonyConfig.ENABLE_NATURAL_EXPANSION.get() &&
-                    daysSinceExpansion >= com.simplecolonies.config.ColonyConfig.EXPANSION_CHECK_DAYS.get() &&
-                    citizens.size() < com.simplecolonies.config.ColonyConfig.MAX_CITIZENS_PER_COLONY.get()) {
-                tryExpand(level);
-                daysSinceExpansion = 0;
-            }
             // Progression: village can self-unlock research if it has surplus
             researchManager.tickAutoProgress(level);
             lastSimulatedDay++;
         }
+
+        // Expansion is driven by actual simulation ticks and available supplies, not the calendar.
+        if (com.simplecolonies.config.ColonyConfig.ENABLE_NATURAL_EXPANSION.get()) tryExpand(level);
 
         for (Building b : buildings) {
             b.tick(level, this);
@@ -227,26 +223,39 @@ public class Colony {
     }
     private void consumeFood(int amount) { consumeFood(null, amount); }
 
+    // A starter town hall provides shelter for its four founders, without inventing beds.
+    private int shelterCapacity() {
+        return buildings.stream().filter(b -> b.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
+                .mapToInt(b -> b.getType() == BuildingType.TOWN_HALL ? 4
+                        : b.getType() == BuildingType.HOUSE ? b.getHousingCapacity() : 0).sum();
+    }
+
+    private String expansionStatus = "Not checked yet";
+    public String getExpansionStatus() { return expansionStatus; }
+
     private void tryExpand(ServerLevel level) {
-        if (countFoodInWarehouse(level) < citizens.size() * 2) return;
-        boolean hasBuilder = citizens.values().stream().anyMatch(c -> c.job == JobType.BUILDER);
-        if (!hasBuilder) return;
-
-        BuildingType next = ColonyProgression.getNextBuilding(this);
-        // Do not advertise placeholder schematics as functional buildings.
-        if (next != null && next != BuildingType.HOUSE) return;
-        if (buildings.stream().anyMatch(b -> b.getState() != com.simplecolonies.building.BuildingState.COMPLETE)) return;
-        if (next == null) {
-            if (canLevelUp()) {
-                levelUp(level);
-            }
-            return;
+        if (citizens.isEmpty()) { expansionStatus = "No citizens"; return; }
+        if (citizens.size() >= com.simplecolonies.config.ColonyConfig.MAX_CITIZENS_PER_COLONY.get()) {
+            expansionStatus = "Population limit reached"; return;
         }
-
-        Building blueprint = queueHouse(level);
-        if (blueprint != null) {
-            broadcast(Component.literal("§aColony #" + id + " is expanding: new house at " + blueprint.getPos().toShortString()));
+        if (citizens.values().stream().noneMatch(c -> c.job == JobType.BUILDER)) {
+            expansionStatus = "No builder assigned"; return;
         }
+        if (buildings.stream().anyMatch(b -> b.getState() != com.simplecolonies.building.BuildingState.COMPLETE)) {
+            expansionStatus = "Construction already queued"; return;
+        }
+        int housing = shelterCapacity();
+        if (housing > citizens.size() + 2) { expansionStatus = "Housing capacity sufficient"; return; }
+        BlockPos site = findBuildSite(level, BuildingType.HOUSE);
+        if (site == null) { expansionStatus = "No safe loaded house site"; return; }
+        Building blueprint = new Building(BuildingType.HOUSE, site, culture);
+        if (!com.simplecolonies.building.ConstructionCrafting.canBuild(getWarehouseSnapshot(level), blueprint.getRemainingPlacements())) {
+            expansionStatus = "Not enough materials for the next house"; return;
+        }
+        buildings.add(blueprint);
+        expansionStatus = "Construction already queued";
+        ColonyManager.getInstance().markDirty(this);
+        broadcast(Component.literal("§aColony #" + id + " is expanding: new house at " + site.toShortString()));
     }
 
     /** Queues a house only when there is no unfinished construction and a safe site exists. */
@@ -261,9 +270,6 @@ public class Colony {
     }
 
     public int getFoodCount(ServerLevel level) { return countFoodInWarehouse(level); }
-    public int getDaysUntilExpansion() {
-        return Math.max(0, com.simplecolonies.config.ColonyConfig.EXPANSION_CHECK_DAYS.get() - daysSinceExpansion);
-    }
 
     private boolean canLevelUp() {
         int requiredBuildings = level * 3;
@@ -292,13 +298,13 @@ public class Colony {
 
     public boolean isClearBuildSite(ServerLevel level, BlockPos pos) {
         if (buildings.stream().anyMatch(b -> b.getPos().distSqr(pos) < 144)) return false;
-        for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
+        for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) {
             BlockPos ground = pos.offset(x, -1, z);
-            if (!level.isLoaded(ground)) return false;
+            if (!level.isLoaded(ground) || !isInside(ground)) return false;
             var soil = level.getBlockState(ground);
             if (!(soil.is(net.minecraft.tags.BlockTags.DIRT) || soil.is(net.minecraft.world.level.block.Blocks.SAND)
                     || soil.is(net.minecraft.world.level.block.Blocks.RED_SAND) || soil.is(net.minecraft.world.level.block.Blocks.GRAVEL))) return false;
-            for (int y = 0; y <= 3; y++) {
+            for (int y = 0; y <= 4; y++) {
                 var block = level.getBlockState(pos.offset(x, y, z));
                 if ((!block.isAir() && !block.canBeReplaced()) || !block.getFluidState().isEmpty()) return false;
             }
@@ -318,8 +324,8 @@ public class Colony {
 
     // Vanilla-like breeding with costs → populates empty houses and drives expansion
     private void tryBreed(ServerLevel level) {
-        int housingSlots = buildings.stream().filter(b -> b.getType() == BuildingType.HOUSE).mapToInt(Building::getHousingCapacity).sum();
-        if (housingSlots <= citizens.size()) return; // no empty beds
+        int housingSlots = shelterCapacity();
+        if (housingSlots <= citizens.size()) return; // no free shelter
         if (citizens.size() < 2) return; // need pair
         if (daysWithoutFood > 0) return; // must be well-fed
         int neededFood = (int) Math.ceil(citizens.size() * com.simplecolonies.config.ColonyConfig.FOOD_CONSUMPTION_MULTIPLIER.get());
@@ -365,7 +371,7 @@ public class Colony {
             level.addFreshEntity(baby);
             // Also create CitizenData placeholder now (villager will duplicate on setColony finalize, but we use UUID)
             // Let villager's setColony handle it on next tick to avoid double
-            broadcast(Component.literal("§aColony #" + id + " bred a new villager at " + spawnAt.toShortString() + " — cost " + cost + "x " + costId + " (beds " + housingSlots + " pop " + citizenCount() + "→" + (citizenCount() + 1) + ")"));
+            broadcast(Component.literal("§aColony #" + id + " bred a new villager at " + spawnAt.toShortString() + " — cost " + cost + "x " + costId + " (shelter " + housingSlots + " pop " + citizenCount() + "→" + (citizenCount() + 1) + ")"));
         } catch (Exception ignored) {}
     }
 

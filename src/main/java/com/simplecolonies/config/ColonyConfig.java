@@ -48,7 +48,7 @@ public class ColonyConfig {
         FOOD_CONSUMPTION_MULTIPLIER = BUILDER.comment("Multiplier for daily food consumption").defineInRange("foodConsumptionMultiplier", 1.0, 0.1, 5.0);
         ENABLE_SUPPLY_CHAIN = BUILDER.comment("Enable inter-worker supply chain: butcher->leatherworker->armorer etc.").define("enableSupplyChain", true);
         ENABLE_NATURAL_EXPANSION = BUILDER.comment("Colonies expand on their own if resources allow").define("enableNaturalExpansion", true);
-        EXPANSION_CHECK_DAYS = BUILDER.comment("How many days between expansion attempts").defineInRange("expansionCheckDays", 5, 1, 100);
+        EXPANSION_CHECK_DAYS = BUILDER.comment("Legacy setting: automatic expansion now checks at each colony tick when supplies permit").defineInRange("expansionCheckDays", 5, 1, 100);
         ENABLE_WARFARE = BUILDER.comment("Enable soldier villagers, wars and alliances").define("enableWarfare", true);
         REPLACE_VANILLA_VILLAGES = BUILDER.comment("If true, vanilla villages are replaced by ancient colonies; if false, both spawn").define("replaceVanillaVillages", false);
         REPUTATION_NEEDED_TO_LEAD = BUILDER.comment("Reputation needed (0-100) to be elected leader").defineInRange("reputationNeededToLead", 75.0, 0.0, 150.0);

@@ -221,13 +221,37 @@ public class ColonyVillager extends Villager {
             Colony colony = ColonyManager.getInstance().getColony(colonyId).orElse(null);
             if (colony == null) return;
 
-            // Children should grow up before taking a job.
-            if (!isBaby() && jobInstance != null && updateWorkstation(sl, colony)) jobInstance.tick(sl);
+            // Non-combat citizens seek shelter at night, even when there are no beds.
+            if (sl.isNight() && !job.isCombat && !isTrading()) {
+                seekShelter(sl, colony);
+            } else if (!isBaby() && jobInstance != null && updateWorkstation(sl, colony)) {
+                jobInstance.tick(sl);
+            }
 
             colony.getCitizens().stream().filter(c -> c.uuid.equals(getUUID())).findFirst()
                     .ifPresent(this::applyPendingDailyHealth);
             // Show job icon above head if client config enabled
             // (handled via custom renderer; placeholder is nameplate)
+        }
+    }
+
+    private void seekShelter(ServerLevel level, Colony colony) {
+        if (level.getGameTime() % 60 != 0) return;
+        var shelter = colony.getBuildings().stream()
+                .filter(b -> b.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
+                .filter(b -> b.getType() == com.simplecolonies.building.BuildingType.TOWN_HALL
+                        || b.getType() == com.simplecolonies.building.BuildingType.HOUSE)
+                .filter(b -> level.isLoaded(b.getPos()))
+                .min(java.util.Comparator.comparingDouble(b -> b.getPos().distSqr(blockPosition())))
+                .orElse(null);
+        if (shelter == null) return;
+        var target = shelter.getPos().offset(1, shelter.isPlayerPlaced ? 0 : 1, 0);
+        if (getNavigation() instanceof net.minecraft.world.entity.ai.navigation.GroundPathNavigation ground) {
+            ground.setCanOpenDoors(true);
+            ground.setCanPassDoors(true);
+        }
+        if (distanceToSqr(target.getX() + 0.5, target.getY(), target.getZ() + 0.5) > 2.25) {
+            getNavigation().moveTo(target.getX() + 0.5, target.getY(), target.getZ() + 0.5, 0.7);
         }
     }
 

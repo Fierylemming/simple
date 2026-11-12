@@ -20,7 +20,8 @@ public class Building {
     private BuildingState state = BuildingState.BLUEPRINT;
     private int level = 1;
     // Version 1 is the old all-log plan, retained for buildings saved before 0.1.28.
-    private int planVersion = 2;
+    private int planVersion = 3;
+    private int houseVariant;
     private final Map<String, Integer> requiredResources = new HashMap<>();
     private final Queue<BlockPlacement> placements = new ArrayDeque<>();
     private final List<BlockPlacement> completed = new ArrayList<>();
@@ -34,6 +35,7 @@ public class Building {
         this.type = type;
         this.pos = pos;
         this.culture = culture;
+        this.houseVariant = LevelOneHouses.variant(pos);
         this.isPlayerPlaced = isPlayerPlaced;
         if (!isPlayerPlaced) {
             loadSchematicPlacements();
@@ -62,6 +64,13 @@ public class Building {
         placements.clear();
         requiredResources.clear();
         if (type != BuildingType.HOUSE) return;
+        if (planVersion >= 3) {
+            LevelOneHouses.generate(pos, culture, houseVariant, (at, state) -> {
+                String item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(state.getBlock().asItem()).toString();
+                addPlacement(at, state, item);
+            });
+            return;
+        }
         BlockState timber = net.minecraft.world.level.block.Blocks.OAK_LOG.defaultBlockState();
         for (int y = 0; y < 3; y++) {
             for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
@@ -127,6 +136,7 @@ public class Building {
     }
 
     public BlockPlacement getNextPlacement() { return placements.peek(); }
+    public List<BlockPlacement> getRemainingPlacements() { return List.copyOf(placements); }
     public void markPlaced(BlockPlacement p) {
         placements.poll(); completed.add(p);
         requiredResources.computeIfPresent(p.itemId, (key, value) -> value > 1 ? value - 1 : null);
@@ -141,6 +151,7 @@ public class Building {
         tag.putString("state", state.name());
         tag.putInt("level", level);
         tag.putInt("planVersion", planVersion);
+        tag.putInt("houseVariant", houseVariant);
         tag.putBoolean("isPlayerPlaced", isPlayerPlaced);
         CompoundTag req = new CompoundTag();
         requiredResources.forEach((k,v) -> req.putInt(k, v));
@@ -157,6 +168,7 @@ public class Building {
         boolean isPlayer = tag.getBoolean("isPlayerPlaced");
         Building b = new Building(type, pos, culture, isPlayer);
         b.planVersion = tag.contains("planVersion") ? tag.getInt("planVersion") : 1;
+        b.houseVariant = tag.contains("houseVariant") ? Math.floorMod(tag.getInt("houseVariant"), LevelOneHouses.VARIANTS) : LevelOneHouses.variant(pos);
         b.state = BuildingState.valueOf(tag.getString("state"));
         b.level = tag.getInt("level");
         // Regenerate the deterministic plan and discard exactly the completed prefix.

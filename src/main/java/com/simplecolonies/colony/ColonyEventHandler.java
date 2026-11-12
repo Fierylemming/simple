@@ -65,7 +65,7 @@ public class ColonyEventHandler {
             var colony = ColonyManager.getInstance().createNaturalColony(level, found.culture(), plan);
             if (colony != null) {
                 nextPlacementAttempt.remove(player.getUUID());
-                BlockPos target = plan.center();
+                BlockPos target = colony.getCenter();
                 player.displayClientMessage(net.minecraft.network.chat.Component.literal(
                         "§aDiscovered " + found.culture().displayName + " colony #" + colony.getId()
                                 + " at " + target.toShortString() + " (" + colony.citizenCount() + " citizens, "

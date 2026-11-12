@@ -4,23 +4,36 @@ import com.simplecolonies.culture.CultureType;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.world.level.block.Blocks;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class HousePlanVersionTest {
-    @BeforeAll static void bootstrap() {
-        SharedConstants.tryDetectVersion();
-        Bootstrap.bootStrap();
-    }
-    @Test void newHouseUsesStoneAndSavesItsPlan() {
+    @BeforeAll static void bootstrap() { SharedConstants.tryDetectVersion(); Bootstrap.bootStrap(); }
+
+    @Test void newHouseSavesVariantAndCraftableMaterials() {
         Building b = new Building(BuildingType.HOUSE, BlockPos.ZERO, CultureType.ROMAN);
-        assertEquals(15, b.getRequiredResources().get("minecraft:cobblestone"));
-        assertEquals(56, b.getRequiredResources().get("minecraft:oak_log"));
+        assertTrue(b.getRequiredResources().containsKey("minecraft:cobblestone"));
+        assertTrue(b.getRequiredResources().containsKey("minecraft:oak_door"));
+        assertTrue(b.getRequiredResources().containsKey("minecraft:oak_stairs"));
+        assertTrue(b.getRequiredResources().containsKey("minecraft:oak_slab"));
         var tag = b.save();
-        assertEquals(2, tag.getInt("planVersion"));
+        assertEquals(3, tag.getInt("planVersion"));
         Building restored = Building.load(tag);
         assertEquals(b.getRequiredResources(), restored.getRequiredResources());
+        assertEquals(tag.getInt("houseVariant"), restored.save().getInt("houseVariant"));
+    }
+    @Test void allCultureVariantsHaveDoorsRoofsAndNoBeds() {
+        for (CultureType culture : CultureType.values()) for (int variant = 0; variant < 3; variant++) {
+            Map<BlockPos, net.minecraft.world.level.block.state.BlockState> plan = new HashMap<>();
+            LevelOneHouses.generate(BlockPos.ZERO, culture, variant, (pos, state) -> assertNull(plan.put(pos, state)));
+            assertTrue(plan.values().stream().anyMatch(s -> s.is(Blocks.OAK_DOOR)));
+            assertTrue(plan.values().stream().anyMatch(s -> s.is(Blocks.OAK_STAIRS)));
+            assertTrue(plan.values().stream().anyMatch(s -> s.is(Blocks.OAK_SLAB)));
+            assertFalse(plan.values().stream().anyMatch(s -> s.is(net.minecraft.tags.BlockTags.BEDS)));
+        }
     }
     @Test void oldInProgressHouseKeepsOldPlanAcrossSaveAndReload() {
         var tag = new Building(BuildingType.HOUSE, BlockPos.ZERO, CultureType.ROMAN).save();
@@ -34,5 +47,12 @@ class HousePlanVersionTest {
         assertEquals(68, restored.getRequiredResources().get("minecraft:oak_log"));
         assertEquals(legacy.getNextPlacement().pos, restored.getNextPlacement().pos);
         assertEquals(legacy.getNextPlacement().state, restored.getNextPlacement().state);
+    }
+    @Test void versionTwoContinuesWithOriginalStoneAndLogCosts() {
+        var tag = new Building(BuildingType.HOUSE, BlockPos.ZERO, CultureType.ROMAN).save();
+        tag.putInt("planVersion", 2);
+        Building old = Building.load(tag);
+        assertEquals(15, old.getRequiredResources().get("minecraft:cobblestone"));
+        assertEquals(56, old.getRequiredResources().get("minecraft:oak_log"));
     }
 }

@@ -1,6 +1,7 @@
 package com.simplecolonies.colony;
 
 import com.simplecolonies.SimpleColonies;
+import com.simplecolonies.block.ModBlocks;
 import com.simplecolonies.culture.CultureType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -94,8 +95,10 @@ public class ColonyManager {
         markDirty(colony);
         if (level == null && server != null) level = server.getLevel(Level.OVERWORLD);
         if (level != null) {
-            if (plan == null) placeStarterStructures(level, colony);
-            else placePlannedStarters(level, colony, plan);
+            if (plan == null) {
+                placeInitialTownHall(level, colony);
+                placeStarterStructures(level, colony, false);
+            } else placePlannedStarters(level, colony, plan);
             spawnInitialVillagers(level, colony);
             placeTownHallIfNeeded(level, colony);
         }
@@ -106,7 +109,7 @@ public class ColonyManager {
         if (colony.citizenCount() > 0) return;
         BlockPos c = colony.getCenter();
         BlockPos house = colony.getBuildings().stream()
-                .filter(b -> b.getType() == com.simplecolonies.building.BuildingType.HOUSE)
+                .filter(b -> b.getType() == com.simplecolonies.building.BuildingType.HOUSE || b.getType() == com.simplecolonies.building.BuildingType.TOWN_HALL)
                 .map(com.simplecolonies.building.Building::getPos).findFirst().orElse(c);
         BlockPos farm = colony.getBuildings().stream()
                 .filter(b -> b.getType() == com.simplecolonies.building.BuildingType.FARM)
@@ -199,14 +202,15 @@ public class ColonyManager {
 
     /** Explicitly repair missing starters; never repopulates colonies automatically after deaths. */
     public void repairStarters(ServerLevel level, Colony colony) {
-        placeStarterStructures(level, colony);
+        boolean legacy = colony.getBuildings().stream().noneMatch(b -> b.getType() == com.simplecolonies.building.BuildingType.TOWN_HALL);
+        placeStarterStructures(level, colony, legacy);
         spawnInitialVillagers(level, colony);
         placeTownHallIfNeeded(level, colony);
         markDirty(colony);
     }
 
-    private void placeStarterStructures(ServerLevel level, Colony colony) {
-        if (colony.getBuildings().stream().noneMatch(b -> b.getType() == com.simplecolonies.building.BuildingType.HOUSE)) {
+    private void placeStarterStructures(ServerLevel level, Colony colony, boolean createLegacyHouse) {
+        if (createLegacyHouse && colony.getBuildings().stream().noneMatch(b -> b.getType() == com.simplecolonies.building.BuildingType.HOUSE)) {
             BlockPos housePos = findStarterSite(level, colony, 3, 8);
             if (housePos != null) {
                 prepareStarterPlot(level, housePos, 3);
@@ -282,13 +286,20 @@ public class ColonyManager {
 
     /** Validate every block we may alter, including the foundation and roof clearance. */
     private boolean isSafeStarterPlot(ServerLevel level, BlockPos origin, int halfSize) {
+        return isSafeStarterPlot(level, origin, halfSize, false);
+    }
+    private boolean isSafeStarterPlot(ServerLevel level, BlockPos origin, int halfSize, boolean allowTownHall) {
         int y = origin.getY();
         for (int dx = -halfSize; dx <= halfSize; dx++) for (int dz = -halfSize; dz <= halfSize; dz++) {
-            BlockPos surface = naturalSurface(level, origin.getX() + dx, origin.getZ() + dz);
+            BlockPos column = origin.offset(dx, 0, dz);
+            BlockPos surface = allowTownHall && dx == 0 && dz == 0
+                    && level.getBlockState(column).is(ModBlocks.TOWN_HALL.get()) && isNaturalGround(level.getBlockState(column.below()))
+                    ? column : naturalSurface(level, column.getX(), column.getZ());
             if (surface == null || Math.abs(surface.getY() - y) > 2) return false;
             for (int dy = -3; dy <= 4; dy++) {
                 BlockPos p = origin.offset(dx, dy, dz);
                 var state = level.getBlockState(p);
+                if (allowTownHall && p.equals(origin) && state.is(ModBlocks.TOWN_HALL.get())) continue;
                 if (!StarterSiteSearch.safeBlock(dy, !state.getFluidState().isEmpty(),
                         level.getBlockEntity(p) != null, isNaturalGround(state), isClearable(state))) return false;
             }
@@ -353,7 +364,8 @@ public class ColonyManager {
         Map<Long, Optional<BlockPos>> centers = new HashMap<>();
         for (BlockPos house : houses) for (BlockPos farm : farms) {
             if (++pairsExamined > 10000) return null;
-            if (!StarterSiteSearch.separated(house.getX(), house.getZ(), farm.getX(), farm.getZ(), 15)) continue;
+            if (!StarterSiteSearch.separated(house.getX(), house.getZ(), farm.getX(), farm.getZ(), 15)
+                    || house.distSqr(farm) > 48L * 48L) continue;
             int mx = (int) Math.floorDiv((long) house.getX() + farm.getX(), 2);
             int mz = (int) Math.floorDiv((long) house.getZ() + farm.getZ(), 2);
             for (var offset : StarterSiteSearch.offsets(12, 4)) {
@@ -378,13 +390,24 @@ public class ColonyManager {
         // Recheck in case the terrain changed since planning; do not create partial colonies.
         if (!isSafeStarterPlot(level, plan.house(), 3) || !isSafeStarterPlot(level, plan.farm(), plan.farmHalfSize())
                 || !isSpawnable(level, plan.center())) return null;
-        return createColony(level, culture, plan.center(), plan);
+        return createColony(level, culture, plan.house(), plan);
+    }
+
+    private void placeInitialTownHall(ServerLevel level, Colony colony) {
+        BlockPos site = colony.getCenter();
+        if (!isSafeStarterPlot(level, site, 3, true)) {
+            SimpleColonies.LOGGER.warn("No safe town hall shell at colony #{}; leaving existing blocks untouched", colony.getId());
+            return;
+        }
+        prepareStarterPlot(level, site, 3);
+        placeSimpleHouse(level, site, colony.getCulture());
+        colony.registerPlayerBuilding(new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.TOWN_HALL, site, colony.getCulture(), true));
     }
 
     private void placePlannedStarters(ServerLevel level, Colony colony, StarterPlan plan) {
         prepareStarterPlot(level, plan.house(), 3);
         placeSimpleHouse(level, plan.house(), colony.getCulture());
-        colony.registerPlayerBuilding(new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.HOUSE, plan.house(), colony.getCulture(), true));
+        colony.registerPlayerBuilding(new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.TOWN_HALL, plan.house(), colony.getCulture(), true));
         prepareStarterPlot(level, plan.farm(), plan.farmHalfSize());
         placeSimpleFarm(level, plan.farm(), plan.farmHalfSize());
         colony.registerPlayerBuilding(new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.FARM, plan.farm(), colony.getCulture(), true));
@@ -460,11 +483,7 @@ public class ColonyManager {
         // Door south
         level.setBlock(origin.offset(0, 0, -3), Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.NORTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER), 3);
         level.setBlock(origin.offset(0, 1, -3), Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.NORTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER), 3);
-        // Beds
-        level.setBlock(origin.offset(-2, 0, 0), Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.FOOT), 3);
-        level.setBlock(origin.offset(-1, 0, 0), Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.HEAD), 3);
-        level.setBlock(origin.offset(-2, 0, 1), Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.FOOT), 3);
-        level.setBlock(origin.offset(-1, 0, 1), Blocks.WHITE_BED.defaultBlockState().setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.EAST).setValue(net.minecraft.world.level.block.BedBlock.PART, net.minecraft.world.level.block.state.properties.BedPart.HEAD), 3);
+        // Starter shelter intentionally has no beds; wool requires later production.
         // Chest + crafting + torch
         level.setBlock(origin.offset(2, 0, 2), Blocks.CHEST.defaultBlockState(), 3);
         level.setBlock(origin.offset(2, 0, -2), Blocks.CRAFTING_TABLE.defaultBlockState(), 3);

@@ -239,13 +239,12 @@ public class ColonyCommand {
         }
         colony.getWarehouseManager().scan(level);
         boolean builder = colony.getCitizens().stream().anyMatch(c -> c.job == com.simplecolonies.villager.job.JobType.BUILDER);
-        src.sendSuccess(() -> Component.literal("Colony #" + colony.getId() + " construction: builder assigned " + builder
+        src.sendSuccess(() -> Component.literal("Colony #" + colony.getId() + " " + colony.getState() + "; citizens " + colony.citizenCount() + "; builder assigned " + builder
                 + ", oak logs " + colony.getWarehouseCount(level, "minecraft:oak_log")
                 + ", cobblestone " + colony.getWarehouseCount(level, "minecraft:cobblestone")
-                + ", food " + colony.getFoodCount(level) + " (expansion needs " + colony.citizenCount() * 2 + ")"), false);
+                + ", food " + colony.getFoodCount(level)), false);
         if (com.simplecolonies.config.ColonyConfig.ENABLE_NATURAL_EXPANSION.get()) {
-            src.sendSuccess(() -> Component.literal("Next natural expansion check in " + colony.getDaysUntilExpansion()
-                    + " in-game day(s), while the colony is loaded. Checks also require food, a builder and a clear site."), false);
+            src.sendSuccess(() -> Component.literal("Automatic expansion: " + colony.getExpansionStatus()), false);
         } else src.sendSuccess(() -> Component.literal("Natural expansion is disabled in config."), false);
         for (var citizen : colony.getCitizens()) {
             if (citizen.job != com.simplecolonies.villager.job.JobType.BUILDER
