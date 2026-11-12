@@ -16,7 +16,7 @@ class WorksitePlanTest {
     @BeforeAll static void bootstrap() { SharedConstants.tryDetectVersion(); Bootstrap.bootStrap(); }
 
     @Test void workshopPlansSurroundButNeverReplaceTheirWorkstations() {
-        var types = new BuildingType[]{BuildingType.BUILDER_HUT, BuildingType.LUMBERJACK_HUT, BuildingType.MINE, BuildingType.BLACKSMITH, BuildingType.BUTCHER_HUT, BuildingType.HARBOR, BuildingType.BAKERY, BuildingType.LEATHER_SHOP};
+        var types = new BuildingType[]{BuildingType.BUILDER_HUT, BuildingType.LUMBERJACK_HUT, BuildingType.MINE, BuildingType.BLACKSMITH, BuildingType.BUTCHER_HUT, BuildingType.HARBOR, BuildingType.BAKERY, BuildingType.LEATHER_SHOP, BuildingType.WAREHOUSE, BuildingType.BARRACKS};
         var fingerprints = new java.util.HashSet<Map<BlockPos, net.minecraft.world.level.block.state.BlockState>>();
         for (var type : types) {
             Map<BlockPos, net.minecraft.world.level.block.state.BlockState> placements = new HashMap<>();
@@ -64,6 +64,17 @@ class WorksitePlanTest {
     @Test void olderBakeryAndLeatherPlaceholdersRemainUnsupported() {
         for (var type : new BuildingType[]{BuildingType.BAKERY, BuildingType.LEATHER_SHOP}) {
             for (int version = 1; version <= 8; version++) {
+                var tag = new Building(type, BlockPos.ZERO, CultureType.ROMAN).save();
+                tag.putInt("planVersion", version);
+                Building old = Building.load(tag);
+                assertFalse(old.hasSupportedPlan());
+                assertTrue(old.getRemainingPlacements().isEmpty());
+            }
+        }
+    }
+    @Test void olderWarehouseAndBarracksPlaceholdersRemainUnsupported() {
+        for (var type : new BuildingType[]{BuildingType.WAREHOUSE, BuildingType.BARRACKS}) {
+            for (int version = 1; version <= 9; version++) {
                 var tag = new Building(type, BlockPos.ZERO, CultureType.ROMAN).save();
                 tag.putInt("planVersion", version);
                 Building old = Building.load(tag);

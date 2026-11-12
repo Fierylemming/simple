@@ -37,6 +37,14 @@ public class WorksiteExpansionGameTests {
     public static void leatherShopExpansionUsesAssignedStation(GameTestHelper helper) {
         testExpansion(helper, JobType.LEATHERWORKER, BuildingType.LEATHER_SHOP, Blocks.CAULDRON);
     }
+    @GameTest(template = "isolated", timeoutTicks = 600)
+    public static void warehouseExpansionUsesRegisteredCourierBarrel(GameTestHelper helper) {
+        testExpansion(helper, JobType.COURIER, BuildingType.WAREHOUSE, Blocks.BARREL);
+    }
+    @GameTest(template = "isolated", timeoutTicks = 600)
+    public static void barracksExpansionUsesGuardStation(GameTestHelper helper) {
+        testExpansion(helper, JobType.GUARD, BuildingType.BARRACKS, Blocks.GRINDSTONE);
+    }
     @GameTest(template = "isolated", timeoutTicks = 1300)
     public static void harborExpansionNeedsDeepWaterAndClearPlot(GameTestHelper helper) {
         for (int x = 20; x <= 75; x++) for (int z = 35; z <= 75; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
@@ -108,6 +116,7 @@ public class WorksiteExpansionGameTests {
         BlockPos site = new BlockPos(56, 1, 56), absSite = helper.absolutePos(site);
         helper.setBlock(site, stationBlock);
         Colony colony = new Colony(0, CultureType.ROMAN, center);
+        if (buildingType == BuildingType.WAREHOUSE) colony.getWarehouseManager().registerStorage(helper.getLevel(), absSite);
         colony.registerPlayerBuilding(new Building(BuildingType.TOWN_HALL, center, CultureType.ROMAN, true));
         colony.registerPlayerBuilding(new Building(BuildingType.HOUSE, center.north(16), CultureType.ROMAN, true));
         colony.addCitizen(new CitizenData(UUID.randomUUID(), "Builder", JobType.BUILDER));

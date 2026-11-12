@@ -58,6 +58,12 @@ public class BuilderJob extends AbstractJob {
             Building.BlockPlacement next = currentJob.getNextPlacement();
             if (next == null) {
                 currentJob.setState(BuildingState.COMPLETE);
+                // A constructed warehouse may become the courier hub only if the
+                // player explicitly designated its barrel as colony storage.
+                if (currentJob.getType() == com.simplecolonies.building.BuildingType.WAREHOUSE
+                        && colony.getWarehouseManager().getConfiguredWarehouseCenter() == null
+                        && colony.getWarehouseManager().isRegisteredStorage(level, currentJob.getPos()))
+                    colony.setWarehouseCenter(currentJob.getPos());
                 colony.broadcast(net.minecraft.network.chat.Component.literal("Builder completed " + currentJob.getType().displayName));
                 ColonyManager.getInstance().markDirty(colony);
                 currentJob = null;

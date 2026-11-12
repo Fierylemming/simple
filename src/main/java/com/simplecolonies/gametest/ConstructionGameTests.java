@@ -86,6 +86,12 @@ public class ConstructionGameTests {
     public static void leatherShop(GameTestHelper helper) { runBuilder(helper, BuildingType.LEATHER_SHOP, Blocks.CAULDRON, CultureType.ROMAN, -1); }
 
     @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void warehouse(GameTestHelper helper) { runBuilder(helper, BuildingType.WAREHOUSE, Blocks.BARREL, CultureType.ROMAN, -1); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void barracks(GameTestHelper helper) { runBuilder(helper, BuildingType.BARRACKS, Blocks.GRINDSTONE, CultureType.ROMAN, -1); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
     public static void harborWorksite(GameTestHelper helper) { runBuilder(helper, BuildingType.HARBOR, Blocks.BARREL, CultureType.ROMAN, -1); }
 
     @GameTest(template = "empty", timeoutTicks = 200)
@@ -140,12 +146,13 @@ public class ConstructionGameTests {
         }
         BlockPos origin = helper.absolutePos(relative);
         if (workstation != null) helper.setBlock(relative, workstation);
-        if (type == BuildingType.HARBOR) {
+        if (type == BuildingType.HARBOR || type == BuildingType.WAREHOUSE) {
             var barrel = (net.minecraft.world.Container) helper.getBlockEntity(relative);
             barrel.setItem(0, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 3));
         }
         final BlockPos stationRelative = relative;
         Colony colony = new Colony(0, culture, origin);
+        if (type == BuildingType.WAREHOUSE) colony.getWarehouseManager().registerStorage(helper.getLevel(), origin);
         colony.depositToWarehouse("minecraft:oak_log", 300);
         colony.depositToWarehouse("minecraft:cobblestone", 300);
         colony.depositToWarehouse("minecraft:coal", 10);
@@ -166,11 +173,13 @@ public class ConstructionGameTests {
                         + " distance " + (next == null ? 0 : villager.distanceToSqr(next.pos.getX()+0.5, next.pos.getY()+0.5, next.pos.getZ()+0.5)));
             }
             if (workstation != null) helper.assertBlockPresent(workstation, stationRelative);
-            if (type == BuildingType.HARBOR) {
+            if (type == BuildingType.HARBOR || type == BuildingType.WAREHOUSE) {
                 var barrel = (net.minecraft.world.Container) helper.getBlockEntity(stationRelative);
                 if (!barrel.getItem(0).is(net.minecraft.world.item.Items.DIAMOND) || barrel.getItem(0).getCount() != 3)
                     helper.fail("Construction modified the barrel inventory");
             }
+            if (type == BuildingType.WAREHOUSE && !origin.equals(colony.getWarehouseManager().getConfiguredWarehouseCenter()))
+                helper.fail("Completed registered warehouse did not become the hub");
             if (type == BuildingType.BLACKSMITH) helper.assertBlockPresent(Blocks.FURNACE, stationRelative.east());
             var lower = helper.getLevel().getBlockState(door);
             var upper = helper.getLevel().getBlockState(door.above());

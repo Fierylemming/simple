@@ -269,6 +269,9 @@ public class Colony {
                 Map.entry(JobType.BUTCHER, BuildingType.BUTCHER_HUT),
                 Map.entry(JobType.BAKER, BuildingType.BAKERY),
                 Map.entry(JobType.LEATHERWORKER, BuildingType.LEATHER_SHOP),
+                Map.entry(JobType.COURIER, BuildingType.WAREHOUSE),
+                Map.entry(JobType.SOLDIER, BuildingType.BARRACKS),
+                Map.entry(JobType.GUARD, BuildingType.BARRACKS),
                 Map.entry(JobType.FISHERMAN, BuildingType.HARBOR))) {
             for (CitizenData citizen : citizens.values()) {
                 if (citizen.job != pair.getKey()) continue;
@@ -280,6 +283,7 @@ public class Colony {
                 if (!level.isLoaded(station) || level.getPoiManager().getType(station)
                         .filter(worker.getVillagerData().getProfession().heldJobSite()).isEmpty()
                         || !isClearWorksite(level, station, true)
+                        || (pair.getValue() == BuildingType.WAREHOUSE && !warehouseManager.isRegisteredStorage(level, station))
                         || (pair.getValue() == BuildingType.HARBOR && !hasFishingWater(level, station))) continue;
                 Building building = new Building(pair.getValue(), station, culture);
                 if (com.simplecolonies.building.ConstructionCrafting.canBuild(stock, building.getRemainingPlacements())) {
