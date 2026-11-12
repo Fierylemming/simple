@@ -68,13 +68,11 @@ public class MinerJob extends AbstractJob {
         }
         var path = villager.getNavigation().createPath(next, 0);
         if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
-        // Advance only when the worker arrives at the next step.
-        if (villager.distanceToSqr(next.getX() + 0.5, next.getY(), next.getZ() + 0.5) <= 0.81) {
-            step++; writeMemory(); state = JobState.WORKING;
-        } else {
-            villager.getNavigation().moveTo(path, 0.7);
-            state = JobState.GOING_TO_WORK;
-        }
+        // Record the cleared next step before moving. On the next tick the arrival
+        // check above targets it, rather than sending the worker back uphill.
+        step++; writeMemory();
+        villager.getNavigation().moveTo(path, 0.7);
+        state = JobState.GOING_TO_WORK;
         ticksUntilNextWork = 10;
     }
 

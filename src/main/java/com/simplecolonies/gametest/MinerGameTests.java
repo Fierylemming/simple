@@ -17,6 +17,13 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public class MinerGameTests {
     @GameTest(template = "quarry", timeoutTicks = 1800)
     public static void minerWalksAndExcavatesWithRealTool(GameTestHelper helper) {
+        // GameTest surrounds structures with a barrier ceiling, which otherwise becomes
+        // the heightmap surface. Remove only the artificial roof, not the side walls.
+        for (int x = 1; x < 63; x++) for (int z = 1; z < 63; z++) for (int y = 24; y <= 27; y++) {
+            BlockPos roof = helper.absolutePos(new BlockPos(x, y, z));
+            if (helper.getLevel().getBlockState(roof).is(Blocks.BARRIER))
+                helper.getLevel().setBlock(roof, Blocks.AIR.defaultBlockState(), 3);
+        }
         for (int x = 0; x < 64; x++) for (int z = 0; z < 64; z++) helper.setBlock(x, 11, z, Blocks.GRASS_BLOCK);
         for (int x = 37; x <= 51; x++) for (int z = 30; z <= 34; z++) for (int y = 0; y <= 10; y++)
             helper.setBlock(x, y, z, Blocks.STONE);
