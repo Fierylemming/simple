@@ -91,14 +91,28 @@ public class FishermanGameTests {
         helper.runAtTickTime(3400, () -> {
             int alive = (first.isAlive() ? 1 : 0) + (second.isAlive() ? 1 : 0) + (third.isAlive() ? 1 : 0);
             if (harbor.getState() != com.simplecolonies.building.BuildingState.COMPLETE || job[0] == null
-                    || alive != 2 || colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") != 1)
-                helper.fail("Constructed harbor-to-shore flow incomplete: building=" + harbor.getState()
+                    || alive != 2 || colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") != 1) {
+                String detail = "no fisherman";
+                if (fisher[0] != null) {
+                    var stand = first.blockPosition().west().above();
+                    var path = fisher[0].getNavigation().createPath(stand, 0);
+                    var nodes = new StringBuilder();
+                    if (path != null) for (int i = 0; i < path.getNodeCount(); i++) {
+                        var p = path.getNode(i).asBlockPos();
+                        if (!helper.getLevel().getFluidState(p).isEmpty()) nodes.append("wet;");
+                    }
+                    detail = "ground=" + fisher[0].onGround() + " liquid=" + fisher[0].isInLiquid()
+                            + " stand=" + stand.toShortString() + " standBlock=" + helper.getLevel().getBlockState(stand)
+                            + " path=" + (path == null ? "null" : path.canReach() + "/" + path.getEndNode() + "/" + nodes);
+                }
+                helper.fail("Constructed harbor-to-shore flow incomplete: " + detail + " building=" + harbor.getState()
                         + " builder=" + builderJob.getState() + " fisher=" + (job[0] == null ? "not started" : job[0].getState())
                         + " fisher pos=" + (fisher[0] == null ? "none" : fisher[0].position()) + " alive=" + alive
                         + " fish=" + first.position() + "/" + second.position() + "/" + third.position()
                         + " water=" + first.isInWater() + "/" + second.isInWater() + "/" + third.isInWater()
                         + " door=" + helper.getBlockState(SITE.north(2))
                         + " site=" + helper.getBlockState(SITE) + " stock=" + colony.getWarehouseSnapshot(helper.getLevel()));
+            }
             helper.assertBlockPresent(Blocks.BARREL, SITE);
             helper.succeed();
         });
