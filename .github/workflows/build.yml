@@ -30,7 +30,7 @@ jobs:
           from pathlib import Path
           log = Path('gametest.log') if Path('gametest.log').exists() else Path('build.log')
           lines = log.read_text(errors='replace').splitlines()
-          failures = [line for line in lines if 'failed at ' in line.lower() or 'error:' in line.lower()]
+          failures = [line for line in lines if any(term in line.lower() for term in ('failed at ', 'error:', 'could not ', 'could not resolve', 'could not find'))]
           for line in failures:
               print('::error title=Test or compiler failure::' + line[-3000:].replace('%', '%25').replace('\r', '%0D'))
           highlights = [line for line in lines if any(term in line.lower() for term in ('error', 'failed', 'exception', 'tests complete', 'required tests'))]
