@@ -22,6 +22,13 @@ public class FishermanJob extends AbstractJob {
     private static final double REACH_SQ = 6.25;
     public FishermanJob(Villager villager, Colony colony) { super(villager, colony, JobType.FISHERMAN); }
 
+    @Override protected void onTick(ServerLevel level) {
+        // Vanilla idle schedules can replace the shore path while this job is walking.
+        // Do not suppress panic or other threat memories.
+        if (state == JobState.GOING_TO_WORK)
+            villager.getBrain().eraseMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET);
+    }
+
     @Override protected void doWork(ServerLevel level) {
         var site = villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE);
         if (site.isEmpty() || !site.get().dimension().equals(level.dimension()) || !level.isLoaded(site.get().pos())

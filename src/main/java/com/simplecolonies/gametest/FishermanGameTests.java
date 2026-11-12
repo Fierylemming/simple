@@ -28,7 +28,8 @@ public class FishermanGameTests {
     private static final BlockPos SITE = new BlockPos(54, 1, 54);
 
     private static Colony setup(GameTestHelper helper) {
-        for (int x = 40; x <= 72; x++) for (int z = 40; z <= 72; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        // Broad ground prevents ordinary villager wandering off an artificial test platform.
+        for (int x = 24; x <= 87; x++) for (int z = 24; z <= 87; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
         for (int x = 58; x <= 61; x++) for (int z = 54; z <= 60; z++) {
             helper.setBlock(x, -1, z, Blocks.STONE);
             helper.setBlock(x, 0, z, Blocks.WATER);
