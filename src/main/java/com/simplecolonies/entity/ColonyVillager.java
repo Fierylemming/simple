@@ -92,6 +92,9 @@ public class ColonyVillager extends Villager {
     public void setCourierCargo(net.minecraft.world.item.ItemStack cargo) { courierCargo = cargo; }
 
     public void setColony(Colony colony) {
+        if (this.colonyId != -1 && this.colonyId != colony.getId()) {
+            ColonyManager.getInstance().getColony(this.colonyId).ifPresent(old -> old.removeCitizen(getUUID()));
+        }
         this.colonyId = colony.getId();
         // Avoid duplicate citizen entry if already exists
         boolean exists = colony.getCitizens().stream().anyMatch(c -> c.uuid.equals(getUUID()));

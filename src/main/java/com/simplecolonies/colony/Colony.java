@@ -186,27 +186,19 @@ public class Colony {
     }
     private int countFoodInWarehouse() { return countFoodInWarehouse(null); }
 
-    private boolean isFood(String itemId) {
-        return switch (itemId) {
-            case "minecraft:bread", "minecraft:cooked_beef", "minecraft:cooked_porkchop",
-                 "minecraft:carrot", "minecraft:potato", "minecraft:wheat", "minecraft:apple" -> true;
-            default -> false;
-        };
-    }
+    private boolean isFood(String itemId) { return FoodRules.isFood(itemId); }
 
     private void consumeFood(ServerLevel level, int amount) {
         if (amount <= 0) return;
         // Try chests first
         if (level != null && warehouseManager.getChestCount() > 0) {
             int remaining = amount;
-            String[] foodIds = {"minecraft:bread", "minecraft:cooked_beef", "minecraft:cooked_porkchop", "minecraft:carrot", "minecraft:potato", "minecraft:wheat", "minecraft:apple"};
-            for (String fid : foodIds) {
+            for (String fid : FoodRules.FOOD_IDS) {
                 if (remaining <= 0) break;
                 int have = warehouseManager.count(fid);
                 int take = Math.min(have, remaining);
                 if (take > 0) {
-                    warehouseManager.extract(level, center, fid, take, false);
-                    remaining -= take;
+                    remaining -= warehouseManager.extract(level, center, fid, take, false);
                 }
             }
             if (remaining == 0) return;
@@ -402,50 +394,44 @@ public class Colony {
             else return;
         }
         int cost = costId.equals("minecraft:bread") ? 3 : 12;
-        // consume
-        if (!consumeBreedCost(level, costId, cost)) return;
-
-        // Spawn baby near a random House building (so it populates empty houses)
-        var houses = buildings.stream().filter(b -> b.getType() == BuildingType.HOUSE).toList();
-        BlockPos spawnAt = houses.isEmpty() ? center : houses.get(level.random.nextInt(houses.size())).getPos().above();
-        // find ground
-        for (int dy = 2; dy >= -2; dy--) {
-            BlockPos p = spawnAt.offset(0, dy, 0);
-            if (level.getBlockState(p).isAir() && level.getBlockState(p.below()).isSolid()) { spawnAt = p; break; }
+        var houses = buildings.stream().filter(b -> b.getType() == BuildingType.HOUSE
+                && b.getState() == com.simplecolonies.building.BuildingState.COMPLETE).toList();
+        BlockPos anchor = houses.isEmpty() ? center : houses.get(level.random.nextInt(houses.size())).getPos();
+        BlockPos spawnAt = null;
+        for (int dy = 0; dy <= 3 && spawnAt == null; dy++) for (int dx = -4; dx <= 4 && spawnAt == null; dx++) for (int dz = -4; dz <= 4; dz++) {
+            BlockPos p = anchor.offset(dx, dy, dz);
+            if (!level.isLoaded(p) || !isInside(p) || !level.isLoaded(p.above()) || !level.isLoaded(p.below())) continue;
+            if (!level.getBlockState(p).getCollisionShape(level, p).isEmpty()
+                    || !level.getBlockState(p.above()).getCollisionShape(level, p.above()).isEmpty()
+                    || !level.getBlockState(p).getFluidState().isEmpty()
+                    || !level.getBlockState(p.below()).isFaceSturdy(level, p.below(), net.minecraft.core.Direction.UP)) continue;
+            spawnAt = p; break;
         }
+        if (spawnAt == null || !consumeStock(level, costId, cost)) return;
+        com.simplecolonies.entity.ColonyVillager baby = null;
+        boolean added = false;
         try {
-            var type = com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get();
-            var baby = type.create(level);
+            baby = com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get().create(level);
             if (baby == null) return;
             baby.moveTo(spawnAt.getX() + 0.5, spawnAt.getY(), spawnAt.getZ() + 0.5, level.random.nextFloat() * 360, 0);
-            baby.setBaby(true);
-            // Persist age so it grows naturally like vanilla (20min)
             baby.finalizeSpawn(level, level.getCurrentDifficultyAt(spawnAt), net.minecraft.world.entity.MobSpawnType.BREEDING, null);
-            // Link to colony — finalizeSpawn will also assign if inside radius, but force
+            baby.setBaby(true);
             baby.setColony(this);
-            baby.setJob(com.simplecolonies.villager.job.JobType.UNEMPLOYED);
-            level.addFreshEntity(baby);
-            // Also create CitizenData placeholder now (villager will duplicate on setColony finalize, but we use UUID)
-            // Let villager's setColony handle it on next tick to avoid double
-            broadcast(Component.literal("§aColony #" + id + " bred a new villager at " + spawnAt.toShortString() + " — cost " + cost + "x " + costId + " (shelter " + housingSlots + " pop " + citizenCount() + "→" + (citizenCount() + 1) + ")"));
-        } catch (Exception ignored) {}
-    }
-
-    private boolean consumeBreedCost(ServerLevel level, String itemId, int amount) {
-        int chestHave = 0;
-        try { chestHave = warehouseManager.count(itemId); } catch (Exception ignored) {}
-        if (chestHave >= amount) {
-            warehouseManager.extract(level, center, itemId, amount, false);
-            return true;
+            baby.setJob(JobType.UNEMPLOYED);
+            added = level.addFreshEntity(baby);
+            if (added) broadcast(Component.literal("§aColony #" + id + " bred a new villager at " + spawnAt.toShortString()));
+        } catch (Exception e) {
+            com.simplecolonies.SimpleColonies.LOGGER.error("Failed to spawn baby for colony #{}", id, e);
+        } finally {
+            if (!added) {
+                // finalizeSpawn may have already registered the entity, even if insertion failed.
+                if (baby != null) {
+                    var registered = ColonyManager.getInstance().getColony(baby.getColonyId()).orElse(null);
+                    if (registered != null) registered.removeCitizen(baby.getUUID());
+                }
+                depositToWarehouse(costId, cost);
+            }
         }
-        int abstractHave = warehouse.getOrDefault(itemId, 0);
-        if (abstractHave + chestHave < amount) return false;
-        // partial from chests then abstract
-        if (chestHave > 0) warehouseManager.extract(level, center, itemId, chestHave, false);
-        int remaining = amount - chestHave;
-        warehouse.merge(itemId, -remaining, Integer::sum);
-        if (warehouse.getOrDefault(itemId, 0) <= 0) warehouse.remove(itemId);
-        return true;
     }
 
     /** Consume from chest and virtual stockpile, exactly once, or not at all. */

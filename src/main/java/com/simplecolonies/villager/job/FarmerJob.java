@@ -21,6 +21,20 @@ public class FarmerJob extends AbstractJob {
     public FarmerJob(Villager villager, Colony colony) { super(villager, colony, JobType.FARMER); }
 
     @Override protected void doWork(ServerLevel level) {
+        // Vanilla farmers make bread. This keeps the four-founder starter settlement
+        // viable without requiring a separately assigned baker.
+        int targetBread = Math.max(16, colony.citizenCount() * 4);
+        if (colony.getWarehouseCount(level, "minecraft:bread") < targetBread
+                && colony.getWarehouseCount(level, "minecraft:wheat") >= 3) {
+            if (!atClaimedWorkstation(level)) return;
+            if (colony.consumeStock(level, "minecraft:wheat", 3)) {
+                depositToColony(level, "minecraft:bread", 1);
+                villager.swing(InteractionHand.MAIN_HAND);
+                state = JobState.WORKING;
+                ticksUntilNextWork = 40;
+                return;
+            }
+        }
         if (target == null || !level.isLoaded(target) || !eligible(level, target)) target = findWork(level);
         if (target == null) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
         if (villager.distanceToSqr(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5) > 9.0) {
