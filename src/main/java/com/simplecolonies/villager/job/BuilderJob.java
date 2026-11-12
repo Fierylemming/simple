@@ -16,6 +16,30 @@ public class BuilderJob extends AbstractJob {
     private Building currentJob;
     public BuilderJob(Villager villager, Colony colony) { super(villager, colony, JobType.BUILDER); }
 
+    /** Find an actual standing position in reach, on either side of a wall. */
+    private net.minecraft.world.level.pathfinder.Path findApproach(ServerLevel level, BlockPos target) {
+        var candidates = new java.util.ArrayList<BlockPos>();
+        int groundY = currentJob.constructionWalkY();
+        for (int dx = -4; dx <= 4; dx++) for (int dz = -4; dz <= 4; dz++) for (int dy = -2; dy <= 2; dy++) {
+            BlockPos stand = new BlockPos(target.getX() + dx, groundY + dy, target.getZ() + dz);
+            double vertical = target.getY() + 0.5 - stand.getY();
+            if (dx * dx + dz * dz + vertical * vertical > 20.25) continue;
+            if (!level.isLoaded(stand) || !level.isLoaded(stand.below()) || !level.isLoaded(stand.above())) continue;
+            if (!level.getBlockState(stand).getCollisionShape(level, stand).isEmpty()
+                    || !level.getBlockState(stand.above()).getCollisionShape(level, stand.above()).isEmpty()
+                    || !level.getBlockState(stand.below()).isFaceSturdy(level, stand.below(), net.minecraft.core.Direction.UP)) continue;
+            candidates.add(stand);
+        }
+        candidates.sort(java.util.Comparator.comparingDouble(p -> villager.distanceToSqr(p.getX() + 0.5, p.getY(), p.getZ() + 0.5)));
+        int attempts = 0;
+        for (BlockPos stand : candidates) {
+            if (++attempts > 24) break;
+            var path = villager.getNavigation().createPath(stand, 0);
+            if (path != null && path.canReach()) return path;
+        }
+        return null;
+    }
+
     @Override protected void doWork(ServerLevel level) {
         if (currentJob == null || currentJob.getState() == BuildingState.COMPLETE) {
             currentJob = colony.getBuildings().stream()
@@ -41,9 +65,8 @@ public class BuilderJob extends AbstractJob {
             }
             if (!level.isLoaded(next.pos)) { state = JobState.STUCK; return; }
             if (villager.distanceToSqr(next.pos.getX() + 0.5, next.pos.getY() + 0.5, next.pos.getZ() + 0.5) > 25.0) {
-                BlockPos groundTarget = next.pos.atY(currentJob.constructionWalkY());
-                var path = villager.getNavigation().createPath(groundTarget, 1);
-                if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 40; return; }
+                var path = findApproach(level, next.pos);
+                if (path == null) { state = JobState.STUCK; ticksUntilNextWork = 40; return; }
                 villager.getNavigation().moveTo(path, 0.7);
                 state = JobState.GOING_TO_WORK;
                 ticksUntilNextWork = 10;
