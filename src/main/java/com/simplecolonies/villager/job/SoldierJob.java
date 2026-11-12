@@ -56,7 +56,15 @@ public class SoldierJob extends AbstractJob {
                 && villager.distanceToSqr(commander) > 36) {
             villager.getNavigation().moveTo(commander, 1.0);
             state = JobState.GOING_TO_WORK;
-        } else state = JobState.IDLE;
+        } else {
+            // Defense and following the commander always take priority over resupply.
+            var equipment = GuardEquipment.collectChestplate(level, colony, villager);
+            state = switch (equipment) {
+                case MOVING -> JobState.GOING_TO_WORK;
+                case EQUIPPED -> JobState.WORKING;
+                case NONE -> JobState.IDLE;
+            };
+        }
         ticksUntilNextWork = 40;
     }
 
