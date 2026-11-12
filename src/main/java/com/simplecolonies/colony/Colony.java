@@ -359,7 +359,8 @@ public class Colony {
             var soil = level.getBlockState(ground);
             if (!(soil.is(net.minecraft.tags.BlockTags.DIRT) || soil.is(net.minecraft.world.level.block.Blocks.SAND)
                     || soil.is(net.minecraft.world.level.block.Blocks.RED_SAND) || soil.is(net.minecraft.world.level.block.Blocks.GRAVEL))) return false;
-            for (int y = 0; y <= 4; y++) {
+            for (int y = 0; y <= 5; y++) {
+                if (!level.isLoaded(pos.offset(x, y, z))) return false;
                 var block = level.getBlockState(pos.offset(x, y, z));
                 if ((!block.isAir() && !block.canBeReplaced()) || !block.getFluidState().isEmpty()) return false;
             }

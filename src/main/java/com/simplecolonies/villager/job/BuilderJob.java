@@ -95,10 +95,24 @@ public class BuilderJob extends AbstractJob {
                     state = JobState.NEEDS_RESOURCE;
                     return;
                 }
+                boolean placed;
                 if (door) {
-                    level.setBlock(next.pos, next.state, 2);
-                    level.setBlock(next.pos.above(), next.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3);
-                } else level.setBlock(next.pos, next.state, 3);
+                    var originalAbove = level.getBlockState(next.pos.above());
+                    placed = level.setBlock(next.pos, next.state, 2);
+                    if (placed && !level.setBlock(next.pos.above(), next.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3)) {
+                        level.setBlock(next.pos, existing, 3);
+                        level.setBlock(next.pos.above(), originalAbove, 3);
+                        placed = false;
+                    }
+                } else placed = level.setBlock(next.pos, next.state, 3);
+                if (!placed) {
+                    // Crafting may have made a batch; restore the one output that was taken.
+                    stock.add(next.itemId, 1);
+                    currentJob.setState(BuildingState.BLOCKED);
+                    ColonyManager.getInstance().markDirty(colony);
+                    state = JobState.STUCK;
+                    return;
+                }
                 villager.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
                 currentJob.markPlaced(next);
             }

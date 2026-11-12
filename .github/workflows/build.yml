@@ -21,13 +21,15 @@ jobs:
         run: |
           mkdir -p run
           echo 'eula=true' > run/eula.txt
-          timeout 300s ./gradlew runGameTestServer --info
+          timeout 300s ./gradlew runGameTestServer --info 2>&1 | tee gametest.log
+          test ${PIPESTATUS[0]} -eq 0
       - name: Report failure details
         if: failure()
         run: |
           python3 - <<'PYCODE'
           from pathlib import Path
-          lines = Path('build.log').read_text(errors='replace').splitlines()[-100:]
+          log = Path('gametest.log') if Path('gametest.log').exists() else Path('build.log')
+          lines = log.read_text(errors='replace').splitlines()[-120:]
           text = '\n'.join(lines).replace('%', '%25').replace('\n', '%0A').replace('\r', '%0D')
           print('::error title=Build log tail::' + text)
           PYCODE
@@ -36,7 +38,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-log-${{ github.sha }}
-          path: build.log
+          path: |
+            build.log
+            gametest.log
           if-no-files-found: warn
       - name: Upload Prism jar
         if: success()

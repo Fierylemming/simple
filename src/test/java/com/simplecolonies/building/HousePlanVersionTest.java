@@ -14,13 +14,13 @@ class HousePlanVersionTest {
     @BeforeAll static void bootstrap() { SharedConstants.tryDetectVersion(); Bootstrap.bootStrap(); }
 
     @Test void newHouseSavesVariantAndCraftableMaterials() {
-        Building b = new Building(BuildingType.HOUSE, BlockPos.ZERO, CultureType.ROMAN);
+        Building b = new Building(BuildingType.HOUSE, BlockPos.ZERO, CultureType.GREEK);
         assertTrue(b.getRequiredResources().containsKey("minecraft:cobblestone"));
         assertTrue(b.getRequiredResources().containsKey("minecraft:oak_door"));
         assertTrue(b.getRequiredResources().containsKey("minecraft:oak_stairs"));
         assertTrue(b.getRequiredResources().containsKey("minecraft:oak_slab"));
         var tag = b.save();
-        assertEquals(4, tag.getInt("planVersion"));
+        assertEquals(5, tag.getInt("planVersion"));
         Building restored = Building.load(tag);
         assertEquals(b.getRequiredResources(), restored.getRequiredResources());
         assertEquals(tag.getInt("houseVariant"), restored.save().getInt("houseVariant"));

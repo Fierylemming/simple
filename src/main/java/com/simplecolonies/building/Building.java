@@ -20,7 +20,7 @@ public class Building {
     private BuildingState state = BuildingState.BLUEPRINT;
     private int level = 1;
     // Version 1 is the old all-log plan, retained for buildings saved before 0.1.28.
-    private int planVersion = 4;
+    private int planVersion = 5;
     private int houseVariant;
     private final Map<String, Integer> requiredResources = new HashMap<>();
     private final Queue<BlockPlacement> placements = new ArrayDeque<>();
@@ -70,6 +70,13 @@ public class Building {
                     addPlacement(at, state, item);
                 });
             }
+            return;
+        }
+        if (planVersion >= 5) {
+            CulturalHousePlans.generate(pos, culture, houseVariant, (at, state) -> {
+                String item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(state.getBlock().asItem()).toString();
+                addPlacement(at, state, item);
+            });
             return;
         }
         if (planVersion >= 3) {
