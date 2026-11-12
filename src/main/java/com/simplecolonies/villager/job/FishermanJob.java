@@ -51,7 +51,8 @@ public class FishermanJob extends AbstractJob {
                         && !f.hasCustomName() && !f.fromBucket() && !f.isPersistenceRequired() && !f.requiresCustomPersistence());
         var candidates = fish.stream().filter(f -> fish.stream().filter(other -> other.getType() == f.getType()).count() > MIN_SCHOOL)
                 .sorted(Comparator.comparingDouble(villager::distanceToSqr)).limit(4).toList();
-        routeDebug = "fish=" + fish.size() + " candidates=" + candidates.size();
+        routeDebug = "ground=" + villager.onGround() + " fluid=" + villager.isInLiquid()
+                + " fish=" + fish.size() + " candidates=" + candidates.size();
         net.minecraft.world.level.pathfinder.Path partial = null;
         double bestProgress = 0;
         for (var target : candidates) {
@@ -90,7 +91,7 @@ public class FishermanJob extends AbstractJob {
                 if (stand.equals(villager.blockPosition())) continue;
                 if (++attempts > 8) break;
                 var path = villager.getNavigation().createPath(stand, 0);
-                routeDebug += path == null ? " N" : (path.canReach() ? " R" : " P") + (dryPath(level, path) ? "d" : "w");
+                routeDebug += path == null ? (" N" + (level.getChunkSource().getChunkNow(stand.getX() >> 4, stand.getZ() >> 4) == null ? "U" : "L")) : (path.canReach() ? " R" : " P") + (dryPath(level, path) ? "d" : "w");
                 if (path == null || !dryPath(level, path)) continue;
                 if (path.canReach()) {
                     villager.getNavigation().moveTo(path, 0.7);
