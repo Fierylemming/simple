@@ -23,7 +23,7 @@ public class HousingGrowthGameTests {
         for (int x = 30; x <= 82; x++) for (int z = 30; z <= 82; z++) {
             helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
             // Remove the GameTest boundary ceiling from the heightmap.
-            helper.setBlock(x, 5, z, Blocks.AIR);
+            for (int y = 5; y <= 8; y++) helper.setBlock(x, y, z, Blocks.AIR);
         }
         BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
@@ -98,7 +98,9 @@ public class HousingGrowthGameTests {
             colony.tick(helper.getLevel());
             var house = colony.getBuildings().stream().filter(b -> b.getType() == BuildingType.HOUSE && b.hasSupportedPlan()).findFirst().orElse(null);
             if (house == null || house.getHouseVariant() != 0)
-                helper.fail("Did not find an affordable variant: " + colony.getExpansionStatus());
+                helper.fail("Did not find an affordable variant: " + colony.getExpansionStatus()
+                        + " sample height=" + helper.getLevel().getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, center.getX() + 12, center.getZ())
+                        + " clear=" + colony.isClearBuildSite(helper.getLevel(), center.east(12)));
             helper.succeed();
         });
     }
