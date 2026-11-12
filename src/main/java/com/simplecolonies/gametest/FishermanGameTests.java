@@ -83,6 +83,17 @@ public class FishermanGameTests {
                     helper.fail("Fisherman attacked from too far away or in water");
             }
         });
+        helper.runAtTickTime(300, () -> {
+            if (colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") == 0) {
+                var stand = helper.absolutePos(new BlockPos(57, 1, 56));
+                var path = worker.getNavigation().createPath(stand, 0);
+                helper.fail("No catch: state=" + job.getState() + " worker=" + worker.position()
+                        + " fish=" + first.position() + "/" + second.position() + "/" + third.position()
+                        + " water=" + first.isInWater() + "/" + second.isInWater() + "/" + third.isInWater()
+                        + " path=" + (path == null ? "null" : path.canReach() + "/" + path.getEndNode())
+                        + " site=" + helper.getBlockState(SITE));
+            }
+        });
         helper.runAtTickTime(1200, () -> {
             int alive = (first.isAlive() ? 1 : 0) + (second.isAlive() ? 1 : 0) + (third.isAlive() ? 1 : 0);
             if (alive != 2 || !named.isAlive() || !bucket.isAlive() || !persistent.isAlive()
