@@ -18,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /** Loaded, explicitly designated storage. Unmarked player containers are never stock. */
 public class WarehouseManager {
     private static final String OWNER_TAG = "simplecolonies_storage_colony";
+    private static final String OWNER_POS_TAG = "simplecolonies_storage_position";
     private final Colony colony;
     private final Map<BlockPos, Container> cachedChests = new ConcurrentHashMap<>();
     private final Map<String, Integer> aggregatedCounts = new HashMap<>();
@@ -48,8 +49,10 @@ public class WarehouseManager {
         BlockEntity be = storageEntity(level, pos);
         if (be == null || !colony.isInside(pos)) return false;
         var data = be.getPersistentData();
-        if (data.contains(OWNER_TAG) && data.getInt(OWNER_TAG) != colony.getId()) return false;
+        if (data.contains(OWNER_TAG) && data.contains(OWNER_POS_TAG)
+                && data.getLong(OWNER_POS_TAG) == pos.asLong() && data.getInt(OWNER_TAG) != colony.getId()) return false;
         data.putInt(OWNER_TAG, colony.getId());
+        data.putLong(OWNER_POS_TAG, pos.asLong());
         be.setChanged();
         lastScanGameTime = level.getGameTime() - 200;
         return true;
@@ -59,6 +62,7 @@ public class WarehouseManager {
         BlockEntity be = storageEntity(level, pos);
         if (be == null || !owned(be)) return false;
         be.getPersistentData().remove(OWNER_TAG);
+        be.getPersistentData().remove(OWNER_POS_TAG);
         be.setChanged();
         cachedChests.remove(pos);
         lastScanGameTime = level.getGameTime() - 200;
@@ -66,7 +70,7 @@ public class WarehouseManager {
     }
 
     private static BlockEntity storageEntity(ServerLevel level, BlockPos pos) {
-        if (!level.isLoaded(pos)) return null;
+        if (!level.dimension().equals(net.minecraft.world.level.Level.OVERWORLD) || !level.isLoaded(pos)) return null;
         var be = level.getBlockEntity(pos);
         return be instanceof ChestBlockEntity
                 || be instanceof net.minecraft.world.level.block.entity.BarrelBlockEntity
@@ -74,8 +78,9 @@ public class WarehouseManager {
     }
 
     private boolean owned(BlockEntity be) {
-        return be != null && be.getPersistentData().contains(OWNER_TAG)
-                && be.getPersistentData().getInt(OWNER_TAG) == colony.getId();
+        return be != null && be.getPersistentData().contains(OWNER_TAG) && be.getPersistentData().contains(OWNER_POS_TAG)
+                && be.getPersistentData().getInt(OWNER_TAG) == colony.getId()
+                && be.getPersistentData().getLong(OWNER_POS_TAG) == be.getBlockPos().asLong();
     }
 
     public boolean isRegisteredStorage(ServerLevel level, BlockPos pos) {
@@ -96,6 +101,9 @@ public class WarehouseManager {
 
     /** Scan loaded, explicitly registered storage within the colony radius. */
     public void scan(ServerLevel level) {
+        if (!level.dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) {
+            cachedChests.clear(); aggregatedCounts.clear(); chestCount = 0; return;
+        }
         long gameTime = level.getGameTime();
         if (gameTime - lastScanGameTime < 200) {
             refreshCounts(level);

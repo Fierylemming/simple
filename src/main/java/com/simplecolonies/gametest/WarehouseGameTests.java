@@ -58,6 +58,11 @@ public class WarehouseGameTests {
         var be = helper.getBlockEntity(sharedChest);
         var saved = be.saveWithFullMetadata(level.registryAccess());
         be.loadWithComponents(saved, level.registryAccess());
+        // Copied block-entity data (e.g. from a moved shulker) must not claim a new location.
+        helper.getBlockEntity(privateChest).loadWithComponents(saved, level.registryAccess());
+        privateItems = (Container) helper.getBlockEntity(privateChest);
+        privateItems.setItem(0, new ItemStack(Items.DIAMOND, 5));
+        if (storage.isRegisteredStorage(level, other)) helper.fail("Claim followed copied data to another position");
         if (!storage.isRegisteredStorage(level, shared) || !colony.consumeStock(level, "minecraft:diamond", 2)
                 || privateItems.getItem(0).getCount() != 5 || sharedItems.getItem(0).getCount() != 1)
             helper.fail("Reload or extraction violated storage ownership");
