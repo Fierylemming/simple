@@ -49,7 +49,9 @@ public class ConstructionGameTests {
             if (blueprint.getState() != BuildingState.COMPLETE) {
                 var next = blueprint.getNextPlacement();
                 helper.fail("Builder " + job.getState() + " building " + blueprint.getState()
-                        + " next " + (next == null ? "none" : next.pos.toShortString()));
+                        + " at " + villager.blockPosition().toShortString()
+                        + " next " + (next == null ? "none" : next.pos.toShortString())
+                        + " distance " + (next == null ? 0 : villager.distanceToSqr(next.pos.getX()+0.5, next.pos.getY()+0.5, next.pos.getZ()+0.5)));
             }
             if (workstation != null) helper.assertBlockPresent(workstation, relative);
         });

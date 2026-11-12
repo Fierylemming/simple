@@ -20,7 +20,7 @@ public class Building {
     private BuildingState state = BuildingState.BLUEPRINT;
     private int level = 1;
     // Version 1 is the old all-log plan, retained for buildings saved before 0.1.28.
-    private int planVersion = 5;
+    private int planVersion = 6;
     private int houseVariant;
     private final Map<String, Integer> requiredResources = new HashMap<>();
     private final Queue<BlockPlacement> placements = new ArrayDeque<>();
@@ -65,18 +65,16 @@ public class Building {
         requiredResources.clear();
         if (type != BuildingType.HOUSE) {
             if (planVersion >= 4 && LevelOneWorksites.supports(type)) {
-                LevelOneWorksites.generate(type, pos, (at, state) -> {
-                    String item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(state.getBlock().asItem()).toString();
-                    addPlacement(at, state, item);
-                });
+                var plan = new ArrayList<BlockPlacement>();
+                LevelOneWorksites.generate(type, pos, (at, state) -> plan.add(placement(at, state)));
+                addPlan(plan, false);
             }
             return;
         }
         if (planVersion >= 5) {
-            CulturalHousePlans.generate(pos, culture, houseVariant, (at, state) -> {
-                String item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(state.getBlock().asItem()).toString();
-                addPlacement(at, state, item);
-            });
+            var plan = new ArrayList<BlockPlacement>();
+            CulturalHousePlans.generate(pos, culture, houseVariant, (at, state) -> plan.add(placement(at, state)));
+            addPlan(plan, true);
             return;
         }
         if (planVersion >= 3) {
@@ -100,6 +98,29 @@ public class Building {
             addPlacement(pos.offset(x, 3, z), timber, "minecraft:oak_log");
         }
     }
+
+    private BlockPlacement placement(BlockPos at, BlockState state) {
+        String item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(state.getBlock().asItem()).toString();
+        return new BlockPlacement(at, state, item);
+    }
+
+    private void addPlan(List<BlockPlacement> plan, boolean house) {
+        if (planVersion >= 6) {
+            // Floors first, then roofs while the interior is still accessible. Walls and
+            // doors go last; this avoids sealing the builder outside the center roof.
+            plan.sort(Comparator.comparingInt(p -> {
+                int y = p.pos.getY() - pos.getY();
+                if (house && y == 0) return 0;
+                if (y >= (house ? 4 : 3)) return 1;
+                if (p.state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock) return 3;
+                return 2;
+            }));
+        }
+        for (BlockPlacement p : plan) addPlacement(p.pos, p.state, p.itemId);
+    }
+
+    /** Standing height inside a modern house; old shells and workshops use ground level. */
+    public int constructionWalkY() { return pos.getY() + (type == BuildingType.HOUSE && planVersion >= 3 ? 1 : 0); }
 
     private void addPlacement(BlockPos at, BlockState block, String item) {
         placements.add(new BlockPlacement(at, block, item));

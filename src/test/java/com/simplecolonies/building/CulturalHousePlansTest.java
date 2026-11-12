@@ -40,8 +40,8 @@ class CulturalHousePlansTest {
         }
         assertEquals(15, distinct.size());
     }
-    @Test void inProgressVersionThreeAndFourPlansRetainTheirExactPrefix() {
-        for (int version : new int[]{3, 4}) {
+    @Test void inProgressOlderPlansRetainTheirExactPrefix() {
+        for (int version : new int[]{3, 4, 5}) {
             var tag = new Building(BuildingType.HOUSE, new BlockPos(42, 80, -23), CultureType.PERSIAN).save();
             tag.putInt("planVersion", version);
             var old = Building.load(tag);

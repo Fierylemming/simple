@@ -41,8 +41,8 @@ public class BuilderJob extends AbstractJob {
             }
             if (!level.isLoaded(next.pos)) { state = JobState.STUCK; return; }
             if (villager.distanceToSqr(next.pos.getX() + 0.5, next.pos.getY() + 0.5, next.pos.getZ() + 0.5) > 25.0) {
-                BlockPos groundTarget = next.pos.atY(currentJob.getPos().getY());
-                var path = villager.getNavigation().createPath(groundTarget, 3);
+                BlockPos groundTarget = next.pos.atY(currentJob.constructionWalkY());
+                var path = villager.getNavigation().createPath(groundTarget, 1);
                 if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 40; return; }
                 villager.getNavigation().moveTo(path, 0.7);
                 state = JobState.GOING_TO_WORK;
