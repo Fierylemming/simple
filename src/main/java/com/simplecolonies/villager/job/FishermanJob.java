@@ -20,16 +20,36 @@ import net.minecraft.world.phys.AABB;
 public class FishermanJob extends AbstractJob {
     private static final int MIN_SCHOOL = 2;
     private static final double REACH_SQ = 6.25;
+    private net.minecraft.world.level.pathfinder.Path jobPath;
     public FishermanJob(Villager villager, Colony colony) { super(villager, colony, JobType.FISHERMAN); }
 
     @Override protected void onTick(ServerLevel level) {
-        // Vanilla idle schedules can replace the shore path while this job is walking.
-        // Do not suppress panic or other threat memories.
-        if (state == JobState.GOING_TO_WORK)
-            villager.getBrain().eraseMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET);
+        var brain = villager.getBrain();
+        var pathMemory = net.minecraft.world.entity.ai.memory.MemoryModuleType.PATH;
+        boolean panic = brain.hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.IS_PANICKING);
+        if (jobPath != null && !panic && state == JobState.GOING_TO_WORK
+                && villager.getNavigation().getPath() == jobPath && !jobPath.isDone()) {
+            // Villager door AI consults PATH memory, not PathNavigation directly.
+            // Exposing the actual job path lets vanilla open and close doors.
+            brain.eraseMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET);
+            brain.setMemory(pathMemory, jobPath);
+        } else if (jobPath != null) {
+            if (brain.getMemory(pathMemory).orElse(null) == jobPath) brain.eraseMemory(pathMemory);
+            jobPath = null;
+        }
+    }
+
+    private void followJobPath(net.minecraft.world.level.pathfinder.Path path) {
+        if (villager.getNavigation().moveTo(path, 0.7)) {
+            jobPath = path;
+            villager.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.PATH, path);
+        }
     }
 
     @Override protected void doWork(ServerLevel level) {
+        if (villager.getBrain().hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.IS_PANICKING)) {
+            state = JobState.IDLE; ticksUntilNextWork = 20; return;
+        }
         var site = villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE);
         if (site.isEmpty() || !site.get().dimension().equals(level.dimension()) || !level.isLoaded(site.get().pos())
                 || !colony.isInside(site.get().pos()) || !level.getBlockState(site.get().pos()).is(Blocks.BARREL)) {
@@ -93,7 +113,7 @@ public class FishermanJob extends AbstractJob {
                 var path = villager.getNavigation().createPath(stand, 0);
                 if (path == null || !dryPath(level, path)) continue;
                 if (path.canReach()) {
-                    villager.getNavigation().moveTo(path, 0.7);
+                    followJobPath(path);
                     state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
                 }
                 // Villager pathfinding has a finite range. A safe partial path
@@ -107,7 +127,7 @@ public class FishermanJob extends AbstractJob {
             }
         }
         if (partial != null) {
-            villager.getNavigation().moveTo(partial, 0.7);
+            followJobPath(partial);
             state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
         }
         state = candidates.isEmpty() ? JobState.NEEDS_RESOURCE : JobState.STUCK;
