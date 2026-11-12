@@ -12,12 +12,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 
-/**
- * Warehouse chest — dedicated hub with many chests. When you build a warehouse (many chests close together)
- * and designate it via Building Marker as Warehouse, couriers consolidate all village chests here.
- * This block itself is a normal chest-like storage but also hints the warehouse center to Colony.
- * For the distributed system, ANY chest/barrel in village radius works — this is just the preferred hub.
- */
+/** A warehouse hub marker; actual containers must be designated separately. */
 public class WarehouseBlock extends Block {
     public WarehouseBlock(Properties props) { super(props); }
 
@@ -29,7 +24,7 @@ public class WarehouseBlock extends Block {
             // Set as warehouse hub if leader
             if (colony.isLeader(player)) {
                 colony.setWarehouseCenter(pos);
-                sp.displayClientMessage(Component.literal("§aWarehouse hub set to " + pos.toShortString() + " — couriers will prioritize this chest cluster"), false);
+                sp.displayClientMessage(Component.literal("§aWarehouse hub set to " + pos.toShortString() + " — mark containers with the Building Tool"), false);
             }
             sp.displayClientMessage(Component.literal("§7Warehouse: " + colony.getWarehouseManager().getChestCount() + " chests in colony, hub=" + colony.getWarehouseManager().getWarehouseCenter().toShortString()), false);
             sp.displayClientMessage(Component.literal("§7Contents preview: " + colony.getWarehouseSnapshot((net.minecraft.server.level.ServerLevel) level).size() + " item types"), false);

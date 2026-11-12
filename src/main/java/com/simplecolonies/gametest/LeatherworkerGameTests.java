@@ -36,6 +36,7 @@ public class LeatherworkerGameTests {
         worker.refreshBrain(level);
         worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(level.dimension(), helper.absolutePos(site)));
         Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(site));
+        colony.getWarehouseManager().registerStorage(level, helper.absolutePos(chest));
         var job = new LeatherworkerJob(worker, colony);
         int[] previous = {0};
         for (int tick = 1; tick < 1400; tick++) helper.runAtTickTime(tick, () -> {

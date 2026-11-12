@@ -74,11 +74,11 @@ public class BuildingMarkerScreen extends AbstractContainerScreen<BuildingMarker
         String cur = menu.currentType==null? "Not designated - pick a type below": "Now: "+menu.currentType.displayName+" OK";
         g.drawString(font, cur, x,y+10, menu.currentType==null?C_RED:C_GREEN,false);
         g.drawString(font, "Colony "+menu.markerPos.toShortString(), x,y+20, C_MUTED,false);
-        g.drawString(font, "Choose what your build counts as - villagers use chests near marker.", x0+12, y0+50, C_MID,false);
+        g.drawString(font, "Choose what your build counts as. Mark storage with the Building Tool.", x0+12, y0+50, C_MID,false);
         // help footer
         int fx=x0+12, fy=y0+168;
         g.drawString(font, "Houses: 4 beds each. Warehouse (many chests) = courier hub. Farm hut needs farmland.", fx,fy, C_MUTED,false);
-        g.drawString(font, "Tip: Put chests near work sites - couriers bulk-move to warehouse faster.", fx,fy+10, C_MUTED,false);
+        g.drawString(font, "Shift-use the Building Tool on each storage container to share it.", fx,fy+10, C_MUTED,false);
         g.drawString(font, "Leader or 20 rep required to designate. Right-click again to change.", fx,fy+20, C_MUTED,false);
         // selected description card
         if(menu.currentType!=null){

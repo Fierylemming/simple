@@ -26,6 +26,7 @@ public class ResearchGameTests {
         chest.setItem(1, new ItemStack(Items.OAK_PLANKS, 16));
         chest.setItem(2, new ItemStack(Items.COAL, 3));
         Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(site));
+        colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(site));
         var player = helper.makeMockPlayer(GameType.SURVIVAL);
         var research = colony.getResearch();
         var level = helper.getLevel();

@@ -47,6 +47,7 @@ public class WoodcutterGameTests {
         // A damaged tool in a real chest must not turn into a new axe on withdrawal.
         BlockPos chest = new BlockPos(43, 1, 56);
         helper.setBlock(chest, Blocks.CHEST);
+        colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest));
         Container container = (Container) helper.getBlockEntity(chest);
         ItemStack axe = new ItemStack(Items.STONE_AXE);
         axe.setDamageValue(10);

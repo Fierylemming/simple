@@ -512,6 +512,7 @@ public class Colony {
 
     /** Deposit: try chests first, fallback to abstract map. Returns true if any deposited. */
     public void depositToWarehouse(ServerLevel level, String itemId, int count) {
+        if (level != null) warehouseManager.scan(level);
         if (level != null && warehouseManager.getChestCount() > 0) {
             int deposited = warehouseManager.deposit(level, center, itemId, count);
             if (deposited >= count) return;

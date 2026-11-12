@@ -15,20 +15,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * WarehouseManager — the distributed chest network.
- *
- * How it works (what you asked for):
- *  - Every chest/barrel/shulker inside colony radius is part of the stockpile.
- *     Villagers just interact with the nearest chest to deposit/fetch, no central inventory required.
- *  - The Warehouse building (many chests) is the hub: Couriers consolidate there and
- *     it dramatically raises the effective scan capacity.
- *  - Courier job moves stacks in bulk (9× normal) and at 2.5× speed.
- *
- * This manager is ticked every 200 ticks (10s) to rescan chests (cheap), and on-demand
- * when a villager requests an item. It also provides count/get/extract helpers used by all jobs.
- */
+/** Loaded, explicitly designated storage. Unmarked player containers are never stock. */
 public class WarehouseManager {
+    private static final String OWNER_TAG = "simplecolonies_storage_colony";
     private final Colony colony;
     private final Map<BlockPos, Container> cachedChests = new ConcurrentHashMap<>();
     private final Map<String, Integer> aggregatedCounts = new HashMap<>();
@@ -53,6 +42,46 @@ public class WarehouseManager {
     /** Explicit hub; unlike getWarehouseCenter(), null means none has been designated. */
     public BlockPos getConfiguredWarehouseCenter() { return warehouseCenter; }
 
+    /** Explicit opt-in. Claims live on the block entity, not its position, so
+     * replacing a container cannot accidentally enroll a player's new container. */
+    public boolean registerStorage(ServerLevel level, BlockPos pos) {
+        BlockEntity be = storageEntity(level, pos);
+        if (be == null || !colony.isInside(pos)) return false;
+        var data = be.getPersistentData();
+        if (data.contains(OWNER_TAG) && data.getInt(OWNER_TAG) != colony.getId()) return false;
+        data.putInt(OWNER_TAG, colony.getId());
+        be.setChanged();
+        lastScanGameTime = level.getGameTime() - 200;
+        return true;
+    }
+
+    public boolean unregisterStorage(ServerLevel level, BlockPos pos) {
+        BlockEntity be = storageEntity(level, pos);
+        if (be == null || !owned(be)) return false;
+        be.getPersistentData().remove(OWNER_TAG);
+        be.setChanged();
+        cachedChests.remove(pos);
+        lastScanGameTime = level.getGameTime() - 200;
+        return true;
+    }
+
+    private static BlockEntity storageEntity(ServerLevel level, BlockPos pos) {
+        if (!level.isLoaded(pos)) return null;
+        var be = level.getBlockEntity(pos);
+        return be instanceof ChestBlockEntity
+                || be instanceof net.minecraft.world.level.block.entity.BarrelBlockEntity
+                || be instanceof net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity ? be : null;
+    }
+
+    private boolean owned(BlockEntity be) {
+        return be != null && be.getPersistentData().contains(OWNER_TAG)
+                && be.getPersistentData().getInt(OWNER_TAG) == colony.getId();
+    }
+
+    public boolean isRegisteredStorage(ServerLevel level, BlockPos pos) {
+        return colony.isInside(pos) && owned(storageEntity(level, pos));
+    }
+
     /** Loaded storage positions only: furnaces and other processing inventories are not courier sources. */
     public List<BlockPos> courierStoragePositions(ServerLevel level) {
         scan(level);
@@ -60,16 +89,12 @@ public class WarehouseManager {
     }
 
     public Container courierContainer(ServerLevel level, BlockPos pos) {
-        if (!level.isLoaded(pos)) return null;
-        var be = level.getBlockEntity(pos);
-        if (be instanceof net.minecraft.world.level.block.entity.ChestBlockEntity
-                || be instanceof net.minecraft.world.level.block.entity.BarrelBlockEntity
-                || be instanceof net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity) return (Container) be;
-        return null;
+        var be = storageEntity(level, pos);
+        return colony.isInside(pos) && owned(be) ? (Container) be : null;
     }
 
 
-    /** Scan colony radius for containers (chests, barrels, trapped chests, shulkers, etc). Cheap — runs every 10s. */
+    /** Scan loaded, explicitly registered storage within the colony radius. */
     public void scan(ServerLevel level) {
         long gameTime = level.getGameTime();
         if (gameTime - lastScanGameTime < 200) {
@@ -94,7 +119,7 @@ public class WarehouseManager {
                 for (var entry : chunk.getBlockEntities().entrySet()) {
                     BlockPos pos = entry.getKey();
                     if (center.distSqr(pos) > radiusSq) continue;
-                    if (!(entry.getValue() instanceof Container container)) continue;
+                    if (!(entry.getValue() instanceof Container container) || !owned(entry.getValue())) continue;
                     if (!(entry.getValue() instanceof ChestBlockEntity)
                             && !(entry.getValue() instanceof net.minecraft.world.level.block.entity.BarrelBlockEntity)
                             && !(entry.getValue() instanceof net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity)) continue;
@@ -120,7 +145,8 @@ public class WarehouseManager {
     private void refreshCounts(ServerLevel level) {
         aggregatedCounts.clear();
         cachedChests.entrySet().removeIf(entry -> !level.isLoaded(entry.getKey())
-                || level.getBlockEntity(entry.getKey()) != entry.getValue());
+                || level.getBlockEntity(entry.getKey()) != entry.getValue()
+                || !isRegisteredStorage(level, entry.getKey()));
         chestCount = cachedChests.size();
         for (Container container : cachedChests.values()) {
             for (int slot = 0; slot < container.getContainerSize(); slot++) {

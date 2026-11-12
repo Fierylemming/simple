@@ -179,7 +179,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
 
     private String footer(){
         return switch(currentTab){
-            case 0->"Tip: Place Building Marker on builds to register them — couriers link chests.";
+            case 0->"Tip: Shift-use the Building Tool on containers to share colony storage.";
             case 1->"Shift+right-click villager to reassign job (if researched).";
             case 2->"Upgrades: +workers & culture mats (wood→stone→quartz).";
             case 3->"Warehouse: farmers deposit, couriers move 9 stacks/trip.";

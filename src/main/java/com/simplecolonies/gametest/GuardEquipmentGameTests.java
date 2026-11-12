@@ -28,7 +28,9 @@ public class GuardEquipmentGameTests {
     private static Colony setup(GameTestHelper helper) {
         for (int x = 40; x <= 72; x++) for (int z = 40; z <= 72; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
         helper.setBlock(CHEST, Blocks.CHEST);
-        return new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(56, 1, 56)));
+        var colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(56, 1, 56)));
+        colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(CHEST));
+        return colony;
     }
     @GameTest(template = "isolated", timeoutTicks = 1300)
     public static void guardWalksToRealArmorAndPreservesDamage(GameTestHelper helper) {

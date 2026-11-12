@@ -29,6 +29,8 @@ public class CourierGameTests {
         from.setItem(0, new ItemStack(Items.WHEAT, 16));
         from.setChanged();
         Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(56, 1, 56)));
+        colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(source));
+        colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(hub));
         colony.setWarehouseCenter(helper.absolutePos(hub));
         var villager = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(55, 1, 56));
         var job = new CourierJob(villager, colony);
