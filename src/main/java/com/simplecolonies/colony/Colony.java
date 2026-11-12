@@ -586,6 +586,24 @@ public class Colony {
         return true;
     }
 
+    /** Update one marker-owned record without altering natural or unfinished buildings. */
+    public boolean updateMarkerBuilding(BlockPos pos, boolean linkedMarker, BuildingType type) {
+        if (!isInside(pos)) return false;
+        var existing = buildings.stream().filter(b -> b.getPos().equals(pos)).toList();
+        if (existing.size() > 1) return false;
+        if (!existing.isEmpty()) {
+            var building = existing.getFirst();
+            if (!linkedMarker || building.getState() != com.simplecolonies.building.BuildingState.COMPLETE) return false;
+            buildings.remove(building);
+        }
+        if (type != null) buildings.add(new Building(type, pos, culture, true));
+        if (pos.equals(warehouseManager.getConfiguredWarehouseCenter()) && type != BuildingType.WAREHOUSE)
+            warehouseManager.setWarehouseCenter(null);
+        if (type == BuildingType.WAREHOUSE) warehouseManager.setWarehouseCenter(pos);
+        ColonyManager.getInstance().markDirty(this);
+        return true;
+    }
+
     // --- NBT ---
     public CompoundTag save() {
         CompoundTag tag = new CompoundTag();

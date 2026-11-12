@@ -39,7 +39,7 @@ public class BuildingMarkerScreen extends AbstractContainerScreen<BuildingMarker
         super.init();
         int x = leftPos, y = topPos;
         BuildingType[] types = {BuildingType.HOUSE, BuildingType.FARM, BuildingType.LUMBERJACK_HUT, BuildingType.MINE, BuildingType.WAREHOUSE, BuildingType.BARRACKS, BuildingType.BLACKSMITH, BuildingType.BAKERY, BuildingType.BUTCHER_HUT, BuildingType.LEATHER_SHOP, BuildingType.TEMPLE, BuildingType.MARKET};
-        int[] ids = {BuildingMarkerMenu.BTN_SET_HOUSE, BuildingMarkerMenu.BTN_SET_FARM, BuildingMarkerMenu.BTN_SET_LUMBER, BuildingMarkerMenu.BTN_SET_MINE, BuildingMarkerMenu.BTN_SET_WAREHOUSE, BuildingMarkerMenu.BTN_SET_BARRACKS, BuildingMarkerMenu.BTN_SET_BLACKSMITH, BuildingMarkerMenu.BTN_SET_BAKERY, BuildingMarkerMenu.BTN_SET_BUTCHER, BuildingMarkerMenu.BTN_SET_LEATHER, BuildingMarkerMenu.BTN_SET_TEMPLE, 15};
+        int[] ids = {BuildingMarkerMenu.BTN_SET_HOUSE, BuildingMarkerMenu.BTN_SET_FARM, BuildingMarkerMenu.BTN_SET_LUMBER, BuildingMarkerMenu.BTN_SET_MINE, BuildingMarkerMenu.BTN_SET_WAREHOUSE, BuildingMarkerMenu.BTN_SET_BARRACKS, BuildingMarkerMenu.BTN_SET_BLACKSMITH, BuildingMarkerMenu.BTN_SET_BAKERY, BuildingMarkerMenu.BTN_SET_BUTCHER, BuildingMarkerMenu.BTN_SET_LEATHER, BuildingMarkerMenu.BTN_SET_TEMPLE, BuildingMarkerMenu.BTN_SET_MARKET};
         for (int i=0;i<types.length;i++) {
             int col=i%4, row=i/4;
             int bx = x+8 + col*72;
@@ -77,13 +77,13 @@ public class BuildingMarkerScreen extends AbstractContainerScreen<BuildingMarker
         g.drawString(font, "Choose what your build counts as. Mark storage with the Building Tool.", x0+12, y0+50, C_MID,false);
         // help footer
         int fx=x0+12, fy=y0+168;
-        g.drawString(font, "Houses: 4 beds each. Warehouse (many chests) = courier hub. Farm hut needs farmland.", fx,fy, C_MUTED,false);
+        g.drawString(font, "Houses provide shelter slots; beds must be supplied separately.", fx,fy, C_MUTED,false);
         g.drawString(font, "Shift-use the Building Tool on each storage container to share it.", fx,fy+10, C_MUTED,false);
         g.drawString(font, "Leader or 20 rep required to designate. Right-click again to change.", fx,fy+20, C_MUTED,false);
         // selected description card
         if(menu.currentType!=null){
             String desc = switch(menu.currentType){
-                case HOUSE->"Housing: +4 beds, +1 pop. Build more houses to grow.";
+                case HOUSE->"Housing: +4 shelter slots. Beds are separate.";
                 case FARM->"Farmer: tills, plants, harvests. Needs farmland + water.";
                 case LUMBERJACK_HUT->"Woodcutter: fells trees, replants saplings.";
                 case MINE->"Miner: digs stone/ore, needs pickaxe tier.";

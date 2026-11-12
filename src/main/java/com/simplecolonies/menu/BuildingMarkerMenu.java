@@ -38,6 +38,7 @@ public class BuildingMarkerMenu extends AbstractContainerMenu {
     public static final int BTN_SET_BUTCHER = 18;
     public static final int BTN_SET_LEATHER = 19;
     public static final int BTN_SET_TEMPLE = 20;
+    public static final int BTN_SET_MARKET = 21;
     public static final int BTN_CLEAR = 30;
 
     public BuildingMarkerMenu(int containerId, Inventory inv, Colony colony, BlockPos markerPos, BuildingType current) {
@@ -59,7 +60,8 @@ public class BuildingMarkerMenu extends AbstractContainerMenu {
 
     @Override
     public boolean clickMenuButton(Player player, int id) {
-        if (colony == null || colony.getId() == -1) return false;
+        if (colony == null || colony.getId() == -1 || player.level().isClientSide || !stillValid(player)
+                || !colony.isInside(markerPos) || !(player.level().getBlockEntity(markerPos) instanceof BuildingMarkerBlockEntity)) return false;
         if (!colony.isLeader(player) && colony.getReputation(player) < 20) {
             player.displayClientMessage(Component.literal("§cNeed 20 rep to designate buildings"), true);
             return true;
@@ -76,45 +78,22 @@ public class BuildingMarkerMenu extends AbstractContainerMenu {
             case BTN_SET_BUTCHER -> BuildingType.BUTCHER_HUT;
             case BTN_SET_LEATHER -> BuildingType.LEATHER_SHOP;
             case BTN_SET_TEMPLE -> BuildingType.TEMPLE;
+            case BTN_SET_MARKET -> BuildingType.MARKET;
             case BTN_CLEAR -> null;
             default -> null;
         };
-        if (chosen == null && id == BTN_CLEAR) {
-            // Clear designation
-            if (player.level().getBlockEntity(markerPos) instanceof BuildingMarkerBlockEntity be) {
-                be.setBuildingType(null);
-                player.level().sendBlockUpdated(markerPos, player.level().getBlockState(markerPos), player.level().getBlockState(markerPos), 3);
-            }
-            player.displayClientMessage(Component.literal("§7Cleared building designation at " + markerPos.toShortString()), false);
+        if (chosen == null && id != BTN_CLEAR) return false;
+        var marker = (BuildingMarkerBlockEntity) player.level().getBlockEntity(markerPos);
+        boolean linked = markerPos.equals(marker.getLinkedBuildingPos());
+        if (!colony.updateMarkerBuilding(markerPos, linked, chosen)) {
+            player.displayClientMessage(Component.literal("§cThat position is already used by another building."), true);
             return true;
         }
-        if (chosen == null) return false;
-
-        // Update marker BE
-        if (player.level().getBlockEntity(markerPos) instanceof BuildingMarkerBlockEntity be) {
-            be.setBuildingType(chosen);
-            be.setLinkedBuildingPos(markerPos);
-            player.level().sendBlockUpdated(markerPos, player.level().getBlockState(markerPos), player.level().getBlockState(markerPos), 3);
-        }
-
-        // Register or update colony building
-        // Check if colony already has a building at this pos
-        boolean exists = colony.getBuildings().stream().anyMatch(b -> b.getPos().equals(markerPos));
-        if (!exists) {
-            Building building = new Building(chosen, markerPos, colony.getCulture());
-            building.setState(BuildingState.COMPLETE); // player-built is already complete, no blueprint needed
-            // If warehouse, set hub
-            if (chosen == BuildingType.WAREHOUSE) {
-                colony.setWarehouseCenter(markerPos);
-                player.displayClientMessage(Component.literal("§aWarehouse hub set to " + markerPos.toShortString() + " — couriers will now consolidate chests here"), false);
-            }
-            colony.registerPlayerBuilding(building);
-            player.displayClientMessage(Component.literal("§aDesignated " + markerPos.toShortString() + " as " + chosen.displayName + " (housing:" + chosen.housingCapacity + ")"), false);
-            // Auto-try level up check
-            if (player.level() instanceof ServerLevel sl) colony.tick(sl);
-        } else {
-            player.displayClientMessage(Component.literal("§eUpdated " + markerPos.toShortString() + " to " + chosen.displayName), false);
-        }
+        marker.setBuildingType(chosen);
+        marker.setLinkedBuildingPos(chosen == null ? null : markerPos);
+        player.level().sendBlockUpdated(markerPos, player.level().getBlockState(markerPos), player.level().getBlockState(markerPos), 3);
+        player.displayClientMessage(Component.literal(chosen == null ? "§7Building designation cleared."
+                : "§aDesignated " + chosen.displayName + "."), false);
         return true;
     }
 
