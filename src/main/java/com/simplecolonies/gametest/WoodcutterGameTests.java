@@ -71,7 +71,10 @@ public class WoodcutterGameTests {
         helper.succeedWhen(() -> {
             if (!reloaded[0] || !helper.getBlockState(ROOT).is(Blocks.OAK_SAPLING)
                     || colony.getWarehouseCount(helper.getLevel(), "minecraft:oak_log") < 4)
-                helper.fail("Tree not harvested and replanted: " + job[0].getState() + " at " + worker[0].blockPosition().toShortString());
+                helper.fail("Tree not harvested and replanted: " + job[0].getState() + " at " + worker[0].blockPosition().toShortString()
+                        + " reloaded=" + reloaded[0] + " root=" + helper.getBlockState(ROOT)
+                        + " logs=" + colony.getWarehouseCount(helper.getLevel(), "minecraft:oak_log")
+                        + " memory=" + worker[0].getWoodcutterMemory() + " axe=" + worker[0].getMainHandItem());
             if (!worker[0].getMainHandItem().is(Items.STONE_AXE) || worker[0].getMainHandItem().getDamageValue() != 14)
                 helper.fail("Stock axe damage was not preserved and worn: " + worker[0].getMainHandItem().getDamageValue());
             if (!worker[0].getWoodcutterMemory().isEmpty()) helper.fail("Completed tree remained in worker memory");
@@ -97,7 +100,10 @@ public class WoodcutterGameTests {
             if (!blocked[0] || !helper.getBlockState(ROOT).is(Blocks.OAK_LOG)
                     || !helper.getBlockState(ROOT.above(2)).is(Blocks.OAK_LOG)
                     || !helper.getBlockState(ROOT.offset(2, 0, 0)).is(Blocks.OAK_PLANKS))
-                helper.fail("Worker continued cutting after construction appeared");
+                helper.fail("Worker continued cutting after construction appeared: blocked=" + blocked[0]
+                        + " root=" + helper.getBlockState(ROOT) + " second=" + helper.getBlockState(ROOT.above(2))
+                        + " top=" + helper.getBlockState(ROOT.above(3)) + " memory=" + worker.getWoodcutterMemory()
+                        + " state=" + job[0].getState() + " at=" + worker.blockPosition().toShortString());
             helper.succeed();
         });
     }
