@@ -29,7 +29,10 @@ public class FishermanGameTests {
 
     private static Colony setup(GameTestHelper helper) {
         for (int x = 40; x <= 72; x++) for (int z = 40; z <= 72; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
-        for (int x = 58; x <= 61; x++) for (int z = 54; z <= 60; z++) helper.setBlock(x, 1, z, Blocks.WATER);
+        for (int x = 58; x <= 61; x++) for (int z = 54; z <= 60; z++) {
+            helper.setBlock(x, -1, z, Blocks.STONE);
+            helper.setBlock(x, 0, z, Blocks.WATER);
+        }
         helper.setBlock(SITE, Blocks.BARREL);
         return new Colony(0, CultureType.ROMAN, helper.absolutePos(SITE));
     }
@@ -58,14 +61,14 @@ public class FishermanGameTests {
     public static void gathersOnlyExcessWildFishAtShore(GameTestHelper helper) {
         Colony colony = setup(helper);
         colony.registerPlayerBuilding(new Building(BuildingType.HARBOR, colony.getCenter(), CultureType.ROMAN, true));
-        Cod first = wildCod(helper, new BlockPos(58, 1, 56));
-        Cod second = wildCod(helper, new BlockPos(58, 1, 57));
-        Cod third = wildCod(helper, new BlockPos(58, 1, 58));
-        Cod named = wildCod(helper, new BlockPos(60, 1, 55));
+        Cod first = wildCod(helper, new BlockPos(58, 0, 56));
+        Cod second = wildCod(helper, new BlockPos(58, 0, 57));
+        Cod third = wildCod(helper, new BlockPos(58, 0, 58));
+        Cod named = wildCod(helper, new BlockPos(60, 0, 55));
         named.setCustomName(Component.literal("Pet"));
-        Cod bucket = wildCod(helper, new BlockPos(60, 1, 57));
+        Cod bucket = wildCod(helper, new BlockPos(60, 0, 57));
         bucket.setFromBucket(true);
-        Cod persistent = wildCod(helper, new BlockPos(60, 1, 59));
+        Cod persistent = wildCod(helper, new BlockPos(60, 0, 59));
         persistent.setPersistenceRequired();
         var existing = new ItemEntity(helper.getLevel(), colony.getCenter().getX() + 1.5, colony.getCenter().getY(),
                 colony.getCenter().getZ() + 0.5, new ItemStack(Items.COD, 7));
@@ -109,9 +112,9 @@ public class FishermanGameTests {
     @GameTest(template = "isolated", timeoutTicks = 900)
     public static void requiresHarborAndRespectsStockLimit(GameTestHelper helper) {
         Colony colony = setup(helper);
-        Cod a = wildCod(helper, new BlockPos(58, 1, 56));
-        Cod b = wildCod(helper, new BlockPos(58, 1, 57));
-        Cod c = wildCod(helper, new BlockPos(58, 1, 58));
+        Cod a = wildCod(helper, new BlockPos(58, 0, 56));
+        Cod b = wildCod(helper, new BlockPos(58, 0, 57));
+        Cod c = wildCod(helper, new BlockPos(58, 0, 58));
         var worker = worker(helper);
         var job = new FishermanJob(worker, colony);
         for (int tick = 1; tick < 900; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
