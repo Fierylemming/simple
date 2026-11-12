@@ -62,6 +62,25 @@ public class GuardEquipmentGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 300)
+    public static void swordSurvivesJobChangesAndIsReused(GameTestHelper helper) {
+        Colony colony = setup(helper);
+        var guard = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(56, 1, 56));
+        guard.setJob(com.simplecolonies.villager.job.JobType.GUARD);
+        var sword = new ItemStack(Items.IRON_SWORD);
+        sword.setDamageValue(13);
+        guard.setItemSlot(EquipmentSlot.MAINHAND, sword);
+        guard.setJob(com.simplecolonies.villager.job.JobType.MINER);
+        if (!guard.getMainHandItem().isEmpty()) helper.fail("Sword blocked the new worker's hand");
+        guard.setJob(com.simplecolonies.villager.job.JobType.GUARD);
+        var job = new SoldierJob(guard, colony);
+        for (int tick = 1; tick < 300; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.succeedWhen(() -> {
+            if (!guard.getMainHandItem().is(Items.IRON_SWORD) || guard.getMainHandItem().getDamageValue() != 13)
+                helper.fail("Stowed sword was not reused intact");
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 1300)
     public static void guardWalksToRealSwordPreservingDamage(GameTestHelper helper) {
         Colony colony = setup(helper);

@@ -31,6 +31,16 @@ final class GuardEquipment {
     private static Result collect(ServerLevel level, Colony colony, Villager worker, EquipmentSlot equipmentSlot,
                                   java.util.function.Predicate<net.minecraft.world.item.ItemStack> accepts) {
         if (!worker.getItemBySlot(equipmentSlot).isEmpty()) return Result.NONE;
+        // Reuse equipment the villager stowed when switching professions.
+        var inventory = worker.getInventory();
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            if (!accepts.test(inventory.getItem(i))) continue;
+            var item = inventory.removeItem(i, 1);
+            if (item.isEmpty()) continue;
+            worker.setItemSlot(equipmentSlot, item);
+            worker.setGuaranteedDrop(equipmentSlot);
+            return Result.EQUIPPED;
+        }
         var warehouse = colony.getWarehouseManager();
         var positions = warehouse.courierStoragePositions(level).stream()
                 .sorted(Comparator.comparingDouble(p -> p.distSqr(worker.blockPosition()))).toList();

@@ -117,7 +117,8 @@ public class ColonyVillager extends Villager {
             // professions, instead of leaving an incompatible tool in the main hand.
             var held = getMainHandItem();
             boolean oldTool = (job == JobType.LUMBERJACK && held.getItem() instanceof net.minecraft.world.item.AxeItem)
-                    || (job == JobType.MINER && held.getItem() instanceof net.minecraft.world.item.PickaxeItem);
+                    || (job == JobType.MINER && held.getItem() instanceof net.minecraft.world.item.PickaxeItem)
+                    || (job.isCombat && !newJob.isCombat && held.getItem() instanceof net.minecraft.world.item.SwordItem);
             if (oldTool) {
                 var remainder = getInventory().addItem(held);
                 setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, remainder);
