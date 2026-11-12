@@ -79,7 +79,14 @@ public class ShelterGameTests {
                 BlockPos p = villager.blockPosition(), origin = openHouse.getPos();
                 if (p.getY() != origin.getY() + 1 || Math.abs(p.getX() - origin.getX()) > 1
                         || Math.abs(p.getZ() - origin.getZ()) > 1)
-                    helper.fail("Villager did not reach the accessible house: " + p.toShortString());
+                    {
+                        var target = origin.above().north();
+                        var path = villager.getNavigation().createPath(target, 0);
+                        helper.fail("Villager did not reach house: " + p.toShortString()
+                                + "; target=" + target.toShortString() + " path=" + (path == null ? "null" : path.canReach() + "/" + path.getEndNode())
+                                + "; floor=" + level.getBlockState(target.below()) + "; spot=" + level.getBlockState(target)
+                                + "; roof=" + level.getBlockState(target.above(3)));
+                    }
             }
         });
     }
