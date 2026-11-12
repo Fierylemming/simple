@@ -53,6 +53,11 @@ public class FishermanJob extends AbstractJob {
                 .sorted(Comparator.comparingDouble(villager::distanceToSqr)).limit(4).toList();
         routeDebug = "ground=" + villager.onGround() + " fluid=" + villager.isInLiquid()
                 + " fish=" + fish.size() + " candidates=" + candidates.size();
+        // GroundPathNavigation refuses all path requests while airborne. Retry
+        // next tick, rather than synchronizing retries with repeated jumps.
+        if (!candidates.isEmpty() && !villager.onGround() && !villager.isInLiquid() && !villager.isPassenger()) {
+            state = JobState.GOING_TO_WORK; ticksUntilNextWork = 0; return;
+        }
         net.minecraft.world.level.pathfinder.Path partial = null;
         double bestProgress = 0;
         for (var target : candidates) {
