@@ -162,7 +162,10 @@ public class Colony {
         }
 
         // Expansion is driven by actual simulation ticks and available supplies, not the calendar.
-        if (com.simplecolonies.config.ColonyConfig.ENABLE_NATURAL_EXPANSION.get()) tryExpand(level);
+        if (com.simplecolonies.config.ColonyConfig.ENABLE_NATURAL_EXPANSION.get()) {
+            tryLevelUp();
+            tryExpand(level);
+        }
 
         for (Building b : buildings) {
             b.tick(level, this);
@@ -354,15 +357,31 @@ public class Colony {
 
     public int getFoodCount(ServerLevel level) { return countFoodInWarehouse(level); }
 
-    private boolean canLevelUp() {
-        int requiredBuildings = level * 3;
-        return buildings.size() >= requiredBuildings && citizenCount() >= level * 8;
+    /** A tier is based on actual population and completed buildings, not elapsed days.
+     * Reject boundary overlap rather than claiming another colony's territory. */
+    public String getLevelUpBlocker() {
+        if (this.level >= 5) return "Already at maximum level";
+        long completed = buildings.stream().filter(b -> b.getState() == com.simplecolonies.building.BuildingState.COMPLETE).count();
+        if (completed < this.level * 3L || citizenCount() < this.level * 8)
+            return "Requires " + (this.level * 3) + " completed buildings and " + (this.level * 8) + " citizens";
+        int nextRadius = 32 + (this.level + 1) * 16;
+        for (Colony other : ColonyManager.getInstance().getAll()) {
+            if (other == this || other.getId() == id) continue;
+            long dx = (long) center.getX() - other.center.getX();
+            long dz = (long) center.getZ() - other.center.getZ();
+            long separation = (long) nextRadius + other.radius;
+            if (dx * dx + dz * dz < separation * separation) return "Expansion would overlap another colony";
+        }
+        return null;
     }
 
-    private void levelUp(ServerLevel lvl) {
+    public boolean tryLevelUp() {
+        if (getLevelUpBlocker() != null) return false;
         this.level++;
         radius = 32 + this.level * 16;
-        broadcast(Component.literal("§6§lColony #" + id + " leveled up to " + ColonyLevel.fromLevel(this.level).displayName + "! Radius now " + radius + " blocks."));
+        ColonyManager.getInstance().markDirty(this);
+        broadcast(Component.literal("§6§lColony #" + id + " grew to " + ColonyLevel.fromLevel(this.level).displayName + "! Radius now " + radius + " blocks."));
+        return true;
     }
 
     /** Search a dense, nearest-first grid without loading chunks. */

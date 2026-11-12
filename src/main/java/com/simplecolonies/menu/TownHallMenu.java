@@ -103,7 +103,9 @@ public class TownHallMenu extends AbstractContainerMenu {
             case BTN_ADD_BUILDING_BARRACKS -> { if (isLeader) queueBuilding(colony, com.simplecolonies.building.BuildingType.BARRACKS, player); else deny(player); return true; }
             case BTN_LEVEL_UP -> {
                 if (!isLeader) { deny(player); return true; }
-                player.displayClientMessage(net.minecraft.network.chat.Component.literal("Level up requires " + (colony.getLevel()*3) + " buildings & " + (colony.getLevel()*8) + " pop"), false);
+                String blocker = colony.getLevelUpBlocker();
+                if (blocker != null) player.displayClientMessage(net.minecraft.network.chat.Component.literal("§e" + blocker), false);
+                else if (colony.tryLevelUp()) player.displayClientMessage(net.minecraft.network.chat.Component.literal("§aColony advanced to level " + colony.getLevel()), false);
                 return true;
             }
             case BTN_RALLY_SOLDIERS -> {
