@@ -14,6 +14,13 @@ import net.minecraft.world.entity.npc.Villager;
 /** Constructs implemented plans one block at a time, using real resources. */
 public class BuilderJob extends AbstractJob {
     private Building currentJob;
+    // Per-worker, transient retry times. Never discard a plan just because it
+    // is obstructed, unloaded, unreachable, or waiting for materials.
+    private final java.util.Map<Building, Long> retryAfter = new java.util.IdentityHashMap<>();
+    private void deferCurrent(ServerLevel level, int ticks) {
+        if (currentJob != null) retryAfter.put(currentJob, level.getGameTime() + ticks);
+        currentJob = null;
+    }
     public BuilderJob(Villager villager, Colony colony) { super(villager, colony, JobType.BUILDER); }
 
     /** Find an actual standing position in reach, on either side of a wall. */
@@ -43,7 +50,9 @@ public class BuilderJob extends AbstractJob {
     @Override protected void doWork(ServerLevel level) {
         if (currentJob == null || currentJob.getState() == BuildingState.COMPLETE
                 || !colony.getBuildings().contains(currentJob)) {
+            retryAfter.keySet().removeIf(b -> !colony.getBuildings().contains(b));
             currentJob = colony.getBuildings().stream()
+                .filter(b -> retryAfter.getOrDefault(b, Long.MIN_VALUE) <= level.getGameTime())
                 .filter(Building::hasSupportedPlan)
                 .filter(b -> b.getState() == BuildingState.BLUEPRINT || b.getState() == BuildingState.UNDER_CONSTRUCTION || b.getState() == BuildingState.NEEDS_RESOURCES || b.getState() == BuildingState.BLOCKED)
                 .findFirst().orElse(null);
@@ -70,10 +79,10 @@ public class BuilderJob extends AbstractJob {
                 currentJob = null;
                 return;
             }
-            if (!level.isLoaded(next.pos)) { state = JobState.STUCK; return; }
+            if (!level.isLoaded(next.pos)) { state = JobState.STUCK; deferCurrent(level, 200); return; }
             if (villager.distanceToSqr(next.pos.getX() + 0.5, next.pos.getY() + 0.5, next.pos.getZ() + 0.5) > 25.0) {
                 var path = findApproach(level, next.pos);
-                if (path == null) { state = JobState.STUCK; ticksUntilNextWork = 40; return; }
+                if (path == null) { state = JobState.STUCK; deferCurrent(level, 200); ticksUntilNextWork = 20; return; }
                 villager.getNavigation().moveTo(path, 0.7);
                 state = JobState.GOING_TO_WORK;
                 ticksUntilNextWork = 10;
@@ -82,12 +91,12 @@ public class BuilderJob extends AbstractJob {
             boolean door = next.state.getBlock() instanceof DoorBlock && next.state.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER;
             if (door) {
                 BlockPos upper = next.pos.above();
-                if (!level.isLoaded(upper)) { state = JobState.STUCK; return; }
+                if (!level.isLoaded(upper)) { state = JobState.STUCK; deferCurrent(level, 200); return; }
                 var above = level.getBlockState(upper);
                 var expected = next.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER);
                 if (!above.equals(expected) && !above.isAir() && !above.canBeReplaced()) {
                     currentJob.setState(BuildingState.BLOCKED); state = JobState.STUCK;
-                    ColonyManager.getInstance().markDirty(colony); return;
+                    ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 200); return;
                 }
             }
             var existing = level.getBlockState(next.pos);
@@ -102,6 +111,7 @@ public class BuilderJob extends AbstractJob {
                     currentJob.setState(BuildingState.BLOCKED);
                     ColonyManager.getInstance().markDirty(colony);
                     state = JobState.STUCK;
+                    deferCurrent(level, 200);
                     return;
                 }
                 // Never place a solid block into a person or animal. If the builder
@@ -116,6 +126,7 @@ public class BuilderJob extends AbstractJob {
                         if (escape != null && escape.canReach()) villager.getNavigation().moveTo(escape, 0.7);
                     }
                     state = JobState.STUCK;
+                    deferCurrent(level, 40);
                     ticksUntilNextWork = 20;
                     return;
                 }
@@ -123,6 +134,7 @@ public class BuilderJob extends AbstractJob {
                     currentJob.setState(BuildingState.NEEDS_RESOURCES);
                     ColonyManager.getInstance().markDirty(colony);
                     state = JobState.NEEDS_RESOURCE;
+                    deferCurrent(level, 100);
                     return;
                 }
                 boolean placed;
@@ -141,6 +153,7 @@ public class BuilderJob extends AbstractJob {
                     currentJob.setState(BuildingState.BLOCKED);
                     ColonyManager.getInstance().markDirty(colony);
                     state = JobState.STUCK;
+                    deferCurrent(level, 200);
                     return;
                 }
                 villager.swing(net.minecraft.world.InteractionHand.MAIN_HAND);

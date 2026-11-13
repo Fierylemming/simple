@@ -116,6 +116,31 @@ public class ConstructionGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 400)
+    public static void builderCanWorkOtherPlansWhileOneIsBlocked(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos origin = helper.absolutePos(new BlockPos(6, 1, 8));
+        Colony colony = new Colony(0, CultureType.ROMAN, origin);
+        colony.depositToWarehouse("minecraft:oak_log", 200);
+        colony.depositToWarehouse("minecraft:cobblestone", 200);
+        Building blocked = new Building(BuildingType.MINE, origin, CultureType.ROMAN);
+        Building other = new Building(BuildingType.MINE, origin.east(6), CultureType.ROMAN);
+        colony.registerPlayerBuilding(blocked);
+        colony.registerPlayerBuilding(other);
+        var obstructed = blocked.getNextPlacement().pos;
+        var otherNext = other.getNextPlacement().pos;
+        helper.getLevel().setBlock(obstructed, Blocks.OBSIDIAN.defaultBlockState(), 3);
+        var villager = helper.spawn(EntityType.VILLAGER, new BlockPos(9, 1, 5));
+        BuilderJob job = new BuilderJob(villager, colony);
+        for (int tick = 1; tick < 400; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.succeedWhen(() -> {
+            if (blocked.getState() != BuildingState.BLOCKED) helper.fail("First plan has not been blocked");
+            if (!helper.getLevel().getBlockState(obstructed).is(Blocks.OBSIDIAN)) helper.fail("Obstruction was removed");
+            if (other.getNextPlacement() != null && other.getNextPlacement().pos.equals(otherNext))
+                helper.fail("Builder did not progress the other plan");
+        });
+    }
+
     @GameTest(template = "empty", timeoutTicks = 300)
     public static void cancelledPlanLeavesWorldAndBuilderStops(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
