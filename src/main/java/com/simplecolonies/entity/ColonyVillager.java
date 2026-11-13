@@ -346,7 +346,6 @@ public class ColonyVillager extends Villager {
             else {
                 // Vanilla idle wandering can otherwise walk straight back outside.
                 getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-                if (!getNavigation().isDone()) getNavigation().stop();
                 return;
             }
         }
@@ -380,7 +379,6 @@ public class ColonyVillager extends Villager {
                 if (blockPosition().equals(target)) {
                     restingShelterSpot = target;
                     getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-                    getNavigation().stop();
                     return;
                 }
                 var path = getNavigation().createPath(target, 0);
