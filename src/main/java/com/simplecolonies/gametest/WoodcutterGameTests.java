@@ -216,6 +216,16 @@ public class WoodcutterGameTests {
         harvestCrookedSpecies(helper, Blocks.JUNGLE_LOG, Blocks.JUNGLE_LEAVES, Blocks.JUNGLE_SAPLING, "jungle");
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 1800)
+    public static void harvestsReachableCrookedSpruce(GameTestHelper helper) {
+        harvestCrookedSpecies(helper, Blocks.SPRUCE_LOG, Blocks.SPRUCE_LEAVES, Blocks.SPRUCE_SAPLING, "spruce");
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 1800)
+    public static void harvestsReachableCrookedBirch(GameTestHelper helper) {
+        harvestCrookedSpecies(helper, Blocks.BIRCH_LOG, Blocks.BIRCH_LEAVES, Blocks.BIRCH_SAPLING, "birch");
+    }
+
     private static void harvestCrookedSpecies(GameTestHelper helper, net.minecraft.world.level.block.Block log,
             net.minecraft.world.level.block.Block leaves, net.minecraft.world.level.block.Block sapling, String name) {
         var logs = makeCrookedTree(helper, log, leaves);
