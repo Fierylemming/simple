@@ -7,7 +7,6 @@ import com.simplecolonies.menu.VillagerInteractionMenu;
 import com.simplecolonies.villager.job.*;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.core.GlobalPos;
-import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.VillagerData;
 import com.simplecolonies.villager.ColonyProfessions;
@@ -42,9 +41,6 @@ public class ColonyVillager extends Villager {
     private CompoundTag minerMemory = new CompoundTag();
     private CompoundTag woodcutterMemory = new CompoundTag();
     private long nextConversationTime;
-    // Ephemeral: never persisted; recomputed from a real enclosed shelter each night.
-    private BlockPos restingShelterSpot;
-    private long restingShelterSince;
 
     // Needs
     private int hungerTicks = 0; // increments daily if no food, leads to damage
@@ -284,10 +280,7 @@ public class ColonyVillager extends Villager {
                 jobInstance.tick(sl);
             }
 
-            if (!sl.isNight()) {
-                restingShelterSpot = null;
-                trySocialize(sl);
-            }
+            if (!sl.isNight()) trySocialize(sl);
             colony.getCitizens().stream().filter(c -> c.uuid.equals(getUUID())).findFirst()
                     .ifPresent(c -> {
                         if (c.isChild != isBaby()) {
@@ -335,24 +328,9 @@ public class ColonyVillager extends Villager {
     }
 
     void seekShelter(ServerLevel level, Colony colony) {
-        // Never override trading, sleep, panic or threat escape to keep a citizen indoors.
+        // Do not interrupt panic, trading or sleep with shelter navigation.
         if (isTrading() || isSleeping() || getBrain().hasMemoryValue(MemoryModuleType.IS_PANICKING)
-                || getBrain().hasMemoryValue(MemoryModuleType.NEAREST_HOSTILE)) {
-            restingShelterSpot = null; return;
-        }
-        if (restingShelterSpot != null) {
-            if (!blockPosition().equals(restingShelterSpot) || !level.isLoaded(restingShelterSpot)
-                    || (level.getGameTime() % 60 == 0 && (!usableShelterSpot(level, restingShelterSpot)
-                    || !ShelterSafety.enclosed(level, restingShelterSpot)))) restingShelterSpot = null;
-            else {
-                // Give vanilla navigation and door-closing behaviour time to finish
-                // before suppressing new idle walks. Interrupting an arrival path
-                // immediately can leave the door open behind the villager.
-                if (level.getGameTime() - restingShelterSince >= 80)
-                    getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-                return;
-            }
-        }
+                || getBrain().hasMemoryValue(MemoryModuleType.NEAREST_HOSTILE)) return;
         if (level.getGameTime() % 60 != 0) return;
         if (getNavigation() instanceof net.minecraft.world.entity.ai.navigation.GroundPathNavigation ground) {
             ground.setCanOpenDoors(true);
@@ -381,8 +359,7 @@ public class ColonyVillager extends Villager {
             candidates.sort(java.util.Comparator.comparingDouble(p -> p.distSqr(blockPosition())));
             for (var target : candidates) {
                 if (blockPosition().equals(target)) {
-                    restingShelterSpot = target;
-                    restingShelterSince = level.getGameTime();
+                    getNavigation().stop();
                     return;
                 }
                 var path = getNavigation().createPath(target, 0);
