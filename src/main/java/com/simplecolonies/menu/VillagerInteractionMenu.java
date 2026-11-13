@@ -35,6 +35,7 @@ public class VillagerInteractionMenu extends AbstractContainerMenu {
     public static final int BTN_SET_FISHERMAN = 114;
     public static final int BTN_SET_COURIER = 115;
     public static final int BTN_SET_UNEMPLOYED = 116;
+    public static final int BTN_SET_SHEPHERD = 117;
 
     /** Explicit mapping keeps assignment buttons separate from commands. */
     public static JobType assignmentForButton(int id) {
@@ -52,6 +53,7 @@ public class VillagerInteractionMenu extends AbstractContainerMenu {
             case BTN_SET_FISHERMAN -> JobType.FISHERMAN;
             case BTN_SET_COURIER -> JobType.COURIER;
             case BTN_SET_UNEMPLOYED -> JobType.UNEMPLOYED;
+            case BTN_SET_SHEPHERD -> JobType.SHEPHERD;
             default -> null;
         };
     }

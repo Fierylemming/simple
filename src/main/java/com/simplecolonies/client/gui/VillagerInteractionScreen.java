@@ -40,14 +40,14 @@ public class VillagerInteractionScreen extends AbstractContainerScreen<VillagerI
         super.init();
         int x=leftPos, y=topPos;
         String[] labels={"Farmer","Woodcutter","Miner","Builder","Soldier","Butcher","Leather","Smith",
-                "Guard","Baker","Fisherman","Courier","Unemployed"};
+                "Guard","Baker","Fisherman","Courier","Shepherd","Unemployed"};
         int[] ids={VillagerInteractionMenu.BTN_SET_FARMER,VillagerInteractionMenu.BTN_SET_LUMBERJACK,
                 VillagerInteractionMenu.BTN_SET_MINER,VillagerInteractionMenu.BTN_SET_BUILDER,
                 VillagerInteractionMenu.BTN_SET_SOLDIER,VillagerInteractionMenu.BTN_SET_BUTCHER,
                 VillagerInteractionMenu.BTN_SET_LEATHERWORKER,VillagerInteractionMenu.BTN_SET_BLACKSMITH,
                 VillagerInteractionMenu.BTN_SET_GUARD,VillagerInteractionMenu.BTN_SET_BAKER,
                 VillagerInteractionMenu.BTN_SET_FISHERMAN,VillagerInteractionMenu.BTN_SET_COURIER,
-                VillagerInteractionMenu.BTN_SET_UNEMPLOYED};
+                VillagerInteractionMenu.BTN_SET_SHEPHERD,VillagerInteractionMenu.BTN_SET_UNEMPLOYED};
         for(int i=0;i<labels.length;i++){
             int col=i%4, row=i/4;
             int bx=x+8+col*66, by=y+90+row*22;

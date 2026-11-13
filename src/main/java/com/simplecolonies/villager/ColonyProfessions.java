@@ -45,6 +45,7 @@ public final class ColonyProfessions {
         register(JobType.BAKER, PoiTypes.BUTCHER);
         register(JobType.FISHERMAN, PoiTypes.FISHERMAN);
         register(JobType.COURIER, PoiTypes.FISHERMAN);
+        register(JobType.SHEPHERD, PoiTypes.SHEPHERD);
     }
     private static DeferredHolder<PoiType, PoiType> poi(String name, Block block) {
         return POIS.register(name, () -> new PoiType(ImmutableSet.copyOf(block.getStateDefinition().getPossibleStates()), 1, 1));
@@ -71,6 +72,7 @@ public final class ColonyProfessions {
                 case BLACKSMITH -> VillagerProfession.TOOLSMITH;
                 case SOLDIER, GUARD -> VillagerProfession.WEAPONSMITH;
                 case FISHERMAN, COURIER -> VillagerProfession.FISHERMAN;
+                case SHEPHERD -> VillagerProfession.SHEPHERD;
                 default -> VillagerProfession.NONE;
             };
             var trades = VillagerTrades.TRADES.get(base);

@@ -36,7 +36,7 @@ public class ColonyVillager extends Villager {
     private JobType job = JobType.UNEMPLOYED;
     private AbstractJob jobInstance;
     private boolean suppressVanillaBrainReset;
-    // The courier carries this actual stack across chunk unloads and restarts.
+    // Physical job cargo is retained across chunk unloads and restarts.
     private net.minecraft.world.item.ItemStack courierCargo = net.minecraft.world.item.ItemStack.EMPTY;
     private net.minecraft.world.item.ItemStack courierCargoExtra = net.minecraft.world.item.ItemStack.EMPTY;
     private CompoundTag minerMemory = new CompoundTag();
@@ -149,6 +149,7 @@ public class ColonyVillager extends Villager {
             var held = getMainHandItem();
             boolean oldTool = (job == JobType.LUMBERJACK && held.getItem() instanceof net.minecraft.world.item.AxeItem)
                     || (job == JobType.MINER && held.getItem() instanceof net.minecraft.world.item.PickaxeItem)
+                    || (job == JobType.SHEPHERD && held.is(net.minecraft.world.item.Items.SHEARS))
                     || (job.isCombat && !newJob.isCombat && held.getItem() instanceof net.minecraft.world.item.SwordItem);
             if (oldTool) {
                 var remainder = getInventory().addItem(held);
@@ -198,6 +199,7 @@ public class ColonyVillager extends Villager {
             case BAKER -> new BakerJob(this, colony);
             case FISHERMAN -> new FishermanJob(this, colony);
             case COURIER -> new CourierJob(this, colony);
+            case SHEPHERD -> new ShepherdJob(this, colony);
             default -> null;
         };
     }
@@ -299,7 +301,9 @@ public class ColonyVillager extends Villager {
             // Non-combat citizens seek shelter at night, even when there are no beds.
             if (sl.isNight() && !job.isCombat && !isTrading()) {
                 seekShelter(sl, colony);
-            } else if (!isBaby() && jobInstance != null && (job.isCombat || !isInDanger() && updateWorkstation(sl, colony))) {
+            } else if (!isBaby() && jobInstance != null && (job.isCombat || !isInDanger()
+                    && ((job == JobType.SHEPHERD && (!courierCargo.isEmpty() || !courierCargoExtra.isEmpty()))
+                        || updateWorkstation(sl, colony)))) {
                 jobInstance.tick(sl);
             }
 

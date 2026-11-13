@@ -85,7 +85,17 @@ public class CourierJob extends AbstractJob {
         for (int i = 0; i < c.getContainerSize(); i++) if (!c.getItem(i).isEmpty()) return true;
         return false;
     }
-    private static void insert(Container c, ItemStack cargo) {
+    static boolean canInsert(Container c, ItemStack cargo) {
+        if (c == null || cargo.isEmpty()) return false;
+        for (int i = 0; i < c.getContainerSize(); i++) {
+            ItemStack existing = c.getItem(i);
+            if (!c.canPlaceItem(i, cargo)) continue;
+            if (existing.isEmpty() || (ItemStack.isSameItemSameComponents(existing, cargo)
+                    && existing.getCount() < Math.min(existing.getMaxStackSize(), c.getMaxStackSize()))) return true;
+        }
+        return false;
+    }
+    static void insert(Container c, ItemStack cargo) {
         for (int i = 0; i < c.getContainerSize() && !cargo.isEmpty(); i++) {
             ItemStack stack = c.getItem(i);
             if (stack.isEmpty() || !ItemStack.isSameItemSameComponents(stack, cargo) || !c.canPlaceItem(i, cargo)) continue;
