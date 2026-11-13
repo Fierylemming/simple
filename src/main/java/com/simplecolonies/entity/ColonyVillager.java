@@ -301,7 +301,14 @@ public class ColonyVillager extends Villager {
                 v -> v != this && v.isAlive() && v.colonyId == colonyId && v.availableForConversation(level))
                 .stream().min(java.util.Comparator.comparingDouble(this::distanceToSqr)).orElse(null);
         nextConversationTime = level.getGameTime() + 200;
-        if (other == null || distanceToSqr(other) > 64) return;
+        if (other == null || distanceToSqr(other) > 64) {
+            // An optional late-afternoon gathering gives idle citizens a real
+            // chance to meet; no one is teleported or pulled away from work.
+            long hour = Math.floorMod(level.getDayTime(), 24000L);
+            if (hour >= 9000 && hour < 11500)
+                ColonyManager.getInstance().getColony(colonyId).ifPresent(c -> seekCivicMeeting(level, c));
+            return;
+        }
         if (distanceToSqr(other) > 9 || !hasLineOfSight(other)) {
             // Let the vanilla brain walk toward an idle neighbor, so door handling
             // and unreachable paths keep their ordinary Minecraft behavior.
@@ -316,6 +323,31 @@ public class ColonyVillager extends Villager {
         gossip(level, other, level.getGameTime());
         playSound(net.minecraft.sounds.SoundEvents.VILLAGER_AMBIENT, 0.5f, 1.0f);
         other.playSound(net.minecraft.sounds.SoundEvents.VILLAGER_AMBIENT, 0.5f, 1.1f);
+    }
+
+    /** Walk to a reachable, enclosed civic hall; marker records alone are not proof of safety. */
+    void seekCivicMeeting(ServerLevel level, Colony colony) {
+        if (isBaby() || isTrading() || isSleeping() || !getNavigation().isDone()
+                || getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET)
+                || getBrain().hasMemoryValue(MemoryModuleType.IS_PANICKING)
+                || getBrain().hasMemoryValue(MemoryModuleType.NEAREST_HOSTILE)) return;
+        var halls = colony.getBuildings().stream()
+                .filter(b -> b.getType() == com.simplecolonies.building.BuildingType.MARKET
+                        && b.getState() == com.simplecolonies.building.BuildingState.COMPLETE
+                        && level.isLoaded(b.getPos()) && b.getPos().distSqr(blockPosition()) <= 24 * 24)
+                .sorted(java.util.Comparator.comparingDouble(b -> b.getPos().distSqr(blockPosition()))).toList();
+        for (var hall : halls) {
+            var target = hall.getPos();
+            if (target.distSqr(blockPosition()) <= 9 || !usableShelterSpot(level, target) || !ShelterSafety.enclosed(level, target)) continue;
+            if (getNavigation() instanceof net.minecraft.world.entity.ai.navigation.GroundPathNavigation ground) {
+                ground.setCanOpenDoors(true); ground.setCanPassDoors(true);
+            }
+            var path = getNavigation().createPath(target, 0);
+            if (path == null || !path.canReach()) continue;
+            getBrain().setMemory(MemoryModuleType.WALK_TARGET,
+                    new net.minecraft.world.entity.ai.memory.WalkTarget(target, 0.5f, 0));
+            return;
+        }
     }
 
     private boolean availableForConversation(ServerLevel level) {
