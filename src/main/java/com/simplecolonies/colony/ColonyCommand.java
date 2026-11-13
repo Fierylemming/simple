@@ -202,8 +202,16 @@ public class ColonyCommand {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
                             String cultStr = StringArgumentType.getString(ctx, "culture");
                             var culture = com.simplecolonies.culture.CultureType.byId(cultStr);
-                            var colony = ColonyManager.getInstance().createColony(p.serverLevel(), culture, p.blockPosition());
-                            if (colony == null) { ctx.getSource().sendFailure(Component.literal("Failed to create colony (limit?)")); return 0; }
+                            if (!p.serverLevel().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) {
+                                ctx.getSource().sendFailure(Component.literal("Colonies currently build only in the overworld.")); return 0;
+                            }
+                            var manager = ColonyManager.getInstance();
+                            var plan = manager.findNaturalStarterPlan(p.serverLevel(), p.blockPosition());
+                            if (plan == null) {
+                                ctx.getSource().sendFailure(Component.literal("No safe loaded land for both a town hall and farm nearby; try a clear area.")); return 0;
+                            }
+                            var colony = manager.createNaturalColony(p.serverLevel(), culture, plan);
+                            if (colony == null) { ctx.getSource().sendFailure(Component.literal("Could not create colony: limit reached or the starter site changed.")); return 0; }
                             ctx.getSource().sendSuccess(() -> Component.literal("Spawned " + culture.displayName + " colony #" + colony.getId() + " at " + colony.getCenter().toShortString() + " with starter cobble/wood — test with /colony warehouse, /colony research, /colony buy TOOL_STONE"), true);
                             return 1;
                         })))
@@ -285,6 +293,8 @@ public class ColonyCommand {
         ColonyManager.getInstance().repairStarters(level, colony);
         src.sendSuccess(() -> Component.literal("Colony #" + id + " repair: " + colony.citizenCount()
                 + " citizen records, " + colony.getBuildings().size() + " buildings; center " + colony.getCenter().toShortString()), false);
+        if (colony.getBuildings().stream().noneMatch(b -> b.getType() == com.simplecolonies.building.BuildingType.TOWN_HALL))
+            src.sendFailure(Component.literal("No town hall shell could be repaired safely at the colony center; existing blocks were left untouched."));
         if (!resetCitizens && colony.citizenCount() > 0) {
             src.sendSuccess(() -> Component.literal("Existing citizen records were kept. See the repair documentation before resetting missing records."), false);
         }

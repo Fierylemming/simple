@@ -204,8 +204,12 @@ public class ColonyManager {
 
     /** Explicitly repair missing starters; never repopulates colonies automatically after deaths. */
     public void repairStarters(ServerLevel level, Colony colony) {
-        boolean legacy = colony.getBuildings().stream().noneMatch(b -> b.getType() == com.simplecolonies.building.BuildingType.TOWN_HALL);
-        placeStarterStructures(level, colony, legacy);
+        boolean missingHall = colony.getBuildings().stream().noneMatch(b -> b.getType() == com.simplecolonies.building.BuildingType.TOWN_HALL);
+        // Only rebuild at the original center when the entire plot is safe. Never
+        // replace an existing building or flatten player property to repair a save.
+        if (missingHall && colony.getBuildings().stream().noneMatch(b -> b.getPos().equals(colony.getCenter())))
+            placeInitialTownHall(level, colony);
+        placeStarterStructures(level, colony, false);
         spawnInitialVillagers(level, colony);
         placeTownHallIfNeeded(level, colony);
         markDirty(colony);
