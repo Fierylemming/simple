@@ -252,6 +252,39 @@ public class WoodcutterGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 1800)
+    public static void craftsReplacementAxeUsingBirchTimber(GameTestHelper helper) {
+        makeTree(helper);
+        Colony colony = colony(helper);
+        colony.registerPlayerBuilding(new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.TOWN_HALL,
+                colony.getCenter(), CultureType.ROMAN, true));
+        BlockPos table = new BlockPos(47, 1, 56);
+        helper.setBlock(table, Blocks.CRAFTING_TABLE);
+        colony.depositToWarehouse("minecraft:cobblestone", 3);
+        colony.depositToWarehouse("minecraft:birch_log", 1);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(48, 1, 56));
+        var job = new WoodcutterJob(worker, colony);
+        boolean[] craftedAtTable = {false};
+        for (int tick = 1; tick < 1800; tick++) helper.runAtTickTime(tick, () -> {
+            boolean hadAxe = worker.getMainHandItem().is(Items.STONE_AXE);
+            job.tick(helper.getLevel());
+            if (!hadAxe && worker.getMainHandItem().is(Items.STONE_AXE)) {
+                BlockPos p = helper.absolutePos(table);
+                if (worker.distanceToSqr(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5) > 9)
+                    helper.fail("Crafted the axe away from a real table");
+                craftedAtTable[0] = true;
+            }
+        });
+        helper.succeedWhen(() -> {
+            if (!craftedAtTable[0] || helper.getBlockState(ROOT).is(Blocks.OAK_LOG)
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:birch_log") != 0
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:birch_planks") != 2
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:stick") != 2
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:oak_planks") != 0)
+                helper.fail("Axe crafting did not consume and retain the correct timber: " + job.getState());
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 1000)
     public static void waitsForAxeBeforeHarvesting(GameTestHelper helper) {
         makeTree(helper);
