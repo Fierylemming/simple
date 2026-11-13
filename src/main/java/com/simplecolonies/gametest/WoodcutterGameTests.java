@@ -57,6 +57,7 @@ public class WoodcutterGameTests {
             if (x != 0 || z != 0) helper.setBlock(ROOT.offset(x, 3, z), leaves);
         Colony colony = colony(helper);
         colony.depositToWarehouse("minecraft:" + name + "_sapling", 1);
+        colony.depositToWarehouse("minecraft:stone_axe", 1);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(48, 1, 56));
         var job = new WoodcutterJob(worker, colony);
         for (int tick = 1; tick < 1400; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
@@ -116,6 +117,24 @@ public class WoodcutterGameTests {
             if (!worker[0].getMainHandItem().is(Items.STONE_AXE) || worker[0].getMainHandItem().getDamageValue() != 14)
                 helper.fail("Stock axe damage was not preserved and worn: " + worker[0].getMainHandItem().getDamageValue());
             if (!worker[0].getWoodcutterMemory().isEmpty()) helper.fail("Completed tree remained in worker memory");
+        });
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 1000)
+    public static void waitsForAxeBeforeHarvesting(GameTestHelper helper) {
+        makeTree(helper);
+        Colony colony = colony(helper);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(54, 1, 56));
+        var job = new WoodcutterJob(worker, colony);
+        for (int tick = 1; tick < 1000; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(200, () -> {
+            if (!helper.getBlockState(ROOT.above(3)).is(Blocks.OAK_LOG) || job.getState() != com.simplecolonies.villager.job.AbstractJob.JobState.NEEDS_TOOL)
+                helper.fail("Woodcutter harvested without an axe or failed to report a missing tool");
+            colony.depositToWarehouse("minecraft:stone_axe", 1);
+        });
+        helper.succeedWhen(() -> {
+            if (helper.getBlockState(ROOT).is(Blocks.OAK_LOG) || !worker.getMainHandItem().is(Items.STONE_AXE))
+                helper.fail("Woodcutter did not resume with a supplied axe: " + job.getState());
         });
     }
 

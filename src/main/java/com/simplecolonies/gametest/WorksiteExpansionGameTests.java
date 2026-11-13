@@ -110,6 +110,21 @@ public class WorksiteExpansionGameTests {
         return colony.getBuildings().stream().anyMatch(b -> b.getType() == BuildingType.HARBOR && b.hasSupportedPlan());
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 100)
+    public static void stoneSupportsHouseAndWorksiteWithoutReplacingObstacles(GameTestHelper helper) {
+        for (int x = 48; x <= 64; x++) for (int z = 48; z <= 64; z++) helper.setBlock(x, 0, z, Blocks.STONE);
+        BlockPos site = new BlockPos(56, 1, 56);
+        var colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(36, 1, 56)));
+        BlockPos absolute = helper.absolutePos(site);
+        if (!colony.isClearBuildSite(helper.getLevel(), absolute) || !colony.isClearWorksite(helper.getLevel(), absolute, false))
+            helper.fail("Flat stone should support construction");
+        helper.setBlock(site.offset(1, 0, 1), Blocks.OBSIDIAN);
+        if (colony.isClearBuildSite(helper.getLevel(), absolute) || colony.isClearWorksite(helper.getLevel(), absolute, false))
+            helper.fail("Stone plot planning ignored an existing obstacle");
+        if (!helper.getBlockState(site.offset(1, 0, 1)).is(Blocks.OBSIDIAN)) helper.fail("Planning altered obstacle");
+        helper.succeed();
+    }
+
     private static void testExpansion(GameTestHelper helper, JobType type, BuildingType buildingType, Block stationBlock) {
         for (int x = 20; x <= 75; x++) for (int z = 35; z <= 75; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
         BlockPos center = helper.absolutePos(new BlockPos(36, 1, 56));

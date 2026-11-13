@@ -190,7 +190,10 @@ public class ColonyManager {
 
     private void placeTownHallIfNeeded(ServerLevel level, Colony colony) {
         BlockPos p = colony.getCenter();
-        if (level.getBlockState(p).isAir() || level.getBlockState(p).canBeReplaced() || level.getBlockState(p).getFluidState().isSource()) {
+        // Never create a free-standing hall block when no hall shell was built.
+        boolean hasHall = colony.getBuildings().stream().anyMatch(b -> b.getType() == com.simplecolonies.building.BuildingType.TOWN_HALL && b.getPos().equals(p));
+        if (!hasHall && !level.getBlockState(p).is(ModBlocks.TOWN_HALL.get())) return;
+        if (hasHall && (level.getBlockState(p).isAir() || level.getBlockState(p).canBeReplaced())) {
             // Ensure solid base
             BlockPos below = p.below();
             if (!level.getBlockState(below).isSolidRender(level, below)) {
@@ -273,8 +276,7 @@ public class ColonyManager {
     }
 
     private boolean isNaturalGround(net.minecraft.world.level.block.state.BlockState state) {
-        return state.is(net.minecraft.tags.BlockTags.DIRT) || state.is(Blocks.SAND)
-                || state.is(Blocks.RED_SAND) || state.is(Blocks.GRAVEL);
+        return NaturalGround.supportsConstruction(state);
     }
 
     /** Natural foliage may be cleared, but player-placed leaves and logs are protected. */
@@ -318,7 +320,7 @@ public class ColonyManager {
                 var state = level.getBlockState(p);
                 if (allowTownHall && p.equals(origin) && state.is(ModBlocks.TOWN_HALL.get())) continue;
                 if (!StarterSiteSearch.safeBlock(dy, !state.getFluidState().isEmpty(),
-                        level.getBlockEntity(p) != null, isNaturalGround(state), isClearable(state))) return false;
+                        level.getBlockEntity(p) != null, isNaturalGround(state) && p.getY() < surface.getY(), isClearable(state))) return false;
             }
         }
         return true;
@@ -425,6 +427,7 @@ public class ColonyManager {
         prepareStarterPlot(level, plan.house(), 3);
         placeSimpleHouse(level, plan.house(), colony.getCulture());
         colony.registerPlayerBuilding(new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.TOWN_HALL, plan.house(), colony.getCulture(), true));
+        placeTownHallIfNeeded(level, colony);
         prepareStarterPlot(level, plan.farm(), plan.farmHalfSize());
         placeSimpleFarm(level, plan.farm(), plan.farmHalfSize());
         colony.registerPlayerBuilding(new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.FARM, plan.farm(), colony.getCulture(), true));

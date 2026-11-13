@@ -36,7 +36,7 @@ public class MinerJob extends AbstractJob {
     @Override protected void doWork(ServerLevel level) {
         if (!restored) { readMemory(); restored = true; }
         int tier = equipPickaxe(level);
-        if (tier == 0) { state = JobState.NEEDS_TOOL; ticksUntilNextWork = 200; return; }
+        if (tier == 0) { craftStoneReplacement(level, "pickaxe"); return; }
         if (entrance == null && !selectSite(level)) { state = JobState.STUCK; ticksUntilNextWork = 100; return; }
         BlockPos stand = entrance.relative(direction, step).below(step);
         if (!level.isLoaded(stand) || !colony.isInside(stand)) { state = JobState.STUCK; ticksUntilNextWork = 80; return; }

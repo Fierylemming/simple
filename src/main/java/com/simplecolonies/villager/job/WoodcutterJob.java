@@ -106,7 +106,7 @@ public class WoodcutterJob extends AbstractJob {
             villager.getNavigation().moveTo(path, 0.7);
             state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
         }
-        equipAxeIfAvailable(level);
+        if (!equipAxeIfAvailable(level)) { craftStoneReplacement(level, "axe"); return; }
         var block = level.getBlockState(log);
         var drops = net.minecraft.world.level.block.Block.getDrops(block, level, log, null, villager, villager.getMainHandItem());
         if (!level.destroyBlock(log, false)) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
@@ -131,15 +131,16 @@ public class WoodcutterJob extends AbstractJob {
         ticksUntilNextWork = 30;
     }
 
-    /** Use an actual stock axe when available. Bare-handed work remains possible in
-     * older colonies without one, so upgrading a save does not stop its wood supply. */
-    private void equipAxeIfAvailable(ServerLevel level) {
-        if (!villager.getMainHandItem().isEmpty()) return;
+    /** Never harvest bare-handed; a missing axe must be supplied or crafted. */
+    private boolean equipAxeIfAvailable(ServerLevel level) {
+        if (villager.getMainHandItem().getItem() instanceof AxeItem) return true;
+        if (!villager.getMainHandItem().isEmpty()) return false;
         for (var item : new net.minecraft.world.item.Item[]{Items.NETHERITE_AXE, Items.DIAMOND_AXE,
                 Items.IRON_AXE, Items.STONE_AXE, Items.WOODEN_AXE, Items.GOLDEN_AXE}) {
             var tool = takeTool(level, item);
-            if (!tool.isEmpty()) { villager.setItemSlot(EquipmentSlot.MAINHAND, tool); return; }
+            if (!tool.isEmpty()) { villager.setItemSlot(EquipmentSlot.MAINHAND, tool); return true; }
         }
+        return false;
     }
 
     private void clearTree() {

@@ -109,6 +109,44 @@ public abstract class AbstractJob {
         return colony.takeStockItem(level, villager.blockPosition(), item);
     }
 
+    /** Starter workers can make a replacement stone tool at a real table in a
+     * completed hall or house, from real stock. A smith may also supply tools. */
+    protected void craftStoneReplacement(ServerLevel level, String kind) {
+        if (!villager.getMainHandItem().isEmpty()) { state = JobState.NEEDS_TOOL; ticksUntilNextWork = 100; return; }
+        BlockPos table = null;
+        double best = Double.MAX_VALUE;
+        for (var building : colony.getBuildings()) {
+            if (building.getState() != com.simplecolonies.building.BuildingState.COMPLETE
+                    || (building.getType() != com.simplecolonies.building.BuildingType.TOWN_HALL
+                    && building.getType() != com.simplecolonies.building.BuildingType.HOUSE)) continue;
+            for (BlockPos pos : BlockPos.betweenClosed(building.getPos().offset(-3, -1, -3), building.getPos().offset(3, 3, 3))) {
+                if (!level.isLoaded(pos) || !colony.isInside(pos) || !level.getBlockState(pos).is(net.minecraft.world.level.block.Blocks.CRAFTING_TABLE)) continue;
+                double distance = villager.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+                if (distance < best) { best = distance; table = pos.immutable(); }
+            }
+        }
+        if (table == null) { state = JobState.NEEDS_TOOL; ticksUntilNextWork = 100; return; }
+        if (best > 9) {
+            var path = villager.getNavigation().createPath(table, 1);
+            if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 100; return; }
+            villager.getNavigation().moveTo(path, 0.7);
+            state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
+        }
+        var stock = new ToolCrafting.Stock() {
+            public int count(String id) { return colony.getWarehouseCount(level, id); }
+            public boolean consume(String id, int amount) { return colony.consumeStock(level, id, amount); }
+            public void add(String id, int amount) { depositToColony(level, id, amount); }
+        };
+        if (!ToolCrafting.make(stock, "minecraft:cobblestone", "minecraft:stone_" + kind)) {
+            state = JobState.NEEDS_TOOL; ticksUntilNextWork = 100; return;
+        }
+        var item = kind.equals("pickaxe") ? net.minecraft.world.item.Items.STONE_PICKAXE : net.minecraft.world.item.Items.STONE_AXE;
+        var tool = takeTool(level, item);
+        if (!tool.isEmpty()) villager.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, tool);
+        villager.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+        state = JobState.WORKING; ticksUntilNextWork = 40;
+    }
+
     // --- Warehouse / chest helpers ---
 
     protected void depositToColony(ServerLevel level, String itemId, int count) {

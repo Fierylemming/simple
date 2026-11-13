@@ -311,8 +311,7 @@ public class Colony {
             BlockPos ground = station.offset(x, -1, z);
             if (!level.isLoaded(ground) || !isInside(ground)) return false;
             var soil = level.getBlockState(ground);
-            if (!(soil.is(net.minecraft.tags.BlockTags.DIRT) || soil.is(net.minecraft.world.level.block.Blocks.SAND)
-                    || soil.is(net.minecraft.world.level.block.Blocks.RED_SAND) || soil.is(net.minecraft.world.level.block.Blocks.GRAVEL))) return false;
+            if (!NaturalGround.supportsConstruction(soil)) return false;
             for (int y = 0; y <= 3; y++) {
                 BlockPos p = station.offset(x, y, z);
                 if (!level.isLoaded(p)) return false;
@@ -417,8 +416,7 @@ public class Colony {
             BlockPos ground = pos.offset(x, -1, z);
             if (!level.isLoaded(ground) || !isInside(ground)) return false;
             var soil = level.getBlockState(ground);
-            if (!(soil.is(net.minecraft.tags.BlockTags.DIRT) || soil.is(net.minecraft.world.level.block.Blocks.SAND)
-                    || soil.is(net.minecraft.world.level.block.Blocks.RED_SAND) || soil.is(net.minecraft.world.level.block.Blocks.GRAVEL))) return false;
+            if (!NaturalGround.supportsConstruction(soil)) return false;
             for (int y = 0; y <= 5; y++) {
                 if (!level.isLoaded(pos.offset(x, y, z))) return false;
                 var block = level.getBlockState(pos.offset(x, y, z));
