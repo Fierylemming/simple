@@ -131,4 +131,37 @@ public class MinerGameTests {
             if (sticks != 2 || planks != 2) helper.fail("Crafting leftovers were lost: " + sticks + " sticks " + planks + " planks");
         });
     }
+    @GameTest(template = "empty", timeoutTicks = 500)
+    public static void minerRetainsCargoWhenSharedStorageIsFullOrRemoved(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos chest = new BlockPos(8, 1, 8), center = helper.absolutePos(chest);
+        helper.setBlock(chest, Blocks.CHEST);
+        var container = (Container) helper.getBlockEntity(chest);
+        for (int i = 0; i < container.getContainerSize(); i++) container.setItem(i, new ItemStack(Items.COBBLESTONE, 64));
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), center)) helper.fail("Could not share chest");
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(7, 1, 8)); worker.setNoAi(true);
+        var drop = new ItemStack(Items.RAW_IRON, 3);
+        drop.set(DataComponents.CUSTOM_NAME, Component.literal("Distinct ore"));
+        worker.setCourierCargo(drop.copy());
+        var job = new MinerJob(worker, colony);
+        for (int tick = 1; tick < 500; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(60, () -> {
+            if (job.getState() != com.simplecolonies.villager.job.AbstractJob.JobState.WAITING_FOR_CHEST
+                    || !ItemStack.isSameItemSameComponents(worker.getCourierCargo(), drop) || worker.getCourierCargo().getCount() != 3)
+                helper.fail("Miner lost cargo or continued work while storage was full");
+            if (!colony.getWarehouseManager().unregisterStorage(helper.getLevel(), center)) helper.fail("Could not unshare chest");
+            container.setItem(0, ItemStack.EMPTY);
+        });
+        helper.runAtTickTime(160, () -> {
+            if (!container.getItem(0).isEmpty() || !ItemStack.isSameItemSameComponents(worker.getCourierCargo(), drop))
+                helper.fail("Miner delivered to an unshared chest");
+            if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), center)) helper.fail("Could not re-share chest");
+        });
+        helper.succeedWhen(() -> {
+            if (!worker.getCourierCargo().isEmpty() || !ItemStack.isSameItemSameComponents(container.getItem(0), drop)
+                    || container.getItem(0).getCount() != 3) helper.fail("Miner has not delivered retained ore");
+        });
+    }
+
 }
