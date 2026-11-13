@@ -48,6 +48,8 @@ public class Colony {
     private long lastTickGameTime = 0;
     private long lastSimulatedDay = -1;
     private boolean deferredBirthsDuringCatchUp;
+    private boolean hasObservedClocks;
+    private long observedGameTime, observedDayTime;
 
     // For persistence
     private final UUID colonyUuid = UUID.randomUUID();
@@ -120,12 +122,18 @@ public class Colony {
         // Scan warehouse chests periodically
         warehouseManager.scan(level);
 
-        long day = Math.floorDiv(level.getDayTime(), 24000L);
+        long dayTime = level.getDayTime();
+        long day = Math.floorDiv(dayTime, 24000L);
+        boolean skippedBoundary = hasObservedClocks && day > lastSimulatedDay
+                && DailyCatchUp.clockJumpedForward(observedDayTime, dayTime, observedGameTime, gameTime);
+        observedGameTime = gameTime;
+        observedDayTime = dayTime;
+        hasObservedClocks = true;
         if (lastSimulatedDay < 0 || day < lastSimulatedDay) {
             lastSimulatedDay = day;
             deferredBirthsDuringCatchUp = false;
         }
-        deferredBirthsDuringCatchUp = DailyCatchUp.deferBirths(lastSimulatedDay, day, deferredBirthsDuringCatchUp);
+        deferredBirthsDuringCatchUp = DailyCatchUp.deferBirths(lastSimulatedDay, day, deferredBirthsDuringCatchUp || skippedBoundary);
         // Process a bounded batch each tick so enormous /time jumps cannot freeze the server.
         // The persisted cursor is advanced only after each individual day has run.
         int dailyBudget = DailyCatchUp.batchSize(lastSimulatedDay, day, 64);
@@ -696,6 +704,10 @@ public class Colony {
         tag.putInt("daysSinceExpansion", daysSinceExpansion);
         tag.putLong("lastSimulatedDay", lastSimulatedDay);
         tag.putBoolean("deferredBirthsDuringCatchUp", deferredBirthsDuringCatchUp);
+        if (hasObservedClocks) {
+            tag.putLong("observedGameTime", observedGameTime);
+            tag.putLong("observedDayTime", observedDayTime);
+        }
         tag.putString("state", state.name());
         if (leaderId != null) tag.putUUID("leader", leaderId);
         // Do not persist the display fallback (colony center) as a designated hub.
@@ -729,6 +741,11 @@ public class Colony {
         c.daysSinceExpansion = tag.getInt("daysSinceExpansion");
         c.lastSimulatedDay = tag.contains("lastSimulatedDay") ? tag.getLong("lastSimulatedDay") : -1;
         c.deferredBirthsDuringCatchUp = tag.getBoolean("deferredBirthsDuringCatchUp");
+        c.hasObservedClocks = tag.contains("observedGameTime") && tag.contains("observedDayTime");
+        if (c.hasObservedClocks) {
+            c.observedGameTime = tag.getLong("observedGameTime");
+            c.observedDayTime = tag.getLong("observedDayTime");
+        }
         c.state = ColonyState.valueOf(tag.getString("state"));
         if (tag.hasUUID("leader")) c.leaderId = tag.getUUID("leader");
         if (tag.contains("warehouseCenter")) c.warehouseManager.setWarehouseCenter(BlockPos.of(tag.getLong("warehouseCenter")));

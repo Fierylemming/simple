@@ -28,6 +28,16 @@ class DailyCatchUpTest {
         assertFalse(DailyCatchUp.deferBirths(160, 161, false));
     }
 
+    @Test void detectsForwardClockSkipsWithoutMistakingNormalTimeOrRewinds() {
+        assertFalse(DailyCatchUp.clockJumpedForward(23950, 24050, 500, 600));
+        assertTrue(DailyCatchUp.clockJumpedForward(23950, 48050, 500, 600));
+        assertTrue(DailyCatchUp.clockJumpedForward(23000, 24000, 500, 600));
+        assertFalse(DailyCatchUp.clockJumpedForward(23000, 23000, 500, 600));
+        assertFalse(DailyCatchUp.clockJumpedForward(24000, 1000, 500, 600));
+        assertFalse(DailyCatchUp.clockJumpedForward(24000, 24100, 600, 500));
+        assertTrue(DailyCatchUp.clockJumpedForward(Long.MIN_VALUE, Long.MAX_VALUE, 10, 20));
+    }
+
     @Test void unloadedCitizenHealthDaysPersistInOrder() {
         CitizenData citizen = new CitizenData(UUID.randomUUID(), "Test", JobType.FARMER);
         citizen.queueDailyHealth(true);
