@@ -3,14 +3,15 @@ package com.simplecolonies.villager.job;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Vanilla stone/iron tool recipes, with oak logs and planks as a source of sticks. */
+/** Vanilla stone/iron tool recipes, using real wooden planks or logs for sticks. */
 final class ToolCrafting {
     interface Stock {
         int count(String id);
         boolean consume(String id, int amount);
         void add(String id, int amount);
     }
-    private static final String STICK = "minecraft:stick", PLANKS = "minecraft:oak_planks", LOG = "minecraft:oak_log";
+    private static final String STICK = "minecraft:stick";
+    private static final String[] WOODS = {"oak", "spruce", "birch", "jungle", "acacia", "dark_oak", "mangrove", "cherry"};
 
     static boolean make(Stock stock, String material, String result) {
         boolean stone = material.equals("minecraft:cobblestone") && (result.equals("minecraft:stone_sword")
@@ -24,16 +25,32 @@ final class ToolCrafting {
         if (stock.count(material) < materials) return false;
         int existingSticks = Math.min(neededSticks, stock.count(STICK));
         boolean makeSticks = existingSticks < neededSticks;
-        int planks = makeSticks ? Math.min(2, stock.count(PLANKS)) : 0;
-        int logs = makeSticks && planks < 2 ? 1 : 0;
-        if (stock.count(LOG) < logs) return false;
-
-        // Plan first, consume once, and refund already removed inputs on failure.
+        // A vanilla stick recipe accepts two planks from any wood species.
+        // Prefer existing planks, then turn one real log into its matching
+        // four planks; do not convert non-oak timber into oak.
         var inputs = new LinkedHashMap<String, Integer>();
         inputs.put(material, materials);
         if (existingSticks > 0) inputs.put(STICK, existingSticks);
-        if (planks > 0) inputs.put(PLANKS, planks);
-        if (logs > 0) inputs.put(LOG, logs);
+        int missingPlanks = makeSticks ? 2 : 0;
+        for (String wood : WOODS) {
+            String id = "minecraft:" + wood + "_planks";
+            int take = Math.min(missingPlanks, stock.count(id));
+            if (take > 0) { inputs.put(id, take); missingPlanks -= take; }
+        }
+        String craftedPlanks = null;
+        if (missingPlanks > 0) {
+            for (String wood : WOODS) {
+                String id = "minecraft:" + wood + "_log";
+                if (stock.count(id) > 0) {
+                    inputs.put(id, 1);
+                    craftedPlanks = "minecraft:" + wood + "_planks";
+                    break;
+                }
+            }
+            if (craftedPlanks == null) return false;
+        }
+
+        // Plan first, consume once, and refund already removed inputs on failure.
         var taken = new LinkedHashMap<String, Integer>();
         for (Map.Entry<String, Integer> input : inputs.entrySet()) {
             if (!stock.consume(input.getKey(), input.getValue())) {
@@ -43,8 +60,7 @@ final class ToolCrafting {
             taken.put(input.getKey(), input.getValue());
         }
         if (makeSticks) {
-            int sparePlanks = planks + logs * 4 - 2;
-            if (sparePlanks > 0) stock.add(PLANKS, sparePlanks);
+            if (craftedPlanks != null) stock.add(craftedPlanks, 4 - missingPlanks);
             int spareSticks = 4 - (neededSticks - existingSticks);
             if (spareSticks > 0) stock.add(STICK, spareSticks);
         }

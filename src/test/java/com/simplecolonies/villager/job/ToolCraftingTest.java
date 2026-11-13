@@ -23,6 +23,32 @@ class ToolCraftingTest {
         assertEquals(2, s.count("minecraft:oak_planks")); assertEquals(2, s.count("minecraft:stick"));
         assertEquals(1, s.count("minecraft:stone_pickaxe"));
     }
+    @Test void replacementToolsUseRealNonOakTimberAndKeepTheRightSurplus() {
+        for (String wood : new String[]{"spruce", "birch", "jungle", "acacia", "dark_oak", "mangrove", "cherry"}) {
+            var s = new Stock(); s.add("minecraft:cobblestone", 3); s.add("minecraft:" + wood + "_log", 1);
+            assertTrue(ToolCrafting.make(s, "minecraft:cobblestone", "minecraft:stone_axe"), wood);
+            assertEquals(0, s.count("minecraft:" + wood + "_log"));
+            assertEquals(2, s.count("minecraft:" + wood + "_planks"));
+            assertEquals(0, s.count("minecraft:oak_planks"));
+            assertEquals(2, s.count("minecraft:stick"));
+        }
+    }
+    @Test void mixedRealPlanksCanMakeSticksWithoutInventingOrSpendingLogs() {
+        var s = new Stock(); s.add("minecraft:cobblestone", 3);
+        s.add("minecraft:birch_planks", 1); s.add("minecraft:spruce_planks", 1);
+        assertTrue(ToolCrafting.make(s, "minecraft:cobblestone", "minecraft:stone_pickaxe"));
+        assertEquals(0, s.count("minecraft:birch_planks")); assertEquals(0, s.count("minecraft:spruce_planks"));
+        assertEquals(2, s.count("minecraft:stick"));
+        assertEquals(1, s.count("minecraft:stone_pickaxe"));
+    }
+    @Test void nonOakInputsAreRefundedOnFailure() {
+        var s = new Stock(); s.add("minecraft:cobblestone", 3); s.add("minecraft:birch_planks", 1);
+        s.add("minecraft:spruce_log", 1); s.fail = "minecraft:spruce_log";
+        assertFalse(ToolCrafting.make(s, "minecraft:cobblestone", "minecraft:stone_axe"));
+        assertEquals(3, s.count("minecraft:cobblestone")); assertEquals(1, s.count("minecraft:birch_planks"));
+        assertEquals(1, s.count("minecraft:spruce_log")); assertEquals(0, s.count("minecraft:spruce_planks"));
+    }
+
     @Test void refusesMissingMaterialsWithoutSpendingAnything() {
         var s = new Stock(); s.add("minecraft:iron_ingot", 3); s.add("minecraft:stick", 1);
         assertFalse(ToolCrafting.make(s, "minecraft:iron_ingot", "minecraft:iron_axe"));
