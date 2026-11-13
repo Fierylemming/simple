@@ -106,18 +106,13 @@ public class FarmerJob extends AbstractJob {
      * workstation, and carry the resulting bread back. Legacy virtual wheat
      * is not an inventory and cannot be picked up by this physical recipe. */
     private boolean makeBread(ServerLevel level) {
-        var inventory = villager.getInventory();
-        int carried = 0;
-        for (int i = 0; i < inventory.getContainerSize(); i++)
-            if (plainWheat(inventory.getItem(i))) carried += inventory.getItem(i).getCount();
+        var supplies = worker().getWorkSupplies();
+        if (!supplies.isEmpty() && !plainWheat(supplies)) { state = JobState.STUCK; return true; }
+        int carried = supplies.isEmpty() ? 0 : supplies.getCount();
         if (carried >= 3) {
             if (!atClaimedWorkstation(level)) return true;
-            int need = 3;
-            for (int i = 0; i < inventory.getContainerSize() && need > 0; i++) {
-                if (!plainWheat(inventory.getItem(i))) continue;
-                need -= inventory.removeItem(i, need).getCount();
-            }
-            if (need != 0) { state = JobState.STUCK; return true; }
+            supplies.shrink(3);
+            if (supplies.isEmpty()) worker().setWorkSupplies(ItemStack.EMPTY);
             carryHarvest(new ItemStack(Items.BREAD));
             villager.swing(InteractionHand.MAIN_HAND);
             state = JobState.WORKING; ticksUntilNextWork = 40; return true;
@@ -132,7 +127,7 @@ public class FarmerJob extends AbstractJob {
                 if (plainWheat(container.getItem(i))) available += container.getItem(i).getCount();
         }
         // If there is not yet enough physical wheat, continue harvesting.
-        if (available < 3 || !inventory.canAddItem(new ItemStack(Items.WHEAT))) return false;
+        if (available < 3) return false;
         unreachableStorageUntil.entrySet().removeIf(e -> e.getValue() <= level.getGameTime());
         var candidates = storage.stream().filter(p -> !unreachableStorageUntil.containsKey(p))
                 .filter(p -> {
@@ -154,8 +149,8 @@ public class FarmerJob extends AbstractJob {
                 if (!plainWheat(container.getItem(i))) continue;
                 var taken = container.removeItem(i, 3 - carried);
                 container.setChanged();
-                var remainder = inventory.addItem(taken);
-                if (!remainder.isEmpty()) villager.spawnAtLocation(remainder);
+                if (supplies.isEmpty()) worker().setWorkSupplies(taken);
+                else supplies.grow(taken.getCount());
                 villager.swing(InteractionHand.MAIN_HAND);
                 state = JobState.WORKING; ticksUntilNextWork = 10; return true;
             }

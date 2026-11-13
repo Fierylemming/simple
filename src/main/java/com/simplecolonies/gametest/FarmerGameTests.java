@@ -160,13 +160,17 @@ public class FarmerGameTests {
             job.tick(helper.getLevel());
             if (!gathered[0] && storage.countItem(net.minecraft.world.item.Items.WHEAT) == 0) {
                 if (worker.distanceToSqr(absChest.getX()+.5, absChest.getY()+.5, absChest.getZ()+.5) > 9
-                        || worker.getInventory().countItem(net.minecraft.world.item.Items.WHEAT) != 3)
+                        || !worker.getWorkSupplies().is(net.minecraft.world.item.Items.WHEAT) || worker.getWorkSupplies().getCount() != 3)
                     helper.fail("Wheat was not physically collected");
+                var tag = new net.minecraft.nbt.CompoundTag(); worker.addAdditionalSaveData(tag);
+                var restored = net.minecraft.world.item.ItemStack.parseOptional(helper.getLevel().registryAccess(), tag.getCompound("workSupplies"));
+                if (!restored.is(net.minecraft.world.item.Items.WHEAT) || restored.getCount() != 3)
+                    helper.fail("Ingredients in transit were not persisted");
                 gathered[0] = true;
             }
             if (!made[0] && worker.getCourierCargo().is(net.minecraft.world.item.Items.BREAD)) {
                 if (!gathered[0] || worker.distanceToSqr(absSite.getX()+.5, absSite.getY()+.5, absSite.getZ()+.5) > 9
-                        || worker.getInventory().countItem(net.minecraft.world.item.Items.WHEAT) != 0)
+                        || !worker.getWorkSupplies().isEmpty())
                     helper.fail("Bread was made remotely or without consuming wheat");
                 made[0] = true;
             }
@@ -192,6 +196,20 @@ public class FarmerGameTests {
         Blocks.FARMLAND.fallOn(helper.getLevel(), helper.getLevel().getBlockState(abs), abs, worker, 10);
         if (!helper.getBlockState(plot).is(Blocks.FARMLAND) || !helper.getBlockState(crop).is(Blocks.WHEAT))
             helper.fail("Colony villager trampled farmland and destroyed crop");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void jobChangeDropsCarriedIngredients(GameTestHelper helper) {
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 8));
+        worker.setJob(JobType.FARMER);
+        worker.setWorkSupplies(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.WHEAT, 3));
+        worker.setJob(JobType.LUMBERJACK);
+        if (!worker.getWorkSupplies().isEmpty()) helper.fail("Job change retained the old ingredient stack");
+        var dropped = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                worker.getBoundingBox().inflate(2), e -> e.getItem().is(net.minecraft.world.item.Items.WHEAT));
+        if (dropped.stream().mapToInt(e -> e.getItem().getCount()).sum() != 3)
+            helper.fail("Job change did not drop the carried wheat");
         helper.succeed();
     }
 
