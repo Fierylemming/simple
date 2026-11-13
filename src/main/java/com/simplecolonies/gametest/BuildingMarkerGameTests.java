@@ -43,7 +43,7 @@ public class BuildingMarkerGameTests {
             if (!colony.getBuildings().isEmpty() || colony.getWarehouseManager().getConfiguredWarehouseCenter() != null)
                 helper.fail("Breaking the linked marker left a phantom building or hub");
             if (!Colony.load(colony.save()).getBuildings().isEmpty()) helper.fail("Removed marker record returned after reload");
-        } finally { colonies.remove(id); }
+        } finally { colonies.remove(id); manager.saveAll(); }
         helper.succeed();
     }
 
