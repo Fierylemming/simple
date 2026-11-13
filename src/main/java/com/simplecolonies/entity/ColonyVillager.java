@@ -46,6 +46,9 @@ public class ColonyVillager extends Villager {
     // Session-local interior candidates; revalidated before redirecting a walk.
     private java.util.List<net.minecraft.core.BlockPos> shelterInterior = java.util.List.of();
     private net.minecraft.core.BlockPos shelterAnchor;
+    // Doors remembered by the vanilla brain while approaching this shelter.
+    // Entries expire and never persist across unloads or dimension changes.
+    private final java.util.Map<net.minecraft.core.BlockPos, Long> shelterDoors = new java.util.HashMap<>();
 
     // Needs
     private int hungerTicks = 0; // increments daily if no food, leads to damage
@@ -374,6 +377,7 @@ public class ColonyVillager extends Villager {
         // Do not interrupt panic, trading or sleep with shelter navigation.
         if (isTrading() || isSleeping() || getBrain().hasMemoryValue(MemoryModuleType.IS_PANICKING)
                 || getBrain().hasMemoryValue(MemoryModuleType.NEAREST_HOSTILE)) return;
+        rememberAndCloseShelterDoors(level, colony);
         if (level.getGameTime() < nextShelterAttempt) {
             redirectShelteredWander(level, colony);
             return;
@@ -383,7 +387,6 @@ public class ColonyVillager extends Villager {
         if (!onGround() && !isInLiquid() && !isPassenger()) return;
         nextShelterAttempt = level.getGameTime() + 60;
         shelterInterior = java.util.List.of();
-        shelterAnchor = null;
         if (getNavigation() instanceof net.minecraft.world.entity.ai.navigation.GroundPathNavigation ground) {
             ground.setCanOpenDoors(true);
             ground.setCanPassDoors(true);
@@ -414,7 +417,7 @@ public class ColonyVillager extends Villager {
             var existing = getBrain().getMemory(MemoryModuleType.WALK_TARGET);
             if (existing.isPresent() && candidates.contains(existing.get().getTarget().currentBlockPosition())
                     && !getNavigation().isDone()) {
-                shelterAnchor = shelter.getPos(); shelterInterior = java.util.List.copyOf(candidates);
+                setShelterCache(shelter.getPos(), candidates);
                 return;
             }
             boolean alreadySheltered = candidates.contains(blockPosition());
@@ -425,27 +428,74 @@ public class ColonyVillager extends Villager {
                 // the current position as proof that this walk will stay safe.
                 if (blockPosition().equals(target)) {
                     if (!leaving) {
-                        shelterAnchor = shelter.getPos(); shelterInterior = java.util.List.copyOf(candidates);
+                        setShelterCache(shelter.getPos(), candidates);
                         return;
                     }
                     continue;
                 }
                 var path = getNavigation().createPath(target, 0);
                 if (path != null && path.canReach()) {
-                    shelterAnchor = shelter.getPos(); shelterInterior = java.util.List.copyOf(candidates);
+                    setShelterCache(shelter.getPos(), candidates);
                     getBrain().setMemory(MemoryModuleType.WALK_TARGET,
                             new net.minecraft.world.entity.ai.memory.WalkTarget(target, 0.7f, 0));
                     return;
                 }
             }
             if (alreadySheltered && leaving) {
-                shelterAnchor = shelter.getPos(); shelterInterior = java.util.List.copyOf(candidates);
+                setShelterCache(shelter.getPos(), candidates);
                 // If no alternative indoor path exists, ask the vanilla brain
                 // to stop at the current safe spot rather than leave the shelter.
                 getBrain().setMemory(MemoryModuleType.WALK_TARGET,
                         new net.minecraft.world.entity.ai.memory.WalkTarget(blockPosition(), 0.7f, 0));
                 return;
             }
+        }
+        shelterAnchor = null;
+        shelterDoors.clear();
+    }
+
+    private void setShelterCache(net.minecraft.core.BlockPos anchor, java.util.List<net.minecraft.core.BlockPos> candidates) {
+        if (!java.util.Objects.equals(shelterAnchor, anchor)) shelterDoors.clear();
+        shelterAnchor = anchor;
+        shelterInterior = java.util.List.copyOf(candidates);
+    }
+
+    /** Close only a nearby wooden door that vanilla recorded this villager
+     * opening on the way to its shelter. Never interfere with redstone,
+     * nearby players, occupied doorways, panic, or an invalid enclosure. */
+    private void rememberAndCloseShelterDoors(ServerLevel level, Colony colony) {
+        long now = level.getGameTime();
+        shelterDoors.entrySet().removeIf(e -> e.getValue() < now);
+        if (shelterAnchor == null) return;
+        getBrain().getMemory(MemoryModuleType.DOORS_TO_CLOSE).ifPresent(doors -> {
+            for (var door : doors) {
+                var p = door.pos();
+                if (door.dimension().equals(level.dimension()) && Math.abs(p.getX() - shelterAnchor.getX()) <= 7
+                        && Math.abs(p.getZ() - shelterAnchor.getZ()) <= 7 && Math.abs(p.getY() - shelterAnchor.getY()) <= 4)
+                    shelterDoors.put(p.immutable(), now + 120);
+            }
+        });
+        if (shelterDoors.isEmpty() || !shelterInterior.contains(blockPosition())) return;
+        boolean registered = colony.getBuildings().stream().anyMatch(b -> b.getPos().equals(shelterAnchor)
+                && b.getState() == com.simplecolonies.building.BuildingState.COMPLETE
+                && (b.getType() == com.simplecolonies.building.BuildingType.HOUSE
+                    || b.getType() == com.simplecolonies.building.BuildingType.TOWN_HALL));
+        if (!registered || !usableShelterSpot(level, blockPosition()) || !ShelterSafety.enclosed(level, blockPosition())) return;
+        var iterator = shelterDoors.entrySet().iterator();
+        while (iterator.hasNext()) {
+            var p = iterator.next().getKey();
+            if (!level.isLoaded(p) || !level.isLoaded(p.above())) continue;
+            var state = level.getBlockState(p);
+            if (!(state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock door)
+                    || !state.is(net.minecraft.tags.BlockTags.WOODEN_DOORS)) { iterator.remove(); continue; }
+            if (!state.getValue(net.minecraft.world.level.block.DoorBlock.OPEN)) { iterator.remove(); continue; }
+            if (state.getValue(net.minecraft.world.level.block.DoorBlock.POWERED)
+                    || level.hasNeighborSignal(p) || level.hasNeighborSignal(p.above())) continue;
+            var doorway = new net.minecraft.world.phys.AABB(p).expandTowards(0, 1, 0);
+            if (!level.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class, doorway.inflate(1)).isEmpty()
+                    || !level.getEntitiesOfClass(net.minecraft.world.entity.player.Player.class, doorway.inflate(4)).isEmpty()) continue;
+            door.setOpen(this, level, state, p, false);
+            iterator.remove();
         }
     }
 

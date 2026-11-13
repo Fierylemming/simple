@@ -114,6 +114,19 @@ public class ShelterGameTests {
             walk = worker.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET);
             if (walk.isEmpty() || walk.get().getTarget().currentBlockPosition().distSqr(colony.getCenter()) > 2)
                 helper.fail("Outdoor wander was accepted during the shelter search cooldown");
+            // Simulate a door vanilla recorded as opened by this villager. Do
+            // not shut it while another living entity occupies the doorway.
+            var opened = low.setValue(DoorBlock.OPEN, true);
+            helper.getLevel().setBlock(absoluteDoor, opened, 2);
+            helper.getLevel().setBlock(absoluteDoor.above(), opened.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3);
+            worker.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.DOORS_TO_CLOSE,
+                    new java.util.HashSet<>(java.util.Set.of(net.minecraft.core.GlobalPos.of(helper.getLevel().dimension(), absoluteDoor))));
+            var blocker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), door);
+            worker.seekShelter(helper.getLevel(), colony);
+            if (!helper.getLevel().getBlockState(absoluteDoor).getValue(DoorBlock.OPEN)) helper.fail("Closed an occupied doorway");
+            blocker.discard();
+            worker.seekShelter(helper.getLevel(), colony);
+            if (helper.getLevel().getBlockState(absoluteDoor).getValue(DoorBlock.OPEN)) helper.fail("Did not close the remembered empty door");
             // A cached interior cannot hold a villager in a newly breached hall.
             helper.setBlock(hall.east(3), Blocks.AIR);
             helper.setBlock(hall.east(3).above(), Blocks.AIR);
@@ -126,6 +139,8 @@ public class ShelterGameTests {
             helper.setBlock(hall.east(3), Blocks.COBBLESTONE);
             helper.setBlock(hall.east(3).above(), Blocks.COBBLESTONE);
             worker.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.IS_PANICKING, true);
+            if (!worker.getBrain().hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.IS_PANICKING))
+                helper.fail("Panic test memory is not registered on this villager brain");
             worker.seekShelter(helper.getLevel(), colony);
             walk = worker.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET);
             if (walk.isEmpty() || !walk.get().getTarget().currentBlockPosition().equals(outside))
