@@ -4,7 +4,7 @@ This is an **unfinished test build**, not the completed overhaul. Back up any ex
 
 ## Get the build
 
-1. Open [CI run 43436978482](https://github.com/Fierylemming/simple/actions/runs/43436978482) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `aad5aa9`, version `0.1.29`. The build and GameTests passed, but the fishing integration has failed intermittently in other runs and still needs in-game verification. Extract the zip.
+1. Open [CI run 43439814794](https://github.com/Fierylemming/simple/actions/runs/43439814794) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `524eca3`, version `0.1.29`. The build and GameTests passed, but the fishing integration has failed intermittently in other runs and still needs in-game verification. Extract the zip.
 2. In Prism Launcher, create a **Minecraft 1.21.1, NeoForge 21.1.265, Java 21** instance. Place the extracted SimpleColonies jar in that instance's `mods` folder; remove any older SimpleColonies jar first. Do not install it alongside another copy. For a server, install the same version on both client and server.
 3. Start a new world with cheats enabled, in the Overworld. No public overhaul release has been made.
 
@@ -61,3 +61,9 @@ The subsequent [CI run 43421640302](https://github.com/Fierylemming/simple/actio
 ### Latest safety and defender checks
 
 A following defender may now cross the colony boundary while its valid leader remains in the same dimension; dismissing it restores the ordinary return-to-colony behavior. Follow orders remain session-local, and chunks are not force-loaded. Builders pause if fluid appears in a queued placement or the upper half of a door. Butchers no longer tend or attack animals outside the colony or through solid walls. Unnamed player-owned livestock inside the designated work area are still indistinguishable from livestock intended for the butcher; keep them away. These changes passed the build and GameTests in [CI run 43436978482](https://github.com/Fierylemming/simple/actions/runs/43436978482). This is still an unfinished preview, not the requested final release.
+
+### Timber and shelter follow-up
+
+New version-12 houses, supported workshops and civic halls choose one affordable timber family from oak, spruce, birch, jungle, acacia, dark oak, mangrove and cherry. Builders craft matching planks, stairs, slabs and doors from that family's real logs; no other species becomes oak. The selected family and completed placement prefix are saved. Version-11 and older saved plans still regenerate their original oak layouts. The build and full suite passed [CI run 43439814794](https://github.com/Fierylemming/simple/actions/runs/43439814794), including physical birch-house and spruce-smithy construction. Foresters still cannot harvest many natural tree shapes; supplying logs does not make full tree support complete.
+
+Shelter path selection now retries promptly after landing rather than waiting a full interval if the worker is airborne during a search. The previous [CI run 43437407960](https://github.com/Fierylemming/simple/actions/runs/43437407960) failed the intermittent hall-shelter test; later runs passed, but this change is not proof of reliable full-night shelter or a guaranteed fix.
