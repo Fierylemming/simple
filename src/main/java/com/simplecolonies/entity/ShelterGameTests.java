@@ -54,6 +54,18 @@ public class ShelterGameTests {
                     + "; powered=" + helper.getLevel().hasNeighborSignal(absDoor));
         });
     }
+    // Independent fixtures exercise vanilla door/path behavior under different
+    // random navigation choices; one lucky path is not sufficient evidence.
+    @GameTest(template = "empty", timeoutTicks = 1200)
+    public static void bedlessHallDoorRepeatOne(GameTestHelper helper) {
+        bedlessVillagerEntersHallAndDoorCloses(helper);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 1200)
+    public static void bedlessHallDoorRepeatTwo(GameTestHelper helper) {
+        bedlessVillagerEntersHallAndDoorCloses(helper);
+    }
+
     @GameTest(template = "empty", timeoutTicks = 200)
     public static void shelterSearchRetriesAfterLanding(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
