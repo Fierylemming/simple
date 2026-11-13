@@ -55,3 +55,5 @@ Version 11 adds a builder-constructed cultural civic hall after level two, subje
 ### Recent forester work
 
 Foresters can harvest recognizable straight trunks up to ten logs only when they can physically reach each log from the ground or a reachable existing natural slope. They do not build scaffolding, and branched, multi-trunk and inaccessible tall trees remain unsupported. Replacement-tool crafting now accepts the timber species listed above and keeps correctly matched surplus. These changes passed [CI run 43421105592](https://github.com/Fierylemming/simple/actions/runs/43421105592). A subsequent physical birch-axe integration test passed, but its overall [CI run 43421133434](https://github.com/Fierylemming/simple/actions/runs/43421133434) failed an intermittent bedless-hall shelter test; shelter reliability remains unresolved. Neither run is a release.
+
+The subsequent [CI run 43421640302](https://github.com/Fierylemming/simple/actions/runs/43421640302) passed the build and complete GameTest suite at commit `50c6558`, including the physical birch-axe test. This does not resolve the intermittent shelter failure or replace real-world testing.
