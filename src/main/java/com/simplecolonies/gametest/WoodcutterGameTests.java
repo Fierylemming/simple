@@ -233,6 +233,32 @@ public class WoodcutterGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 700)
+    public static void leavesUnreachableCrookedAcaciaIntact(GameTestHelper helper) {
+        var baseLogs = makeCrookedAcacia(helper);
+        for (int x = 1; x <= 3; x++) for (int z = -1; z <= 1; z++) {
+            if (x != 2 || z != 0) {
+                helper.setBlock(ROOT.offset(x, 5, z), Blocks.AIR);
+                helper.setBlock(ROOT.offset(x, 8, z), Blocks.ACACIA_LEAVES);
+            }
+        }
+        for (int y = 6; y <= 8; y++) helper.setBlock(ROOT.offset(2, y, 0), Blocks.ACACIA_LOG);
+        Colony colony = colony(helper);
+        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56));
+        var job = new WoodcutterJob(worker, colony);
+        for (int tick = 1; tick < 700; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(650, () -> {
+            for (var p : baseLogs) if (!helper.getBlockState(p).is(Blocks.ACACIA_LOG))
+                helper.fail("Started cutting a crooked tree with unreachable upper logs");
+            for (int y = 6; y <= 8; y++) if (!helper.getBlockState(ROOT.offset(2, y, 0)).is(Blocks.ACACIA_LOG))
+                helper.fail("Removed unreachable upper log");
+            if (colony.getWarehouseCount(helper.getLevel(), "minecraft:acacia_log") != 0)
+                helper.fail("Collected logs from an unreachable tree");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 900)
     public static void crookedAcaciaStopsIfConstructionAppears(GameTestHelper helper) {
         makeCrookedAcacia(helper);
