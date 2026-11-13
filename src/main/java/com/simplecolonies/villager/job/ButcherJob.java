@@ -114,6 +114,20 @@ public class ButcherJob extends AbstractJob {
                 villager.getNavigation().moveTo(path, 0.7);
                 state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
             }
+            if (!partnerWaiting) {
+                // Do not start the short love timer until both parents can be
+                // reached promptly from the same position. This avoids wasting
+                // the first item on a pair separated by a fence or long walk.
+                var partner = adults.stream().filter(a -> a != candidate && a.canFallInLove()
+                                && a.distanceToSqr(candidate) <= 36)
+                        .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
+                if (partner == null) continue;
+                if (villager.distanceToSqr(partner) > 6.25 || !villager.hasLineOfSight(partner)) {
+                    var path = villager.getNavigation().createPath(partner, 1);
+                    if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
+                    villager.getNavigation().moveTo(path, .7); state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
+                }
+            }
             if (!candidate.isAlive() || candidate.hasCustomName() || candidate.getAge() != 0
                     || candidate.isInLove() || !candidate.canFallInLove()) continue;
             supplies.shrink(1);
@@ -126,6 +140,15 @@ public class ButcherJob extends AbstractJob {
         // If there is no longer a suitable pair, return unused carried food to
         // shared storage rather than getting stuck on a different species.
         if (!worker().getWorkSupplies().isEmpty()) {
+            // A recently fed animal may have wandered out of range. Keep the
+            // second item while its love timer is active instead of starting a
+            // long storage trip and abandoning the pair.
+            var carriedFood = worker().getWorkSupplies();
+            boolean waiting = all.stream().anyMatch(a -> !a.hasCustomName() && a.getAge() == 0 && a.isInLove()
+                    && ((a instanceof Cow && carriedFood.is(net.minecraft.world.item.Items.WHEAT))
+                        || (a instanceof Pig && (carriedFood.is(net.minecraft.world.item.Items.CARROT)
+                            || carriedFood.is(net.minecraft.world.item.Items.POTATO) || carriedFood.is(net.minecraft.world.item.Items.BEETROOT)))));
+            if (waiting) { state = JobState.WORKING; ticksUntilNextWork = 10; return; }
             worker().setCourierCargo(worker().getWorkSupplies());
             worker().setWorkSupplies(net.minecraft.world.item.ItemStack.EMPTY);
             state = JobState.WORKING; ticksUntilNextWork = 10; return;

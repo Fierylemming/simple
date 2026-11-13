@@ -284,4 +284,32 @@ public class ButcherGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 700)
+    public static void waitsUntilBothParentsAreReachableBeforeFeeding(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos center = helper.absolutePos(new BlockPos(8, 1, 8)), chest = new BlockPos(6, 1, 7);
+        helper.setBlock(chest, Blocks.CHEST);
+        var inventory = (net.minecraft.world.Container) helper.getBlockEntity(chest);
+        inventory.setItem(0, new ItemStack(Items.WHEAT, 4));
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(6, 1, 8)); worker.setNoAi(true);
+        var first = helper.spawn(EntityType.COW, new BlockPos(7, 1, 8)); first.setNoAi(true);
+        var second = helper.spawn(EntityType.COW, new BlockPos(11, 1, 8)); second.setNoAi(true);
+        var job = new ButcherJob(worker, colony);
+        for (int tick = 1; tick < 700; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(220, () -> {
+            if (first.isInLove() || second.isInLove() || inventory.countItem(Items.WHEAT) != 2
+                    || worker.getWorkSupplies().getCount() != 2)
+                helper.fail("Fed a parent before both were reachable or lost food");
+            var pos = helper.absolutePos(new BlockPos(8, 1, 8));
+            second.teleportTo(pos.getX()+.5, pos.getY(), pos.getZ()+.5);
+        });
+        helper.succeedWhen(() -> {
+            if (!first.isInLove() || !second.isInLove() || inventory.countItem(Items.WHEAT) != 2)
+                helper.fail("Nearby pair not fed: " + job.getState());
+        });
+    }
+
 }

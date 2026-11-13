@@ -190,6 +190,16 @@ public final class ShepherdJob extends AbstractJob {
             if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
             villager.getNavigation().moveTo(path, 0.7); state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
         }
+        if (!partnerWaiting) {
+            var partner = adults.stream().filter(a -> a != target && a.canFallInLove() && a.distanceToSqr(target) <= 36)
+                    .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
+            if (partner == null) return;
+            if (villager.distanceToSqr(partner) > 6.25 || !villager.hasLineOfSight(partner)) {
+                var path = villager.getNavigation().createPath(partner, 1);
+                if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
+                villager.getNavigation().moveTo(path, .7); state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
+            }
+        }
         if (!target.isAlive() || target.hasCustomName() || target.getAge() != 0 || target.isInLove() || !target.canFallInLove()) return;
         supplies.shrink(1);
         if (supplies.isEmpty()) worker().setWorkSupplies(ItemStack.EMPTY);
