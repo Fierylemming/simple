@@ -78,6 +78,37 @@ public class ShelterGameTests {
     }
 
     @GameTest(template = "empty", timeoutTicks = 200)
+    public static void shelterWalkRedirectsVanillaWanderingOutdoors(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos hall = new BlockPos(8, 1, 9), door = hall.north(3);
+        for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) {
+            for (int y = 0; y <= 2; y++) if ((Math.abs(x) == 3 || Math.abs(z) == 3) && !(x == 0 && z == -3 && y < 2))
+                helper.setBlock(hall.offset(x, y, z), Blocks.COBBLESTONE);
+            helper.setBlock(hall.offset(x, 3, z), Blocks.OAK_PLANKS);
+        }
+        var absoluteDoor = helper.absolutePos(door);
+        var low = Blocks.OAK_DOOR.defaultBlockState().setValue(DoorBlock.FACING, Direction.NORTH);
+        helper.getLevel().setBlock(absoluteDoor, low, 2);
+        helper.getLevel().setBlock(absoluteDoor.above(), low.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3);
+        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(hall));
+        colony.registerPlayerBuilding(new Building(BuildingType.TOWN_HALL, colony.getCenter(), CultureType.ROMAN, true));
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), hall.west());
+        helper.runAtTickTime(20, () -> {
+            worker.setOnGround(true);
+            var outside = helper.absolutePos(new BlockPos(8, 1, 2));
+            worker.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET,
+                    new net.minecraft.world.entity.ai.memory.WalkTarget(outside, 0.7f, 0));
+            var before = worker.blockPosition();
+            worker.seekShelter(helper.getLevel(), colony);
+            var walk = worker.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET);
+            if (!worker.blockPosition().equals(before) || walk.isEmpty()
+                    || walk.get().getTarget().currentBlockPosition().distSqr(colony.getCenter()) > 2)
+                helper.fail("Did not redirect outdoor wandering to shelter without teleporting: " + walk);
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 200)
     public static void shelterSearchRetriesAfterLanding(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
         BlockPos hall = new BlockPos(8, 1, 9), door = hall.north(3);

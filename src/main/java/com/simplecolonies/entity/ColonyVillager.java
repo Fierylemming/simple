@@ -406,14 +406,29 @@ public class ColonyVillager extends Villager {
             var existing = getBrain().getMemory(MemoryModuleType.WALK_TARGET);
             if (existing.isPresent() && candidates.contains(existing.get().getTarget().currentBlockPosition())
                     && !getNavigation().isDone()) return;
+            boolean alreadySheltered = candidates.contains(blockPosition());
+            boolean leaving = existing.isPresent() && !candidates.contains(existing.get().getTarget().currentBlockPosition());
             for (var target : candidates) {
-                if (blockPosition().equals(target)) return;
+                // A vanilla wander target can still point outside after arrival.
+                // Let the brain walk to another indoor spot instead of treating
+                // the current position as proof that this walk will stay safe.
+                if (blockPosition().equals(target)) {
+                    if (!leaving) return;
+                    continue;
+                }
                 var path = getNavigation().createPath(target, 0);
                 if (path != null && path.canReach()) {
                     getBrain().setMemory(MemoryModuleType.WALK_TARGET,
                             new net.minecraft.world.entity.ai.memory.WalkTarget(target, 0.7f, 0));
                     return;
                 }
+            }
+            if (alreadySheltered && leaving) {
+                // If no alternative indoor path exists, ask the vanilla brain
+                // to stop at the current safe spot rather than leave the shelter.
+                getBrain().setMemory(MemoryModuleType.WALK_TARGET,
+                        new net.minecraft.world.entity.ai.memory.WalkTarget(blockPosition(), 0.7f, 0));
+                return;
             }
         }
     }
