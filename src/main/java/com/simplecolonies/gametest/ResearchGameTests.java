@@ -18,6 +18,66 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public class ResearchGameTests {
     @GameTest(template = "empty")
+    public static void tightHousingResearchAddsRealShelterCapacityWithoutBeds(GameTestHelper helper) {
+        BlockPos center = helper.absolutePos(new BlockPos(8, 1, 8));
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        colony.registerPlayerBuilding(new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.HOUSE,
+                center, CultureType.ROMAN, true));
+        for (int i = 0; i < 6; i++) colony.addCitizen(new com.simplecolonies.colony.CitizenData(
+                java.util.UUID.randomUUID(), "Resident", com.simplecolonies.villager.job.JobType.UNEMPLOYED));
+        colony.reconcileHomes();
+        if (colony.getShelterCapacity() != 4 || colony.getCitizens().stream().filter(c -> c.home != null).count() != 4)
+            helper.fail("Base shelter assignment incorrect");
+        colony.depositToWarehouse("minecraft:cobblestone", 32);
+        colony.depositToWarehouse("minecraft:oak_planks", 32);
+        colony.depositToWarehouse("minecraft:coal", 4);
+        colony.depositToWarehouse("minecraft:white_wool", 8);
+        if (!colony.getResearch().tryBuy(ColonyUpgrade.TOOL_STONE, helper.getLevel(), null)
+                || !colony.getResearch().tryBuy(ColonyUpgrade.HOUSING_EFFICIENT, helper.getLevel(), null))
+            helper.fail("Could not buy housing research using actual white wool");
+        colony.reconcileHomes();
+        if (colony.getShelterCapacity() != 6 || colony.getCitizens().stream().filter(c -> c.home != null).count() != 6
+                || colony.getWarehouseCount(helper.getLevel(), "minecraft:white_wool") != 0
+                || colony.getWarehouseCount(helper.getLevel(), "minecraft:oak_planks") != 0)
+            helper.fail("Research did not charge or update shelter assignments");
+        var restored = Colony.load(colony.save());
+        restored.reconcileHomes();
+        if (restored.getShelterCapacity() != 6 || restored.getCitizens().stream().filter(c -> c.home != null).count() != 6)
+            helper.fail("Researched shelter and assignments did not survive reload");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void unsupportedResearchCannotChargeButOldUnlocksPersist(GameTestHelper helper) {
+        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
+        var tag = colony.getResearch().save();
+        var unlocked = new net.minecraft.nbt.ListTag();
+        for (var up : ColonyUpgrade.values()) if (up != ColonyUpgrade.SCHEMATIC_CANNON && up != ColonyUpgrade.WAREHOUSE_CAPACITY)
+            unlocked.add(net.minecraft.nbt.StringTag.valueOf(up.name()));
+        tag.put("unlocked", unlocked); tag.putInt("autoCooldown", 0);
+        colony.getResearch().load(tag);
+        colony.depositToWarehouse("minecraft:chest", 8);
+        colony.depositToWarehouse("minecraft:oak_planks", 40);
+        colony.depositToWarehouse("minecraft:iron_block", 2);
+        colony.depositToWarehouse("minecraft:redstone", 8);
+        var before = colony.getWarehouseSnapshot(helper.getLevel());
+        if (colony.getResearch().tryBuy(ColonyUpgrade.WAREHOUSE_CAPACITY, helper.getLevel(), null)
+                || colony.getResearch().tryBuy(ColonyUpgrade.SCHEMATIC_CANNON, helper.getLevel(), null))
+            helper.fail("Paid for unsupported research");
+        colony.getResearch().tickAutoProgress(helper.getLevel());
+        if (!before.equals(colony.getWarehouseSnapshot(helper.getLevel())) || colony.getResearch().isUnlocked(ColonyUpgrade.WAREHOUSE_CAPACITY)
+                || colony.getResearch().isUnlocked(ColonyUpgrade.SCHEMATIC_CANNON)) helper.fail("Auto research paid for unsupported research");
+        unlocked.add(net.minecraft.nbt.StringTag.valueOf("WAREHOUSE_CAPACITY"));
+        unlocked.add(net.minecraft.nbt.StringTag.valueOf("SCHEMATIC_CANNON"));
+        tag.put("unlocked", unlocked);
+        colony.getResearch().load(tag);
+        var restored = Colony.load(colony.save());
+        if (!restored.getResearch().isUnlocked(ColonyUpgrade.WAREHOUSE_CAPACITY)
+                || !restored.getResearch().isUnlocked(ColonyUpgrade.SCHEMATIC_CANNON)) helper.fail("Old unlock was lost on reload");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void completedLibraryShortensResearchIntervalAndSurvivesReload(GameTestHelper helper) {
         var plain = researchColony(helper, false);
         var library = researchColony(helper, true);

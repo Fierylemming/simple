@@ -223,10 +223,16 @@ public class Colony {
     // A starter town hall provides shelter for its four founders, without inventing beds.
     public int getShelterCapacity() { return shelterCapacity(); }
 
+    /** Capacity is shelter space, not an assertion that beds were built. */
+    public int houseShelterCapacity(Building building) {
+        if (building.getType() != BuildingType.HOUSE) return 0;
+        return building.getHousingCapacity() + (researchManager.isUnlocked(com.simplecolonies.progression.ColonyUpgrade.HOUSING_EFFICIENT) ? 2 : 0);
+    }
+
     private int shelterCapacity() {
         return buildings.stream().filter(b -> b.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
                 .mapToInt(b -> b.getType() == BuildingType.TOWN_HALL ? 4
-                        : b.getType() == BuildingType.HOUSE ? b.getHousingCapacity() : 0).sum();
+                        : b.getType() == BuildingType.HOUSE ? houseShelterCapacity(b) : 0).sum();
     }
 
     /** Keep existing valid home assignments, then fill remaining shared house
@@ -236,7 +242,7 @@ public class Colony {
                 .thenComparingInt(p -> p.getY()).thenComparingInt(p -> p.getZ()));
         for (Building building : buildings) {
             if (building.getType() == BuildingType.HOUSE && building.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
-                spaces.putIfAbsent(building.getPos(), Math.max(0, building.getHousingCapacity()));
+                spaces.putIfAbsent(building.getPos(), Math.max(0, houseShelterCapacity(building)));
         }
         var ordered = citizens.values().stream().sorted(Comparator.comparing((CitizenData c) -> c.uuid)).toList();
         boolean changed = false;

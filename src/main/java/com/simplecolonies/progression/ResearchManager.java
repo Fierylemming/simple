@@ -78,6 +78,8 @@ public class ResearchManager {
     }
 
     public boolean canUnlock(ColonyUpgrade upgrade) {
+        // Preserve old saved unlocks but never charge for unsupported effects.
+        if (upgrade == ColonyUpgrade.WAREHOUSE_CAPACITY || upgrade == ColonyUpgrade.SCHEMATIC_CANNON) return false;
         if (isUnlocked(upgrade)) return false;
         for (var pre : upgrade.prerequisites) if (!isUnlocked(pre)) return false;
         return true;
@@ -86,15 +88,16 @@ public class ResearchManager {
     /** Player buys upgrade — consumes mats from chests/warehouse. */
     public boolean tryBuy(ColonyUpgrade upgrade, ServerLevel level, Player player) {
         if (!canUnlock(upgrade)) {
-            player.displayClientMessage(Component.literal("§cMissing prerequisites for " + upgrade.displayName), true);
+            if (player != null) player.displayClientMessage(Component.literal("§cResearch unavailable or missing prerequisites for " + upgrade.displayName), true);
             return false;
         }
         if (!canAfford(upgrade, level)) {
-            player.displayClientMessage(Component.literal("§cNot enough resources in warehouse/chests for " + upgrade.displayName), true);
-            // Show missing
-            for (var e : upgrade.cost.entrySet()) {
-                int have = level != null ? colony.getWarehouseManager().count(e.getKey()) + colony.getWarehouseCount(e.getKey()) : colony.getWarehouseCount(e.getKey());
-                if (have < e.getValue()) player.displayClientMessage(Component.literal("  Need " + e.getValue() + "x " + e.getKey() + " (have " + have + ")"), false);
+            if (player != null) {
+                player.displayClientMessage(Component.literal("§cNot enough resources in warehouse/chests for " + upgrade.displayName), true);
+                for (var e : upgrade.cost.entrySet()) {
+                    int have = colony.getWarehouseCount(level, e.getKey());
+                    if (have < e.getValue()) player.displayClientMessage(Component.literal("  Need " + e.getValue() + "x " + e.getKey() + " (have " + have + ")"), false);
+                }
             }
             return false;
         }

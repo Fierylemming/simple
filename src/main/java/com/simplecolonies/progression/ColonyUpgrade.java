@@ -78,10 +78,10 @@ public enum ColonyUpgrade {
             Map.of("minecraft:wheat", 16, "minecraft:oak_planks", 16, "minecraft:coal", 4),
             Set.of(TOOL_STONE), UpgradeCategory.BUFF,
             "No emerald — so village can self-buy without trading"),
-    HOUSING_EFFICIENT("Tight Housing", "+2 beds per House building", 1,
-            Map.of("minecraft:wool", 8, "minecraft:oak_planks", 16),
+    HOUSING_EFFICIENT("Tight Housing", "+2 shelter slots per completed house; no beds", 1,
+            Map.of("minecraft:white_wool", 8, "minecraft:oak_planks", 16),
             Set.of(TOOL_STONE), UpgradeCategory.BUFF,
-            "Uses only wood/wool from lumberjack/farmer"),
+            "Requires white wool and planks; does not create beds"),
 
     // Tier 2 — needs Tier1 resources (raw_iron from miner, leather from butcher, planks)
     UNLOCK_BLACKSMITH("Blacksmith", "Unlocks Blacksmith (smelts ores, makes iron tools)", 2,

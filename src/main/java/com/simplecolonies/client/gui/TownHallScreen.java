@@ -272,7 +272,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
         g.drawString(font, b.getType().displayName+" Lv"+b.getLevel()+"  ["+b.getState()+"]", x+24,y+2, done?C_GREEN: C_TEXT,false);
         g.drawString(font, b.getPos().toShortString(), x+24,y+13, C_TEXT_MUTED,false);
         // upgrade hint
-        String up = b.isPlayerPlaced ? (b.getType()==BuildingType.HOUSE ? "Marker: "+b.getHousingCapacity()+" shelter slots; no beds" : "Player-designated building") : "Generated plan; visual upgrades not implemented";
+        String up = b.isPlayerPlaced ? (b.getType()==BuildingType.HOUSE ? "Marker: "+menu.colony.houseShelterCapacity(b)+" shelter slots; no beds" : "Player-designated building") : "Generated plan; visual upgrades not implemented";
         g.drawString(font, up, x+24,y+22, b.getLevel()>=5?C_GOLD:C_TEXT_MID,false);
     }
     private String BuildingIcon(BuildingType t){ return switch(t){ case HOUSE->"⌂"; case FARM->"⚘"; case LUMBERJACK_HUT->"♠"; case MINE->"⛏"; case WAREHOUSE->"▣"; case BARRACKS->"⚔"; case BLACKSMITH->"⚒"; case BAKERY->"◯"; default->"⬢"; }; }
