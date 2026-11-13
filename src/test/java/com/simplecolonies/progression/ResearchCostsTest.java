@@ -29,6 +29,17 @@ class ResearchCostsTest {
         assertFalse(ResearchCosts.pay(stock, cost));
         assertEquals(4, stock.count("wood")); assertEquals(2, stock.count("stone"));
     }
+    @Test void automaticResearchRequiresDoubleStockWithoutOverflow() {
+        var stock = new Stock(); stock.items.put("wood", 7); stock.items.put("stone", 4);
+        var cost = Map.of("wood", 4, "stone", 2);
+        assertFalse(ResearchCosts.hasSurplus(stock, cost));
+        stock.items.put("wood", 8);
+        assertTrue(ResearchCosts.hasSurplus(stock, cost));
+        assertTrue(ResearchCosts.pay(stock, cost));
+        assertEquals(4, stock.count("wood")); assertEquals(2, stock.count("stone"));
+        stock.items.put("wood", Integer.MAX_VALUE);
+        assertFalse(ResearchCosts.hasSurplus(stock, Map.of("wood", Integer.MAX_VALUE)));
+    }
     @Test void paysFullCostExactlyOnce() {
         var stock = new Stock(); stock.items.put("wood", 5); stock.items.put("stone", 2);
         assertTrue(ResearchCosts.pay(stock, Map.of("wood", 4, "stone", 2)));

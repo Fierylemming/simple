@@ -123,9 +123,9 @@ public class ResearchManager {
         autoProgressCooldown = library ? 2 : 5;
         // Find cheapest unlockable upgrade we can afford (cheapest first = tier order)
         for (ColonyUpgrade up : ColonyUpgrade.values()) {
-            if (canUnlock(up) && canAfford(up, level)) {
-                // Auto-buy if tier 1 and colony has 2× mats (surplus) to not starve
-                // We check food surplus implicitly via canAfford after food tick
+            if (canUnlock(up) && ResearchCosts.hasSurplus(stock(level), up.cost)) {
+                // Keep a full second cost in stock; manual research can still
+                // be bought with the exact cost if the leader chooses.
                 if (!ResearchCosts.pay(stock(level), up.cost)) continue;
                 unlocked.add(up);
                 colony.broadcast(Component.literal("§eColony #" + colony.getId() + " self-unlocked " + up.displayName + " (had enough resources)"));

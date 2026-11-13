@@ -13,6 +13,11 @@ final class ResearchCosts {
     static boolean affordable(Stock stock, Map<String, Integer> cost) {
         return cost.entrySet().stream().allMatch(e -> e.getValue() >= 0 && stock.count(e.getKey()) >= e.getValue());
     }
+    /** Auto research leaves at least one complete cost in stock for other needs. */
+    static boolean hasSurplus(Stock stock, Map<String, Integer> cost) {
+        return cost.entrySet().stream().allMatch(e -> e.getValue() >= 0
+                && (long) stock.count(e.getKey()) >= 2L * e.getValue());
+    }
     static boolean pay(Stock stock, Map<String, Integer> cost) {
         if (!affordable(stock, cost)) return false;
         var taken = new LinkedHashMap<String, Integer>();

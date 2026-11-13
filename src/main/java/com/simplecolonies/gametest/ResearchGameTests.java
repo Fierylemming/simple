@@ -85,10 +85,10 @@ public class ResearchGameTests {
             var saved = colony.getResearch().save();
             saved.putInt("autoCooldown", 0);
             colony.getResearch().load(saved);
-            colony.depositToWarehouse("minecraft:cobblestone", 32);
-            colony.depositToWarehouse("minecraft:oak_planks", 32);
-            colony.depositToWarehouse("minecraft:coal", 8);
-            colony.depositToWarehouse("minecraft:wheat", 16);
+            colony.depositToWarehouse("minecraft:cobblestone", 64);
+            colony.depositToWarehouse("minecraft:oak_planks", 64);
+            colony.depositToWarehouse("minecraft:coal", 16);
+            colony.depositToWarehouse("minecraft:wheat", 32);
             colony.getResearch().tickAutoProgress(helper.getLevel());
             if (!colony.getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE)) helper.fail("First research did not unlock");
         }
@@ -100,9 +100,9 @@ public class ResearchGameTests {
         if (plain.getResearch().isUnlocked(ColonyUpgrade.EFFICIENCY_1)
                 || !library.getResearch().isUnlocked(ColonyUpgrade.EFFICIENCY_1))
             helper.fail("Completed library did not shorten research cooldown after reload");
-        if (library.getWarehouseCount(helper.getLevel(), "minecraft:wheat") != 0
-                || library.getWarehouseCount(helper.getLevel(), "minecraft:oak_planks") != 0
-                || library.getWarehouseCount(helper.getLevel(), "minecraft:coal") != 0)
+        if (library.getWarehouseCount(helper.getLevel(), "minecraft:wheat") != 16
+                || library.getWarehouseCount(helper.getLevel(), "minecraft:oak_planks") != 32
+                || library.getWarehouseCount(helper.getLevel(), "minecraft:coal") != 8)
             helper.fail("Library research did not spend actual materials");
         helper.succeed();
     }
@@ -114,6 +114,32 @@ public class ResearchGameTests {
                 center.east(5), CultureType.ROMAN, completedLibrary);
         colony.registerPlayerBuilding(library);
         return colony;
+    }
+
+    @GameTest(template = "empty")
+    public static void automaticResearchPreservesItsSurplus(GameTestHelper helper) {
+        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
+        var saved = colony.getResearch().save(); saved.putInt("autoCooldown", 0);
+        colony.getResearch().load(saved);
+        colony.depositToWarehouse("minecraft:cobblestone", 32);
+        colony.depositToWarehouse("minecraft:oak_planks", 16);
+        colony.depositToWarehouse("minecraft:coal", 4);
+        colony.getResearch().tickAutoProgress(helper.getLevel());
+        if (colony.getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE)
+                || colony.getWarehouseCount(helper.getLevel(), "minecraft:cobblestone") != 32)
+            helper.fail("Automatic research spent the last required supplies");
+        colony.depositToWarehouse("minecraft:cobblestone", 32);
+        colony.depositToWarehouse("minecraft:oak_planks", 16);
+        colony.depositToWarehouse("minecraft:coal", 4);
+        saved = colony.getResearch().save(); saved.putInt("autoCooldown", 0);
+        colony.getResearch().load(saved);
+        colony.getResearch().tickAutoProgress(helper.getLevel());
+        if (!colony.getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE)
+                || colony.getWarehouseCount(helper.getLevel(), "minecraft:cobblestone") != 32
+                || colony.getWarehouseCount(helper.getLevel(), "minecraft:oak_planks") != 16
+                || colony.getWarehouseCount(helper.getLevel(), "minecraft:coal") != 4)
+            helper.fail("Automatic research did not retain its surplus");
+        helper.succeed();
     }
 
     @GameTest(template = "isolated")
