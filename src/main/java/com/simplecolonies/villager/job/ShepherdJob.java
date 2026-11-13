@@ -87,6 +87,10 @@ public final class ShepherdJob extends AbstractJob {
                     container.setChanged(); break;
                 }
                 if (!villager.getMainHandItem().is(Items.SHEARS)) { state = JobState.NEEDS_TOOL; return; }
+                // Gathering and shearing are distinct physical actions, even when
+                // a sheep happens to stand beside the storage chest.
+                villager.swing(InteractionHand.MAIN_HAND);
+                state = JobState.WORKING; ticksUntilNextWork = 20; return;
             }
         }
         var shears = villager.getMainHandItem();
