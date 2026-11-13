@@ -204,13 +204,56 @@ public class FarmerGameTests {
         var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 8));
         worker.setJob(JobType.FARMER);
         worker.setWorkSupplies(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.WHEAT, 3));
+        worker.setPlantingSeeds(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.WHEAT_SEEDS, 2));
         worker.setJob(JobType.LUMBERJACK);
-        if (!worker.getWorkSupplies().isEmpty()) helper.fail("Job change retained the old ingredient stack");
+        if (!worker.getWorkSupplies().isEmpty() || !worker.getPlantingSeeds().isEmpty()) helper.fail("Job change retained the old ingredient stack");
         var dropped = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
                 worker.getBoundingBox().inflate(2), e -> e.getItem().is(net.minecraft.world.item.Items.WHEAT));
         if (dropped.stream().mapToInt(e -> e.getItem().getCount()).sum() != 3)
             helper.fail("Job change did not drop the carried wheat");
+        var seeds = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                worker.getBoundingBox().inflate(2), e -> e.getItem().is(net.minecraft.world.item.Items.WHEAT_SEEDS));
+        if (seeds.stream().mapToInt(e -> e.getItem().getCount()).sum() != 2) helper.fail("Job change did not drop the carried seeds");
         helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 1600)
+    public static void farmerWalksForSeedsBeforePlanting(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos site = new BlockPos(4, 1, 8), plot = new BlockPos(5, 1, 8), chest = new BlockPos(13, 1, 8);
+        helper.setBlock(site, Blocks.COMPOSTER); helper.setBlock(chest, Blocks.CHEST);
+        helper.setBlock(plot.below(), Blocks.FARMLAND.defaultBlockState().setValue(FarmBlock.MOISTURE, 7));
+        helper.setBlock(plot.south().below(), Blocks.WATER);
+        BlockPos absSite = helper.absolutePos(site), absChest = helper.absolutePos(chest);
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(4, 1, 9));
+        worker.setVillagerData(worker.getVillagerData().setProfession(ColonyProfessions.profession(JobType.FARMER)));
+        worker.refreshBrain(helper.getLevel());
+        worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), absSite));
+        Colony colony = new Colony(0, CultureType.ROMAN, absSite);
+        colony.registerPlayerBuilding(new Building(BuildingType.FARM, absSite, CultureType.ROMAN, true));
+        var storage = (net.minecraft.world.Container) helper.getBlockEntity(chest);
+        storage.setItem(0, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.WHEAT_SEEDS, 3));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), absChest)) helper.fail("Could not share chest");
+        var job = new FarmerJob(worker, colony);
+        boolean[] collected = {false};
+        for (int tick = 1; tick < 1600; tick++) helper.runAtTickTime(tick, () -> {
+            job.tick(helper.getLevel());
+            if (!collected[0] && !worker.getPlantingSeeds().isEmpty()) {
+                if (worker.distanceToSqr(absChest.getX()+.5, absChest.getY()+.5, absChest.getZ()+.5) > 9
+                        || storage.countItem(net.minecraft.world.item.Items.WHEAT_SEEDS) != 0)
+                    helper.fail("Seeds were not collected physically");
+                var tag = new net.minecraft.nbt.CompoundTag(); worker.addAdditionalSaveData(tag);
+                var restored = net.minecraft.world.item.ItemStack.parseOptional(helper.getLevel().registryAccess(), tag.getCompound("plantingSeeds"));
+                if (!restored.is(net.minecraft.world.item.Items.WHEAT_SEEDS) || restored.getCount() != 3)
+                    helper.fail("Carried planting seeds did not persist");
+                collected[0] = true;
+            }
+        });
+        helper.succeedWhen(() -> {
+            if (!collected[0] || !helper.getBlockState(plot).is(Blocks.WHEAT)
+                    || worker.getPlantingSeeds().getCount() != 2)
+                helper.fail("Farmer has not planted from carried seed: " + job.getState());
+        });
     }
 
 }

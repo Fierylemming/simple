@@ -3,7 +3,6 @@ package com.simplecolonies.villager.job;
 import com.simplecolonies.colony.Colony;
 import com.simplecolonies.entity.ColonyVillager;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.Item;
@@ -47,6 +46,11 @@ public class FarmerJob extends AbstractJob {
         if (colony.getWarehouseCount(level, "minecraft:bread") < targetBread && makeBread(level)) return;
         if (target == null || !level.isLoaded(target) || !eligible(level, target, farm.getPos())) target = findWork(level, farm.getPos());
         if (target == null) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
+        // Acquire seed before approaching an empty plot, or the worker would
+        // repeatedly walk back from the chest without ever collecting it.
+        if (level.getBlockState(target).isAir() && worker().getPlantingSeeds().isEmpty()) {
+            collectSeed(level); return;
+        }
         if (villager.distanceToSqr(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5) > 9.0) {
             var path = villager.getNavigation().createPath(target, 2);
             if (path == null || !path.canReach()) {
@@ -77,25 +81,15 @@ public class FarmerJob extends AbstractJob {
                         carryHarvest(harvested);
                     }
                 }
-                // Wheat sometimes drops no seeds. Use an actual stored seed as a
-                // fallback so a successful harvest doesn't permanently shrink the farm.
-                if (!replanted) replantFromStock(level, target, crop, seed);
+                // If the crop dropped no seed, only a seed already carried by
+                // this worker may be used immediately. Otherwise the plot waits
+                // for a physical storage trip on a later work action.
+                if (!replanted && worker().getPlantingSeeds().is(seed)) plantCarriedSeed(level, target);
                 state = JobState.WORKING;
             }
         } else if (cropState.isAir() && level.getBlockState(target.below()).is(Blocks.FARMLAND)) {
-            for (Item seed : new Item[]{Items.WHEAT_SEEDS, Items.CARROT, Items.POTATO, Items.BEETROOT_SEEDS}) {
-                String id = BuiltInRegistries.ITEM.getKey(seed).toString();
-                Block crop = seed == Items.WHEAT_SEEDS ? Blocks.WHEAT : seed == Items.CARROT ? Blocks.CARROTS
-                        : seed == Items.POTATO ? Blocks.POTATOES : Blocks.BEETROOTS;
-                if (colony.consumeStock(level, id, 1)) {
-                    if (level.setBlock(target, crop.defaultBlockState(), 3)) {
-                        villager.swing(InteractionHand.MAIN_HAND); state = JobState.WORKING;
-                    } else {
-                        colony.depositToWarehouse(id, 1);
-                        state = JobState.STUCK;
-                    }
-                    break;
-                }
+            if (plantCarriedSeed(level, target)) {
+                villager.swing(InteractionHand.MAIN_HAND); state = JobState.WORKING;
             }
         }
         target = null;
@@ -213,14 +207,56 @@ public class FarmerJob extends AbstractJob {
         state = JobState.WAITING_FOR_CHEST; ticksUntilNextWork = 100;
     }
 
-    boolean replantFromStock(ServerLevel level, BlockPos pos, CropBlock crop, Item seed) {
+    /** Plant only a plain seed the farmer physically carries, and never replace
+     * a block or charge for a failed placement. */
+    boolean plantCarriedSeed(ServerLevel level, BlockPos pos) {
         if (!level.isLoaded(pos) || !level.isLoaded(pos.below()) || !colony.isInside(pos)
                 || !level.getBlockState(pos).isAir() || !level.getBlockState(pos.below()).is(Blocks.FARMLAND)) return false;
-        String id = BuiltInRegistries.ITEM.getKey(seed).toString();
-        if (!colony.consumeStock(level, id, 1)) return false;
-        if (level.setBlock(pos, crop.getStateForAge(0), 3)) return true;
-        colony.depositToWarehouse(id, 1);
-        return false;
+        var stack = worker().getPlantingSeeds();
+        Block crop = cropForSeed(stack);
+        if (crop == null || !level.setBlock(pos, crop.defaultBlockState(), 3)) return false;
+        stack.shrink(1);
+        if (stack.isEmpty()) worker().setPlantingSeeds(ItemStack.EMPTY);
+        return true;
+    }
+
+    private static Block cropForSeed(ItemStack stack) {
+        if (stack.isEmpty() || !ItemStack.isSameItemSameComponents(stack, stack.getItem().getDefaultInstance())) return null;
+        if (stack.is(Items.WHEAT_SEEDS)) return Blocks.WHEAT;
+        if (stack.is(Items.CARROT)) return Blocks.CARROTS;
+        if (stack.is(Items.POTATO)) return Blocks.POTATOES;
+        if (stack.is(Items.BEETROOT_SEEDS)) return Blocks.BEETROOTS;
+        return null;
+    }
+
+    private void collectSeed(ServerLevel level) {
+        var warehouse = colony.getWarehouseManager();
+        unreachableStorageUntil.entrySet().removeIf(e -> e.getValue() <= level.getGameTime());
+        var candidates = warehouse.courierStoragePositions(level).stream()
+                .filter(p -> !unreachableStorageUntil.containsKey(p))
+                .filter(p -> {
+                    var c = warehouse.courierContainer(level, p);
+                    if (c == null) return false;
+                    for (int i = 0; i < c.getContainerSize(); i++) if (cropForSeed(c.getItem(i)) != null) return true;
+                    return false;
+                }).sorted(java.util.Comparator.comparingDouble(p -> p.distSqr(villager.blockPosition()))).toList();
+        for (BlockPos pos : candidates) {
+            if (villager.distanceToSqr(pos.getX()+.5, pos.getY()+.5, pos.getZ()+.5) > 9) {
+                var path = villager.getNavigation().createPath(pos, 1);
+                if (path == null || !path.canReach()) { unreachableStorageUntil.put(pos, level.getGameTime()+200); continue; }
+                villager.getNavigation().moveTo(path, .7); state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
+            }
+            var c = warehouse.courierContainer(level, pos);
+            if (c == null) continue;
+            for (int i = 0; i < c.getContainerSize(); i++) {
+                if (cropForSeed(c.getItem(i)) == null) continue;
+                var taken = c.removeItem(i, 8);
+                if (taken.isEmpty()) continue;
+                c.setChanged(); worker().setPlantingSeeds(taken);
+                villager.swing(InteractionHand.MAIN_HAND); state = JobState.WORKING; ticksUntilNextWork = 10; return;
+            }
+        }
+        state = JobState.NEEDS_RESOURCE; ticksUntilNextWork = 100;
     }
 
     private boolean eligible(ServerLevel level, BlockPos pos, BlockPos farm) {

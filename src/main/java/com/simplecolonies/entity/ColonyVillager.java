@@ -41,6 +41,7 @@ public class ColonyVillager extends Villager {
     private net.minecraft.world.item.ItemStack courierCargoExtra = net.minecraft.world.item.ItemStack.EMPTY;
     // Ingredients in transit are kept separate from vanilla villager AI inventory.
     private net.minecraft.world.item.ItemStack workSupplies = net.minecraft.world.item.ItemStack.EMPTY;
+    private net.minecraft.world.item.ItemStack plantingSeeds = net.minecraft.world.item.ItemStack.EMPTY;
     private CompoundTag minerMemory = new CompoundTag();
     private CompoundTag woodcutterMemory = new CompoundTag();
     private long nextConversationTime;
@@ -116,11 +117,15 @@ public class ColonyVillager extends Villager {
     public void setCourierCargoExtra(net.minecraft.world.item.ItemStack cargo) { courierCargoExtra = cargo; }
     public net.minecraft.world.item.ItemStack getWorkSupplies() { return workSupplies; }
     public void setWorkSupplies(net.minecraft.world.item.ItemStack supplies) { workSupplies = supplies; }
+    public net.minecraft.world.item.ItemStack getPlantingSeeds() { return plantingSeeds; }
+    public void setPlantingSeeds(net.minecraft.world.item.ItemStack seeds) { plantingSeeds = seeds; }
 
     private void dropCourierCargo() {
         if (!courierCargo.isEmpty()) spawnAtLocation(courierCargo);
         if (!courierCargoExtra.isEmpty()) spawnAtLocation(courierCargoExtra);
         if (!workSupplies.isEmpty()) spawnAtLocation(workSupplies);
+        if (!plantingSeeds.isEmpty()) spawnAtLocation(plantingSeeds);
+        plantingSeeds = net.minecraft.world.item.ItemStack.EMPTY;
         workSupplies = net.minecraft.world.item.ItemStack.EMPTY;
         courierCargo = net.minecraft.world.item.ItemStack.EMPTY;
         courierCargoExtra = net.minecraft.world.item.ItemStack.EMPTY;
@@ -672,6 +677,7 @@ public class ColonyVillager extends Villager {
         if (!courierCargo.isEmpty()) tag.put("courierCargo", courierCargo.save(registryAccess()));
         if (!courierCargoExtra.isEmpty()) tag.put("courierCargoExtra", courierCargoExtra.save(registryAccess()));
         if (!workSupplies.isEmpty()) tag.put("workSupplies", workSupplies.save(registryAccess()));
+        if (!plantingSeeds.isEmpty()) tag.put("plantingSeeds", plantingSeeds.save(registryAccess()));
         if (!minerMemory.isEmpty()) tag.put("minerMemory", minerMemory.copy());
         if (!woodcutterMemory.isEmpty()) tag.put("woodcutterMemory", woodcutterMemory.copy());
     }
@@ -693,6 +699,9 @@ public class ColonyVillager extends Villager {
                 : net.minecraft.world.item.ItemStack.EMPTY;
         workSupplies = tag.contains("workSupplies")
                 ? net.minecraft.world.item.ItemStack.parseOptional(registryAccess(), tag.getCompound("workSupplies"))
+                : net.minecraft.world.item.ItemStack.EMPTY;
+        plantingSeeds = tag.contains("plantingSeeds")
+                ? net.minecraft.world.item.ItemStack.parseOptional(registryAccess(), tag.getCompound("plantingSeeds"))
                 : net.minecraft.world.item.ItemStack.EMPTY;
     }
 
