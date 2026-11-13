@@ -208,33 +208,17 @@ public class Colony {
 
     private boolean isFood(String itemId) { return FoodRules.isFood(itemId); }
 
-    private void consumeFood(ServerLevel level, int amount) {
+    /** Prefer prepared food over produce that can be replanted, regardless of
+     * whether either item is in shared storage or the legacy stockpile. */
+    void consumeFood(ServerLevel level, int amount) {
         if (amount <= 0) return;
-        // Try chests first
-        if (level != null && warehouseManager.getChestCount() > 0) {
-            int remaining = amount;
-            for (String fid : FoodRules.FOOD_IDS) {
-                if (remaining <= 0) break;
-                int have = warehouseManager.count(fid);
-                int take = Math.min(have, remaining);
-                if (take > 0) {
-                    remaining -= warehouseManager.extract(level, center, fid, take, false);
-                }
-            }
-            if (remaining == 0) return;
-            amount = remaining;
-        }
-        int remaining = amount;
-        for (Iterator<Map.Entry<String, Integer>> it = warehouse.entrySet().iterator(); it.hasNext() && remaining > 0; ) {
-            Map.Entry<String, Integer> e = it.next();
-            if (!isFood(e.getKey())) continue;
-            int take = Math.min(e.getValue(), remaining);
-            e.setValue(e.getValue() - take);
-            if (e.getValue() <= 0) it.remove();
-            remaining -= take;
+        var available = getWarehouseSnapshot(level);
+        for (String id : FoodRules.FOOD_IDS) {
+            int take = Math.min(amount, available.getOrDefault(id, 0));
+            if (take > 0 && consumeStock(level, id, take)) amount -= take;
+            if (amount == 0) return;
         }
     }
-    private void consumeFood(int amount) { consumeFood(null, amount); }
 
     // A starter town hall provides shelter for its four founders, without inventing beds.
     public int getShelterCapacity() { return shelterCapacity(); }
