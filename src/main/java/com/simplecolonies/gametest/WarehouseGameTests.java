@@ -103,6 +103,30 @@ public class WarehouseGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void markerUpgradeChargesLiveStockAndPersistsCapacity(GameTestHelper helper) {
+        BlockPos center = helper.absolutePos(new BlockPos(8, 1, 8));
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        var house = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.HOUSE, center, CultureType.ROMAN, true);
+        colony.registerPlayerBuilding(house);
+        var cost = com.simplecolonies.building.BuildingUpgrade.costForUpgrade(house);
+        if (cost.containsKey("minecraft:wool")) helper.fail("Upgrade requests a nonexistent wool item");
+        if (com.simplecolonies.building.BuildingUpgrade.tryUpgrade(colony, house, helper.getLevel(), null)
+                || house.getLevel() != 1) helper.fail("Upgraded without materials");
+        cost.forEach(colony::depositToWarehouse);
+        if (!com.simplecolonies.building.BuildingUpgrade.tryUpgrade(colony, house, helper.getLevel(), null)
+                || house.getLevel() != 2 || house.getHousingCapacity() != 8) helper.fail("Marker capacity upgrade failed");
+        for (var entry : cost.entrySet()) if (colony.getWarehouseCount(helper.getLevel(), entry.getKey()) != 0)
+            helper.fail("Upgrade did not charge exactly " + entry.getKey());
+        if (Colony.load(colony.save()).getBuildings().getFirst().getHousingCapacity() != 8)
+            helper.fail("Marker upgrade did not persist");
+        var natural = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.HOUSE, center.east(8), CultureType.ROMAN);
+        natural.setState(com.simplecolonies.building.BuildingState.COMPLETE);
+        if (com.simplecolonies.building.BuildingUpgrade.tryUpgrade(colony, natural, helper.getLevel(), null))
+            helper.fail("Queued an unsupported generated-building upgrade");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void warehouseHubDesignationSurvivesReloadWithoutInventingOne(GameTestHelper helper) {
         BlockPos center = helper.absolutePos(new BlockPos(8, 1, 8));
         Colony colony = new Colony(0, CultureType.GREEK, center);

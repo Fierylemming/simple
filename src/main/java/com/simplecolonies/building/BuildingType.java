@@ -13,7 +13,7 @@ import java.util.Map;
  */
 public enum BuildingType {
     TOWN_HALL("Town Hall", "Center of colony, manages citizens and diplomacy", 0, null, Map.of("minecraft:oak_log", 32, "minecraft:cobblestone", 64)),
-    HOUSE("House", "Housing for 4 villagers + beds (upgrades +4 beds & +1 worker each level)", 4, null, Map.of("minecraft:oak_planks", 40, "minecraft:cobblestone", 20, "minecraft:wool", 8)),
+    HOUSE("House", "Shared shelter for 4 villagers; beds are not included", 4, null, Map.of("minecraft:oak_planks", 40, "minecraft:cobblestone", 20)),
     FARM("Farm", "Workplace for Farmer (needs only wood/wheat)", 0, com.simplecolonies.villager.job.JobType.FARMER, Map.of("minecraft:farmland", 20, "minecraft:wheat_seeds", 16, "minecraft:oak_fence", 12)),
     BUILDER_HUT("Builder Hut", "Shelter around the builder's workstation", 0, com.simplecolonies.villager.job.JobType.BUILDER, Map.of("minecraft:oak_planks", 30, "minecraft:cobblestone", 16)),
     LUMBERJACK_HUT("Lumberjack Hut", "Workplace for Woodcutter (now stone axe, not iron, so self-sufficient)", 0, com.simplecolonies.villager.job.JobType.LUMBERJACK, Map.of("minecraft:oak_log", 24, "minecraft:stone_axe", 1)),

@@ -596,7 +596,12 @@ public class Colony {
         if ((long) available + warehouse.getOrDefault(itemId, 0) < amount) return false;
         int taken = level == null ? 0 : warehouseManager.extract(level, center, itemId, amount, false);
         int remaining = amount - taken;
-        if (remaining > warehouse.getOrDefault(itemId, 0)) return false;
+        if (remaining > warehouse.getOrDefault(itemId, 0)) {
+            // A container changed between simulation and extraction. Restore any
+            // generic items taken rather than losing them on the failed request.
+            if (taken > 0) depositToWarehouse(itemId, taken);
+            return false;
+        }
         if (remaining > 0) depositToWarehouse(itemId, -remaining);
         ColonyManager.getInstance().markDirty(this);
         return true;

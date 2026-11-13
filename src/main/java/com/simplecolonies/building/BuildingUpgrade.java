@@ -70,10 +70,7 @@ public class BuildingUpgrade {
         if (building.getState() != BuildingState.COMPLETE) return false; // only upgrade finished buildings
         Map<String, Integer> cost = costForUpgrade(building);
         for (var e : cost.entrySet()) {
-            int have = colony.getWarehouseCount(level, e.getKey());
-            // also check chests
-            try { have = Math.max(have, colony.getWarehouseManager().count(e.getKey()) + colony.getWarehouseCount(e.getKey())); } catch (Exception ignored) {}
-            if (have < e.getValue()) return false;
+            if (colony.getWarehouseCount(level, e.getKey()) < e.getValue()) return false;
         }
         return true;
     }
@@ -83,19 +80,20 @@ public class BuildingUpgrade {
             if (player != null) player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cNot enough mats to upgrade " + building.getType().displayName + " to Lv" + (building.getLevel()+1)), true);
             return false;
         }
-        // Consume cost
-        Map<String, Integer> cost = costForUpgrade(building);
-        for (var e : cost.entrySet()) {
-            int chestHave = colony.getWarehouseManager().count(e.getKey());
-            int fromChest = Math.min(chestHave, e.getValue());
-            if (fromChest > 0) colony.getWarehouseManager().extract(level, building.getPos(), e.getKey(), fromChest, false);
-            int rem = e.getValue() - fromChest;
-            if (rem > 0) colony.depositToWarehouse(e.getKey(), -rem);
+        // The marker upgrade changes capacity only: it does not build a larger
+        // shell or create beds/workstations. Consume live stock transactionally.
+        Map<String, Integer> paid = new HashMap<>();
+        for (var e : costForUpgrade(building).entrySet()) {
+            if (!colony.consumeStock(level, e.getKey(), e.getValue())) {
+                paid.forEach(colony::depositToWarehouse);
+                if (player != null) player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cUpgrade materials changed; no upgrade was applied."), true);
+                return false;
+            }
+            paid.put(e.getKey(), e.getValue());
         }
-        // Set to blueprint to rebuild bigger -- builder will reconstruct with new palette
         building.upgradeToNextLevel();
-        if (player != null) player.displayClientMessage(net.minecraft.network.chat.Component.literal("§aQueued upgrade for " + building.getType().displayName + " → Lv" + building.getLevel()), false);
-        colony.broadcast(net.minecraft.network.chat.Component.literal("§6Upgrading " + building.getType().displayName + " at " + building.getPos().toShortString() + " to level " + building.getLevel()));
+        if (player != null) player.displayClientMessage(net.minecraft.network.chat.Component.literal("§aUpgraded marker capacity for " + building.getType().displayName + " → Lv" + building.getLevel()), false);
+        colony.broadcast(net.minecraft.network.chat.Component.literal("§6Updated marker capacity for " + building.getType().displayName + " at " + building.getPos().toShortString() + " to level " + building.getLevel()));
         com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
         return true;
     }
