@@ -53,6 +53,15 @@ class HomeAssignmentTest {
         assertTrue(colony.removeMarkerBuilding(housePos, BuildingType.HOUSE));
         assertEquals(1, colony.getBuildings().size());
         assertSame(generated, colony.getBuildings().getFirst());
+        BlockPos warehousePos = new BlockPos(0, 0, 10);
+        assertTrue(colony.updateMarkerBuilding(warehousePos, false, BuildingType.WAREHOUSE));
+        assertEquals(warehousePos, colony.getWarehouseManager().getConfiguredWarehouseCenter());
+        assertTrue(colony.removeMarkerBuilding(warehousePos, BuildingType.WAREHOUSE));
+        assertNull(colony.getWarehouseManager().getConfiguredWarehouseCenter());
+        colony.registerPlayerBuilding(new Building(BuildingType.HOUSE, housePos, CultureType.ROMAN, true));
+        colony.registerPlayerBuilding(new Building(BuildingType.HOUSE, housePos, CultureType.ROMAN, true));
+        assertFalse(colony.removeMarkerBuilding(housePos, BuildingType.HOUSE));
+        assertEquals(3, colony.getBuildings().size());
     }
 
     @Test void legacyCitizensHaveNoInventedHomeAndUnfinishedHousesAreIgnored() {

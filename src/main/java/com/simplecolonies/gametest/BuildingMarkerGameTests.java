@@ -54,10 +54,17 @@ public class BuildingMarkerGameTests {
         menu.clickMenuButton(player, BuildingMarkerMenu.BTN_CLEAR);
         if (!colony.getBuildings().isEmpty() || marker.getBuildingType() != null || marker.getLinkedBuildingPos() != null)
             helper.fail("Clear left a phantom building");
-        colony.registerPlayerBuilding(new Building(BuildingType.HOUSE, absolute, CultureType.ROMAN));
+        var generated = new Building(BuildingType.HOUSE, absolute, CultureType.ROMAN);
+        colony.registerPlayerBuilding(generated);
         menu.clickMenuButton(player, BuildingMarkerMenu.BTN_SET_FARM);
-        if (colony.getBuildings().size() != 1 || colony.getBuildings().getFirst().getType() != BuildingType.HOUSE)
+        if (colony.getBuildings().size() != 1 || colony.getBuildings().getFirst() != generated)
             helper.fail("Marker overwrote an unrelated blueprint");
+        // Even a forged or stale marker link cannot take over a completed generated house.
+        generated.setState(com.simplecolonies.building.BuildingState.COMPLETE);
+        marker.setBuildingType(BuildingType.HOUSE); marker.setLinkedBuildingPos(absolute);
+        menu.clickMenuButton(player, BuildingMarkerMenu.BTN_SET_FARM);
+        if (colony.getBuildings().size() != 1 || colony.getBuildings().getFirst() != generated)
+            helper.fail("Stale marker overwrote a generated building");
         helper.succeed();
     }
 }
