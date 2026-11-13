@@ -95,6 +95,28 @@ public class ButcherGameTests {
     }
 
     @GameTest(template = "isolated", timeoutTicks = 300)
+    public static void butcherCannotFeedThroughSolidWall(GameTestHelper helper) {
+        for (int x = 48; x <= 64; x++) for (int z = 48; z <= 64; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        for (int z = 50; z <= 62; z++) for (int y = 1; y <= 3; y++) helper.setBlock(57, y, z, Blocks.COBBLESTONE);
+        BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
+        colony.depositToWarehouse("minecraft:wheat", 4);
+        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(56, 1, 56));
+        worker.setNoAi(true);
+        var first = helper.spawn(EntityType.COW, new BlockPos(58, 1, 55));
+        var second = helper.spawn(EntityType.COW, new BlockPos(58, 1, 56));
+        first.setNoAi(true); second.setNoAi(true);
+        var job = new ButcherJob(worker, colony);
+        for (int tick = 1; tick < 300; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(250, () -> {
+            if (first.isInLove() || second.isInLove() || colony.getWarehouseCount(helper.getLevel(), "minecraft:wheat") != 4)
+                helper.fail("Butcher fed livestock through a wall");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 300)
     public static void butcherLeavesLivestockOutsideColonyAlone(GameTestHelper helper) {
         for (int x = 60; x <= 74; x++) for (int z = 50; z <= 62; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
         BlockPos center = helper.absolutePos(new BlockPos(18, 1, 56));
