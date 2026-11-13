@@ -238,13 +238,13 @@ public class Colony {
     /** Keep existing valid home assignments, then fill remaining shared house
      * capacity deterministically. The hall remains a fallback shelter, not a home. */
     public void reconcileHomes() {
-        var spaces = new TreeMap<BlockPos, Integer>(Comparator.comparingInt(BlockPos::getX)
-                .thenComparingInt(BlockPos::getY).thenComparingInt(BlockPos::getZ));
+        var spaces = new TreeMap<BlockPos, Integer>(Comparator.comparingInt((BlockPos p) -> p.getX())
+                .thenComparingInt(p -> p.getY()).thenComparingInt(p -> p.getZ()));
         for (Building building : buildings) {
             if (building.getType() == BuildingType.HOUSE && building.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
                 spaces.putIfAbsent(building.getPos(), Math.max(0, building.getHousingCapacity()));
         }
-        var ordered = citizens.values().stream().sorted(Comparator.comparing(c -> c.uuid)).toList();
+        var ordered = citizens.values().stream().sorted(Comparator.comparing((CitizenData c) -> c.uuid)).toList();
         boolean changed = false;
         for (CitizenData citizen : ordered) {
             if (citizen.home == null) continue;
