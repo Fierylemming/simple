@@ -76,6 +76,9 @@ public class FarmerJob extends AbstractJob {
                     }
                     if (count > 0) depositToColony(level, BuiltInRegistries.ITEM.getKey(drop.getItem()).toString(), count);
                 }
+                // Wheat sometimes drops no seeds. Use an actual stored seed as a
+                // fallback so a successful harvest doesn't permanently shrink the farm.
+                if (!replanted) replantFromStock(level, target, crop, seed);
                 state = JobState.WORKING;
             }
         } else if (cropState.isAir() && level.getBlockState(target.below()).is(Blocks.FARMLAND)) {
@@ -96,6 +99,16 @@ public class FarmerJob extends AbstractJob {
         }
         target = null;
         ticksUntilNextWork = 40;
+    }
+
+    boolean replantFromStock(ServerLevel level, BlockPos pos, CropBlock crop, Item seed) {
+        if (!level.isLoaded(pos) || !level.isLoaded(pos.below()) || !colony.isInside(pos)
+                || !level.getBlockState(pos).isAir() || !level.getBlockState(pos.below()).is(Blocks.FARMLAND)) return false;
+        String id = BuiltInRegistries.ITEM.getKey(seed).toString();
+        if (!colony.consumeStock(level, id, 1)) return false;
+        if (level.setBlock(pos, crop.getStateForAge(0), 3)) return true;
+        colony.depositToWarehouse(id, 1);
+        return false;
     }
 
     private boolean eligible(ServerLevel level, BlockPos pos, BlockPos farm) {
