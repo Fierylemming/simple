@@ -4,7 +4,7 @@ This is an **unfinished test build**, not the completed overhaul. Back up any ex
 
 ## Get the build
 
-1. Open [CI run 43397898546](https://github.com/Fierylemming/simple/actions/runs/43397898546) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `922983a`, version `0.1.29`. The build and GameTests passed, but the fishing integration has failed intermittently in other runs and still needs in-game verification. Extract the zip.
+1. Open [CI run 43415954443](https://github.com/Fierylemming/simple/actions/runs/43415954443) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `7240c9d`, version `0.1.29`. The build and GameTests passed, but the fishing integration has failed intermittently in other runs and still needs in-game verification. Extract the zip.
 2. In Prism Launcher, create a **Minecraft 1.21.1, NeoForge 21.1.265, Java 21** instance. Place the extracted SimpleColonies jar in that instance's `mods` folder; remove any older SimpleColonies jar first. Do not install it alongside another copy. For a server, install the same version on both client and server.
 3. Start a new world with cheats enabled, in the Overworld. No public overhaul release has been made.
 
@@ -47,3 +47,7 @@ Natural stone and player-placed stone are indistinguishable to the mod; do not t
 - Generic ID-only food and construction stock counts ignore stacks with custom components and do not merge normal items into them. Specialized tool withdrawal can still take an actual damaged or enchanted tool from shared storage, and couriers may move actual customized stacks; shared storage remains an explicit opt-in, not a private chest. Keep irreplaceable items in unshared containers.
 - Only house markers have a capacity-only upgrade; it charges materials but does not build a larger shell, add beds, or install workstations. Other marker upgrades are disabled until they have real effects; generated-building visual upgrades remain unimplemented. Existing saved levels are preserved.
 - When the clock jumps forward across even one day boundary, births are deferred for the catch-up, while food/health still advance. Detection begins after the colony has observed the clocks (legacy saves start observing on their next tick), and ordinary physical work is never fast-forwarded.
+
+### Civic growth and starter safety
+
+Version 11 adds a builder-constructed cultural civic hall after level two, subject to housing, materials and safe-site checks. It provides a meeting destination, not trading. Citizens may attempt to meet there late in the day if idle and the hall is enclosed and reachable. Shelter movement uses vanilla brain navigation to support door AI, but full-night safety remains unverified. Starter spawn no longer builds fallback dirt platforms; if no safe location exists, a founder may be missing. Cave space beneath the checked farm foundation is left alone.
