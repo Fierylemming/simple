@@ -43,6 +43,9 @@ public class ColonyVillager extends Villager {
     private CompoundTag woodcutterMemory = new CompoundTag();
     private long nextConversationTime;
     private long nextShelterAttempt;
+    // Session-local interior candidates; revalidated before redirecting a walk.
+    private java.util.List<net.minecraft.core.BlockPos> shelterInterior = java.util.List.of();
+    private net.minecraft.core.BlockPos shelterAnchor;
 
     // Needs
     private int hungerTicks = 0; // increments daily if no food, leads to damage
@@ -371,11 +374,16 @@ public class ColonyVillager extends Villager {
         // Do not interrupt panic, trading or sleep with shelter navigation.
         if (isTrading() || isSleeping() || getBrain().hasMemoryValue(MemoryModuleType.IS_PANICKING)
                 || getBrain().hasMemoryValue(MemoryModuleType.NEAREST_HOSTILE)) return;
-        if (level.getGameTime() < nextShelterAttempt) return;
+        if (level.getGameTime() < nextShelterAttempt) {
+            redirectShelteredWander(level, colony);
+            return;
+        }
         // Ground navigation cannot create a path while airborne. Do not burn
         // a whole retry interval just because this tick coincided with a jump.
         if (!onGround() && !isInLiquid() && !isPassenger()) return;
         nextShelterAttempt = level.getGameTime() + 60;
+        shelterInterior = java.util.List.of();
+        shelterAnchor = null;
         if (getNavigation() instanceof net.minecraft.world.entity.ai.navigation.GroundPathNavigation ground) {
             ground.setCanOpenDoors(true);
             ground.setCanPassDoors(true);
@@ -405,7 +413,10 @@ public class ColonyVillager extends Villager {
             // vanilla brain own its PATH so its door behavior can open and close.
             var existing = getBrain().getMemory(MemoryModuleType.WALK_TARGET);
             if (existing.isPresent() && candidates.contains(existing.get().getTarget().currentBlockPosition())
-                    && !getNavigation().isDone()) return;
+                    && !getNavigation().isDone()) {
+                shelterAnchor = shelter.getPos(); shelterInterior = java.util.List.copyOf(candidates);
+                return;
+            }
             boolean alreadySheltered = candidates.contains(blockPosition());
             boolean leaving = existing.isPresent() && !candidates.contains(existing.get().getTarget().currentBlockPosition());
             for (var target : candidates) {
@@ -413,17 +424,22 @@ public class ColonyVillager extends Villager {
                 // Let the brain walk to another indoor spot instead of treating
                 // the current position as proof that this walk will stay safe.
                 if (blockPosition().equals(target)) {
-                    if (!leaving) return;
+                    if (!leaving) {
+                        shelterAnchor = shelter.getPos(); shelterInterior = java.util.List.copyOf(candidates);
+                        return;
+                    }
                     continue;
                 }
                 var path = getNavigation().createPath(target, 0);
                 if (path != null && path.canReach()) {
+                    shelterAnchor = shelter.getPos(); shelterInterior = java.util.List.copyOf(candidates);
                     getBrain().setMemory(MemoryModuleType.WALK_TARGET,
                             new net.minecraft.world.entity.ai.memory.WalkTarget(target, 0.7f, 0));
                     return;
                 }
             }
             if (alreadySheltered && leaving) {
+                shelterAnchor = shelter.getPos(); shelterInterior = java.util.List.copyOf(candidates);
                 // If no alternative indoor path exists, ask the vanilla brain
                 // to stop at the current safe spot rather than leave the shelter.
                 getBrain().setMemory(MemoryModuleType.WALK_TARGET,
@@ -431,6 +447,27 @@ public class ColonyVillager extends Villager {
                 return;
             }
         }
+    }
+
+    /** Avoid a 60-tick gap in which vanilla idle wandering can leave a shelter.
+     * Never replace panic, trading or sleep; recheck the actual enclosure and
+     * only use a neighboring safe interior spot or the villager's own position. */
+    private void redirectShelteredWander(ServerLevel level, Colony colony) {
+        var here = blockPosition();
+        if (shelterAnchor == null || !shelterInterior.contains(here)) return;
+        var walk = getBrain().getMemory(MemoryModuleType.WALK_TARGET);
+        if (walk.isEmpty() || shelterInterior.contains(walk.get().getTarget().currentBlockPosition())) return;
+        boolean registered = colony.getBuildings().stream().anyMatch(b -> b.getPos().equals(shelterAnchor)
+                && b.getState() == com.simplecolonies.building.BuildingState.COMPLETE
+                && (b.getType() == com.simplecolonies.building.BuildingType.HOUSE
+                    || b.getType() == com.simplecolonies.building.BuildingType.TOWN_HALL));
+        if (!registered || !usableShelterSpot(level, here) || !ShelterSafety.enclosed(level, here)) return;
+        var target = shelterInterior.stream().filter(p -> !p.equals(here)
+                && Math.abs(p.getX() - here.getX()) + Math.abs(p.getY() - here.getY()) + Math.abs(p.getZ() - here.getZ()) == 1)
+                .filter(p -> usableShelterSpot(level, p) && ShelterSafety.enclosed(level, p))
+                .findFirst().orElse(here);
+        getBrain().setMemory(MemoryModuleType.WALK_TARGET,
+                new net.minecraft.world.entity.ai.memory.WalkTarget(target, 0.7f, 0));
     }
 
     private static boolean usableShelterSpot(ServerLevel level, net.minecraft.core.BlockPos pos) {

@@ -106,6 +106,14 @@ public class ShelterGameTests {
             if (!worker.blockPosition().equals(before) || walk.isEmpty()
                     || walk.get().getTarget().currentBlockPosition().distSqr(colony.getCenter()) > 2)
                 helper.fail("Did not redirect outdoor wandering to shelter without teleporting: " + walk);
+            // Vanilla may assign another outdoor walk immediately, well before
+            // the next expensive shelter search. It must still be redirected.
+            worker.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET,
+                    new net.minecraft.world.entity.ai.memory.WalkTarget(outside, 0.7f, 0));
+            worker.seekShelter(helper.getLevel(), colony);
+            walk = worker.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET);
+            if (walk.isEmpty() || walk.get().getTarget().currentBlockPosition().distSqr(colony.getCenter()) > 2)
+                helper.fail("Outdoor wander was accepted during the shelter search cooldown");
             helper.succeed();
         });
     }
