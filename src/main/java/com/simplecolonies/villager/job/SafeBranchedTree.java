@@ -15,8 +15,8 @@ import java.util.Set;
  * not proof that natural-looking player logs are unowned. */
 final class SafeBranchedTree {
     private static final int RADIUS = 5, LOG_RADIUS = 3, TOP = 11, LOG_TOP = 8, MAX_LOGS = 32;
-    private static final Comparator<BlockPos> ORDER = Comparator.comparingInt(BlockPos::getY)
-            .thenComparingInt(BlockPos::getX).thenComparingInt(BlockPos::getZ);
+    private static final Comparator<BlockPos> ORDER = Comparator.<BlockPos>comparingInt(p -> p.getY())
+            .thenComparingInt(p -> p.getX()).thenComparingInt(p -> p.getZ());
 
     static List<BlockPos> find(SafeOakTree.View view, BlockPos base) {
         if (!view.loaded(base) || !view.loaded(base.below()) || !view.soil(base.below()) || !view.trunk(base)) return List.of();
