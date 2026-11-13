@@ -70,6 +70,28 @@ public final class ConstructionCrafting {
         }
         return false;
     }
+    /** Raw existing inputs needed to make one output, using the exact same
+     * deterministic recipe as take(). Newly crafted intermediate items do not
+     * count as inputs to collect. Returns null when the recipe is unavailable. */
+    public static java.util.Map<String, Integer> requiredInputs(java.util.Map<String, Integer> available, String id) {
+        var original = new java.util.HashMap<>(available);
+        var made = new java.util.HashMap<String, Integer>();
+        var used = new java.util.LinkedHashMap<String, Integer>();
+        Stock simulation = new Stock() {
+            public int count(String key) { return original.getOrDefault(key, 0) + made.getOrDefault(key, 0); }
+            public boolean consume(String key, int amount) {
+                if (amount < 0 || count(key) < amount) return false;
+                int fresh = Math.min(amount, made.getOrDefault(key, 0));
+                if (fresh > 0) made.put(key, made.get(key) - fresh);
+                int existing = amount - fresh;
+                if (existing > 0) { original.put(key, original.getOrDefault(key, 0) - existing); used.merge(key, existing, Integer::sum); }
+                return true;
+            }
+            public void add(String key, int amount) { made.merge(key, amount, Integer::sum); }
+        };
+        return take(simulation, id) ? java.util.Collections.unmodifiableMap(used) : null;
+    }
+
     /** Check a whole plan against a copy so expansion never spends stock just to test it. */
     public static boolean canBuild(java.util.Map<String, Integer> stock, java.util.List<Building.BlockPlacement> placements) {
         var copy = new java.util.HashMap<>(stock);

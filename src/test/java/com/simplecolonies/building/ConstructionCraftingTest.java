@@ -69,4 +69,14 @@ class ConstructionCraftingTest {
         assertEquals(0, s.count("minecraft:furnace"));
     }
 
+    @Test void physicalInputPlanningAccountsForIntermediateAndExistingItems() {
+        assertEquals(Map.of("minecraft:oak_log", 1, "minecraft:oak_planks", 2),
+                ConstructionCrafting.requiredInputs(Map.of("minecraft:oak_log", 1, "minecraft:oak_planks", 2), "minecraft:oak_stairs"));
+        assertEquals(Map.of("minecraft:birch_log", 1, "minecraft:coal", 1),
+                ConstructionCrafting.requiredInputs(Map.of("minecraft:birch_log", 1, "minecraft:coal", 1), "minecraft:torch"));
+        assertEquals(Map.of("minecraft:oak_stairs", 1),
+                ConstructionCrafting.requiredInputs(Map.of("minecraft:oak_stairs", 1, "minecraft:oak_log", 9), "minecraft:oak_stairs"));
+        assertNull(ConstructionCrafting.requiredInputs(Map.of("minecraft:oak_log", 1), "minecraft:oak_door"));
+    }
+
 }
