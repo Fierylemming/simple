@@ -196,6 +196,43 @@ public class WoodcutterGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 2200)
+    public static void squareTreeDoesNotWasteThreeSaplings(GameTestHelper helper) {
+        makeSquareDarkOak(helper);
+        Colony colony = colony(helper);
+        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        colony.depositToWarehouse("minecraft:dark_oak_sapling", 3);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(52, 1, 56));
+        var job = new WoodcutterJob(worker, colony);
+        for (int tick = 1; tick < 2200; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.succeedWhen(() -> {
+            if (colony.getWarehouseCount(helper.getLevel(), "minecraft:dark_oak_log") != 16
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:dark_oak_sapling") != 3)
+                helper.fail("Square tree was not harvested or saplings were wasted: " + job.getState());
+            for (int x = 0; x < 2; x++) for (int z = 0; z < 2; z++)
+                if (!helper.getBlockState(ROOT.offset(x, 0, z)).isAir()) helper.fail("Incomplete dark oak sapling square planted");
+        });
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 500)
+    public static void leavesTooTallSquareTreeUntouched(GameTestHelper helper) {
+        makeSquareDarkOak(helper);
+        for (int x = 0; x < 2; x++) for (int z = 0; z < 2; z++) for (int y = 4; y < 7; y++)
+            helper.setBlock(ROOT.offset(x, y, z), Blocks.DARK_OAK_LOG);
+        Colony colony = colony(helper);
+        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(53, 1, 56));
+        var job = new WoodcutterJob(worker, colony);
+        for (int tick = 1; tick < 500; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(400, () -> {
+            for (int x = 0; x < 2; x++) for (int z = 0; z < 2; z++) for (int y = 0; y < 7; y++)
+                if (!helper.getBlockState(ROOT.offset(x, y, z)).is(Blocks.DARK_OAK_LOG))
+                    helper.fail("Started an unsupported tall square tree");
+            if (colony.getWarehouseCount(helper.getLevel(), "minecraft:dark_oak_log") != 0) helper.fail("Created logs from tall tree");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 800)
     public static void squareTreeStopsWhenNewConstructionAppears(GameTestHelper helper) {
         makeSquareDarkOak(helper);
