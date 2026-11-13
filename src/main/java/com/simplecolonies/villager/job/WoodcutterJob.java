@@ -38,6 +38,14 @@ public class WoodcutterJob extends AbstractJob {
         return SPECIES.stream().filter(s -> state.is(s.log())).findFirst().orElse(null);
     }
 
+    /** Only rooted single-column species with vertical log states; multi-root
+     * dark oak and mangrove have different growth and replanting rules. */
+    private static boolean supportsBranched(Species species) {
+        return species.log() == Blocks.OAK_LOG || species.log() == Blocks.SPRUCE_LOG
+                || species.log() == Blocks.BIRCH_LOG || species.log() == Blocks.JUNGLE_LOG
+                || species.log() == Blocks.ACACIA_LOG || species.log() == Blocks.CHERRY_LOG;
+    }
+
     private BlockPos treeBase;
     private Species treeSpecies;
     private java.util.List<BlockPos> tree = java.util.List.of();
@@ -70,7 +78,7 @@ public class WoodcutterJob extends AbstractJob {
                     square = !found.isEmpty();
                 }
                 boolean branched = false;
-                if (found.isEmpty() && species.log() == Blocks.ACACIA_LOG) {
+                if (found.isEmpty() && supportsBranched(species)) {
                     found = SafeBranchedTree.find(candidate, base);
                     branched = !found.isEmpty();
                 }
@@ -273,7 +281,7 @@ public class WoodcutterJob extends AbstractJob {
         }
         if (square && (treeSpecies == null || (treeSpecies.log() != Blocks.DARK_OAK_LOG
                 && treeSpecies.log() != Blocks.SPRUCE_LOG && treeSpecies.log() != Blocks.JUNGLE_LOG))) return;
-        if (branched && (treeSpecies == null || treeSpecies.log() != Blocks.ACACIA_LOG)) return;
+        if (branched && (treeSpecies == null || !supportsBranched(treeSpecies))) return;
         treeBase = base; tree = java.util.List.copyOf(logs); remaining = count; squareTree = square; branchedTree = branched;
     }
 

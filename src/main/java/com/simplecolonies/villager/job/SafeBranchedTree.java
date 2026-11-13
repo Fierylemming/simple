@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** A deliberately bounded recognizer for small, rooted, crooked acacia trees.
+/** A deliberately bounded recognizer for small, rooted, crooked trees.
  * A complete unobstructed envelope and a natural canopy are required; this is
  * not proof that natural-looking player logs are unowned. */
 final class SafeBranchedTree {

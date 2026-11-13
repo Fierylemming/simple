@@ -142,6 +142,11 @@ public class WoodcutterGameTests {
 
 
     private static java.util.List<BlockPos> makeCrookedAcacia(GameTestHelper helper) {
+        return makeCrookedTree(helper, Blocks.ACACIA_LOG, Blocks.ACACIA_LEAVES);
+    }
+
+    private static java.util.List<BlockPos> makeCrookedTree(GameTestHelper helper,
+            net.minecraft.world.level.block.Block log, net.minecraft.world.level.block.Block leaves) {
         makeTree(helper);
         for (int x = 50; x <= 62; x++) for (int z = 50; z <= 62; z++) for (int y = 5; y <= 13; y++) {
             BlockPos p = helper.absolutePos(new BlockPos(x, y, z));
@@ -152,9 +157,9 @@ public class WoodcutterGameTests {
         var logs = java.util.List.of(ROOT, ROOT.above(), ROOT.above(2), ROOT.offset(1, 3, 0),
                 ROOT.offset(2, 4, 0), ROOT.offset(2, 5, 0));
         helper.setBlock(ROOT.above(3), Blocks.AIR);
-        for (var p : logs) helper.setBlock(p, Blocks.ACACIA_LOG);
+        for (var p : logs) helper.setBlock(p, log);
         for (int x = 1; x <= 3; x++) for (int z = -1; z <= 1; z++)
-            if (x != 2 || z != 0) helper.setBlock(ROOT.offset(x, 5, z), Blocks.ACACIA_LEAVES);
+            if (x != 2 || z != 0) helper.setBlock(ROOT.offset(x, 5, z), leaves);
         return logs;
     }
 
@@ -193,6 +198,38 @@ public class WoodcutterGameTests {
                     || worker[0].getMainHandItem().getDamageValue() != logs.size())
                 helper.fail("Crooked acacia incomplete: cuts=" + cuts[0] + " state=" + job[0].getState()
                         + " memory=" + worker[0].getWoodcutterMemory());
+        });
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 1800)
+    public static void harvestsReachableCrookedCherry(GameTestHelper helper) {
+        harvestCrookedSpecies(helper, Blocks.CHERRY_LOG, Blocks.CHERRY_LEAVES, Blocks.CHERRY_SAPLING, "cherry");
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 1800)
+    public static void harvestsReachableCrookedOak(GameTestHelper helper) {
+        harvestCrookedSpecies(helper, Blocks.OAK_LOG, Blocks.OAK_LEAVES, Blocks.OAK_SAPLING, "oak");
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 1800)
+    public static void harvestsReachableCrookedJungle(GameTestHelper helper) {
+        harvestCrookedSpecies(helper, Blocks.JUNGLE_LOG, Blocks.JUNGLE_LEAVES, Blocks.JUNGLE_SAPLING, "jungle");
+    }
+
+    private static void harvestCrookedSpecies(GameTestHelper helper, net.minecraft.world.level.block.Block log,
+            net.minecraft.world.level.block.Block leaves, net.minecraft.world.level.block.Block sapling, String name) {
+        var logs = makeCrookedTree(helper, log, leaves);
+        Colony colony = colony(helper);
+        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        colony.depositToWarehouse("minecraft:" + name + "_sapling", 1);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56));
+        var job = new WoodcutterJob(worker, colony);
+        for (int tick = 1; tick < 1800; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.succeedWhen(() -> {
+            if (!helper.getBlockState(ROOT).is(sapling)
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:" + name + "_log") != logs.size()
+                    || worker.getMainHandItem().getDamageValue() != logs.size())
+                helper.fail("Crooked " + name + " incomplete: " + job.getState());
         });
     }
 
