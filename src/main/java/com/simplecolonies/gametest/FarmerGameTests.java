@@ -182,4 +182,17 @@ public class FarmerGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void colonyVillagerDoesNotTrampleCropsWhenFalling(GameTestHelper helper) {
+        BlockPos plot = new BlockPos(8, 0, 8), crop = plot.above();
+        helper.setBlock(plot, Blocks.FARMLAND.defaultBlockState().setValue(FarmBlock.MOISTURE, 7));
+        helper.setBlock(crop, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), crop);
+        var abs = helper.absolutePos(plot);
+        Blocks.FARMLAND.fallOn(helper.getLevel(), helper.getLevel().getBlockState(abs), abs, worker, 10);
+        if (!helper.getBlockState(plot).is(Blocks.FARMLAND) || !helper.getBlockState(crop).is(Blocks.WHEAT))
+            helper.fail("Colony villager trampled farmland and destroyed crop");
+        helper.succeed();
+    }
+
 }

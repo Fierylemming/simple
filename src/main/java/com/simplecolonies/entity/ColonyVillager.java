@@ -284,6 +284,14 @@ public class ColonyVillager extends Villager {
         return found.isPresent();
     }
 
+    /** Colonists must not destroy their own or nearby player farmland just by
+     * navigating across a field. This does not change player or animal rules. */
+    @Override
+    public boolean canTrample(net.minecraft.world.level.block.state.BlockState state,
+                              net.minecraft.core.BlockPos pos, float fallDistance) {
+        return false;
+    }
+
     @Override
     public void tick() {
         if (!level().isClientSide && level() instanceof ServerLevel sl && colonyId != -1
