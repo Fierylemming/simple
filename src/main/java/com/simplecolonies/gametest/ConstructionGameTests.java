@@ -136,6 +136,9 @@ public class ConstructionGameTests {
     public static void civicMeetingHall(GameTestHelper helper) { runBuilder(helper, BuildingType.MARKET, null, CultureType.ROMAN, -1); }
 
     @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void library(GameTestHelper helper) { runBuilder(helper, BuildingType.LIBRARY, null, CultureType.ROMAN, -1); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
     public static void warehouse(GameTestHelper helper) { runBuilder(helper, BuildingType.WAREHOUSE, Blocks.BARREL, CultureType.ROMAN, -1); }
 
     @GameTest(template = "empty", timeoutTicks = 2400)
@@ -293,6 +296,7 @@ public class ConstructionGameTests {
         colony.depositToWarehouse("minecraft:oak_log", 300);
         colony.depositToWarehouse("minecraft:cobblestone", 300);
         colony.depositToWarehouse("minecraft:coal", 10);
+        if (type == BuildingType.LIBRARY) colony.depositToWarehouse("minecraft:bookshelf", 2);
         Building blueprint = new Building(type, origin, culture);
         if (variant >= 0 && blueprint.save().getInt("houseVariant") != variant) helper.fail("Wrong house variant");
         if (!colony.registerPlayerBuilding(blueprint)) helper.fail("Failed to queue test plan");
@@ -318,6 +322,11 @@ public class ConstructionGameTests {
             if (type == BuildingType.WAREHOUSE && !origin.equals(colony.getWarehouseManager().getConfiguredWarehouseCenter()))
                 helper.fail("Completed registered warehouse did not become the hub");
             if (type == BuildingType.BLACKSMITH) helper.assertBlockPresent(Blocks.FURNACE, stationRelative.east());
+            if (type == BuildingType.LIBRARY) {
+                helper.assertBlockPresent(Blocks.BOOKSHELF, stationRelative.east());
+                helper.assertBlockPresent(Blocks.BOOKSHELF, stationRelative.west());
+                if (colony.getWarehouseCount(helper.getLevel(), "minecraft:bookshelf") != 0) helper.fail("Library did not use real bookshelves");
+            }
             var lower = helper.getLevel().getBlockState(door);
             var upper = helper.getLevel().getBlockState(door.above());
             if (!lower.is(Blocks.OAK_DOOR) || !upper.is(Blocks.OAK_DOOR)

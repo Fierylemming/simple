@@ -11,14 +11,15 @@ import java.util.function.BiConsumer;
 
 /** Compact early workshops built around an existing workstation, not over it. */
 final class LevelOneWorksites {
-    static boolean supports(BuildingType type) { return supports(type, 11); }
+    static boolean supports(BuildingType type) { return supports(type, 13); }
     static boolean supports(BuildingType type, int version) {
         return type == BuildingType.LUMBERJACK_HUT || type == BuildingType.MINE || type == BuildingType.BUILDER_HUT
                 || (version >= 7 && (type == BuildingType.BLACKSMITH || type == BuildingType.BUTCHER_HUT))
                 || (version >= 8 && type == BuildingType.HARBOR)
                 || (version >= 9 && (type == BuildingType.BAKERY || type == BuildingType.LEATHER_SHOP))
                 || (version >= 10 && (type == BuildingType.WAREHOUSE || type == BuildingType.BARRACKS))
-                || (version >= 11 && type == BuildingType.MARKET);
+                || (version >= 11 && type == BuildingType.MARKET)
+                || (version >= 13 && type == BuildingType.LIBRARY);
     }
 
     static void generate(BuildingType type, BlockPos station, CultureType culture, BiConsumer<BlockPos, BlockState> add) {
@@ -48,6 +49,8 @@ final class LevelOneWorksites {
                 // A compact civic hall. All palettes use currently obtainable
                 // materials; cultural differences are deliberately modest.
                 case MARKET -> marketWall(culture, x, y, z, corner);
+                case LIBRARY -> y == 0 || (corner && y == 2) ? Blocks.COBBLESTONE.defaultBlockState()
+                        : corner ? Blocks.OAK_LOG.defaultBlockState() : Blocks.OAK_PLANKS.defaultBlockState();
                 default -> throw new IllegalStateException();
             };
             add.accept(station.offset(x, y, z), wall);
@@ -56,6 +59,10 @@ final class LevelOneWorksites {
         add.accept(station.offset(1, 0, 1), Blocks.TORCH.defaultBlockState());
         // SmithFurnace deliberately accepts only a furnace adjacent to the claimed table.
         if (type == BuildingType.BLACKSMITH) add.accept(station.offset(1, 0, 0), Blocks.FURNACE.defaultBlockState());
+        if (type == BuildingType.LIBRARY) {
+            add.accept(station.offset(-1, 0, 0), Blocks.BOOKSHELF.defaultBlockState());
+            add.accept(station.offset(1, 0, 0), Blocks.BOOKSHELF.defaultBlockState());
+        }
         for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
             BlockState roof = x == -2 || x == 2
                     ? Blocks.OAK_STAIRS.defaultBlockState().setValue(StairBlock.FACING, x < 0 ? Direction.EAST : Direction.WEST)

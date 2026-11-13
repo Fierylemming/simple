@@ -146,6 +146,40 @@ public class HousingGrowthGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 650)
+    public static void grownColonyQueuesLibraryOnlyWithRealBookshelves(GameTestHelper helper) {
+        Colony original = setup(helper);
+        citizen(original, JobType.BUILDER);
+        original.registerPlayerBuilding(new Building(BuildingType.MARKET, original.getCenter().east(16), CultureType.ROMAN, true));
+        var legacy = new Building(BuildingType.LIBRARY, original.getCenter().west(16), CultureType.ROMAN).save();
+        legacy.putInt("planVersion", 12);
+        original.registerPlayerBuilding(Building.load(legacy));
+        var saved = original.save(); saved.putInt("level", 3); saved.putInt("radius", 80);
+        Colony colony = Colony.load(saved);
+        colony.depositToWarehouse("minecraft:birch_log", 200);
+        colony.depositToWarehouse("minecraft:cobblestone", 200);
+        colony.depositToWarehouse("minecraft:coal", 10);
+        helper.runAtTickTime(200, () -> {
+            colony.tick(helper.getLevel());
+            if (colony.getBuildings().stream().anyMatch(b -> b.getType() == BuildingType.LIBRARY && b.hasSupportedPlan()))
+                helper.fail("Queued library without bookshelves");
+            colony.depositToWarehouse("minecraft:bookshelf", 2);
+        });
+        helper.runAtTickTime(400, () -> {
+            var before = colony.getWarehouseSnapshot(helper.getLevel());
+            colony.tick(helper.getLevel());
+            var library = colony.getBuildings().stream().filter(b -> b.getType() == BuildingType.LIBRARY && b.hasSupportedPlan()).findFirst().orElse(null);
+            if (library == null || library.getState() != BuildingState.BLUEPRINT
+                    || !library.getRequiredResources().containsKey("minecraft:birch_door")
+                    || !before.equals(colony.getWarehouseSnapshot(helper.getLevel())))
+                helper.fail("Library did not queue safely: " + colony.getExpansionStatus());
+            var restored = Colony.load(colony.save()).getBuildings().stream().filter(b -> b.getType() == BuildingType.LIBRARY && b.hasSupportedPlan()).findFirst().orElse(null);
+            if (restored == null || !restored.getRemainingPlacements().getFirst().state.equals(library.getRemainingPlacements().getFirst().state))
+                helper.fail("Library plan changed after reload");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 300)
     public static void compactHouseLeavesOutsideFootprintUntouched(GameTestHelper helper) {
         Colony colony = setup(helper);

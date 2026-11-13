@@ -20,7 +20,7 @@ public class Building {
     private BuildingState state = BuildingState.BLUEPRINT;
     private int level = 1;
     // Version 1 is the old all-log plan, retained for buildings saved before 0.1.28.
-    private int planVersion = 12;
+    private int planVersion = 13;
     private HouseTimber houseTimber = HouseTimber.OAK;
     private int houseVariant;
     private final Map<String, Integer> requiredResources = new HashMap<>();

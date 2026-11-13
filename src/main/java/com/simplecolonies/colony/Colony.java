@@ -350,6 +350,21 @@ public class Colony {
                 }
             }
         }
+        // A library is a later, material-backed civic project; old unsupported
+        // placeholders remain intact and do not prevent a new version-13 plan.
+        if (!housingNeeded && this.level >= 3 && buildings.stream().anyMatch(b -> b.getType() == BuildingType.MARKET
+                && b.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
+                && buildings.stream().noneMatch(b -> b.getType() == BuildingType.LIBRARY
+                && (b.getState() == com.simplecolonies.building.BuildingState.COMPLETE || b.hasSupportedPlan()))) {
+            for (var timber : com.simplecolonies.building.HouseTimber.values()) {
+                Building sample = new Building(BuildingType.LIBRARY, center, culture, timber);
+                if (com.simplecolonies.building.ConstructionCrafting.canBuild(stock, sample.getRemainingPlacements())) {
+                    BlockPos site = findCivicSite(level);
+                    if (site != null) { queueExpansion(new Building(BuildingType.LIBRARY, site, culture, timber)); return; }
+                    break;
+                }
+            }
+        }
         expansionStatus = housingReason + "; no affordable, clear claimed worksite or civic site";
     }
 

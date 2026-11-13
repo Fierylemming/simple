@@ -120,6 +120,27 @@ class WorksitePlanTest {
         }
     }
 
+    @Test void libraryPlanIsVersionedAndPreservesPartialProgress() {
+        for (var culture : CultureType.values()) {
+            var library = new Building(BuildingType.LIBRARY, BlockPos.ZERO, culture, HouseTimber.BIRCH);
+            assertTrue(library.hasSupportedPlan());
+            assertEquals(2, library.getRequiredResources().get("minecraft:bookshelf"));
+            assertTrue(library.getRequiredResources().containsKey("minecraft:birch_door"));
+            for (int i = 0; i < 7; i++) library.markPlaced(library.getNextPlacement());
+            var restored = Building.load(library.save());
+            assertEquals(library.getRequiredResources(), restored.getRequiredResources());
+            assertEquals(library.getNextPlacement().pos, restored.getNextPlacement().pos);
+            assertEquals(library.getNextPlacement().state, restored.getNextPlacement().state);
+        }
+        for (int version = 1; version <= 12; version++) {
+            var tag = new Building(BuildingType.LIBRARY, BlockPos.ZERO, CultureType.ROMAN).save();
+            tag.putInt("planVersion", version);
+            var legacy = Building.load(tag);
+            assertFalse(legacy.hasSupportedPlan());
+            assertTrue(legacy.getRemainingPlacements().isEmpty());
+        }
+    }
+
     @Test void smithPlanIncludesUsableAdjacentFurnace() {
         var b = new Building(BuildingType.BLACKSMITH, BlockPos.ZERO, CultureType.ROMAN);
         assertTrue(b.getRemainingPlacements().stream().anyMatch(p -> p.pos.equals(BlockPos.ZERO.east()) && p.state.is(Blocks.FURNACE)));

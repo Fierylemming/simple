@@ -17,6 +17,45 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder("simplecolonies")
 @PrefixGameTestTemplate(false)
 public class ResearchGameTests {
+    @GameTest(template = "empty")
+    public static void completedLibraryShortensResearchIntervalAndSurvivesReload(GameTestHelper helper) {
+        var plain = researchColony(helper, false);
+        var library = researchColony(helper, true);
+        for (var colony : new Colony[]{plain, library}) {
+            var saved = colony.getResearch().save();
+            saved.putInt("autoCooldown", 0);
+            colony.getResearch().load(saved);
+            colony.depositToWarehouse("minecraft:cobblestone", 32);
+            colony.depositToWarehouse("minecraft:oak_planks", 32);
+            colony.depositToWarehouse("minecraft:coal", 8);
+            colony.depositToWarehouse("minecraft:wheat", 16);
+            colony.getResearch().tickAutoProgress(helper.getLevel());
+            if (!colony.getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE)) helper.fail("First research did not unlock");
+        }
+        library = Colony.load(library.save());
+        for (int day = 0; day < 3; day++) {
+            plain.getResearch().tickAutoProgress(helper.getLevel());
+            library.getResearch().tickAutoProgress(helper.getLevel());
+        }
+        if (plain.getResearch().isUnlocked(ColonyUpgrade.EFFICIENCY_1)
+                || !library.getResearch().isUnlocked(ColonyUpgrade.EFFICIENCY_1))
+            helper.fail("Completed library did not shorten research cooldown after reload");
+        if (library.getWarehouseCount(helper.getLevel(), "minecraft:wheat") != 0
+                || library.getWarehouseCount(helper.getLevel(), "minecraft:oak_planks") != 0
+                || library.getWarehouseCount(helper.getLevel(), "minecraft:coal") != 0)
+            helper.fail("Library research did not spend actual materials");
+        helper.succeed();
+    }
+
+    private static Colony researchColony(GameTestHelper helper, boolean completedLibrary) {
+        BlockPos center = helper.absolutePos(new BlockPos(8, 1, 8));
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        var library = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.LIBRARY,
+                center.east(5), CultureType.ROMAN, completedLibrary);
+        colony.registerPlayerBuilding(library);
+        return colony;
+    }
+
     @GameTest(template = "isolated")
     public static void researchRequiresAndConsumesCompleteRealCost(GameTestHelper helper) {
         BlockPos site = new BlockPos(56, 1, 56);

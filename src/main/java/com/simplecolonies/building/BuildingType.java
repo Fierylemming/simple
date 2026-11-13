@@ -24,7 +24,7 @@ public enum BuildingType {
     BLACKSMITH("Blacksmith", "Workplace for Blacksmith (smelts ores, makes iron tools)", 0, com.simplecolonies.villager.job.JobType.BLACKSMITH, Map.of("minecraft:furnace", 2, "minecraft:cobblestone", 32, "minecraft:oak_planks", 16)),
     BARRACKS("Barracks", "Houses & trains soldiers (needs iron from Tier2 miner)", 6, com.simplecolonies.villager.job.JobType.SOLDIER, Map.of("minecraft:cobblestone", 64, "minecraft:iron_ingot", 8)),
     MARKET("Market", "Civic meeting hall; trading is not yet implemented", 0, null, Map.of("minecraft:gold_ingot", 8, "minecraft:oak_planks", 24)),
-    LIBRARY("Library", "Unlocks upgrades faster (needs books from Tier1+2)", 0, null, Map.of("minecraft:bookshelf", 12, "minecraft:oak_planks", 16)),
+    LIBRARY("Library", "Shortens automatic research interval; requires real bookshelves", 0, null, Map.of("minecraft:bookshelf", 12, "minecraft:oak_planks", 16)),
     TEMPLE("Temple", "Culture-specific, boosts reputation (late, needs quartz/gold)", 0, null, Map.of("minecraft:quartz_block", 16, "minecraft:sandstone", 32)),
     CASTLE("Castle", "Final upgrade for large city defense (iron+ stone)", 12, com.simplecolonies.villager.job.JobType.GUARD, Map.of("minecraft:stone_bricks", 128, "minecraft:iron_ingot", 16)),
     WALLS("Walls", "Defensive perimeter (stone, Tier1)", 0, com.simplecolonies.villager.job.JobType.GUARD, Map.of("minecraft:cobblestone", 96, "minecraft:stone_bricks", 32)),

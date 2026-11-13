@@ -112,7 +112,12 @@ public class ResearchManager {
     /** Called daily in Colony.tick — auto-progress if village has surplus. */
     public void tickAutoProgress(ServerLevel level) {
         if (autoProgressCooldown-- > 0) return;
-        autoProgressCooldown = 5;
+        // A completed library shortens the next automatic-research interval.
+        // Research is daily simulation, so time skips still catch it up normally.
+        boolean library = colony.getBuildings().stream().anyMatch(b ->
+                b.getType() == com.simplecolonies.building.BuildingType.LIBRARY
+                        && b.getState() == com.simplecolonies.building.BuildingState.COMPLETE);
+        autoProgressCooldown = library ? 2 : 5;
         // Find cheapest unlockable upgrade we can afford (cheapest first = tier order)
         for (ColonyUpgrade up : ColonyUpgrade.values()) {
             if (canUnlock(up) && canAfford(up, level)) {
@@ -122,7 +127,7 @@ public class ResearchManager {
                 unlocked.add(up);
                 colony.broadcast(Component.literal("§eColony #" + colony.getId() + " self-unlocked " + up.displayName + " (had enough resources)"));
                 com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
-                break; // one per 5 days max
+                break; // at most one per research interval
             }
         }
     }
