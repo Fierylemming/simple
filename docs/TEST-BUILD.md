@@ -4,7 +4,7 @@ This is an **unfinished test build**, not the completed overhaul. Back up any ex
 
 ## Get the build
 
-1. Open [CI run 43482938815](https://github.com/Fierylemming/simple/actions/runs/43482938815) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `9b81459`, version `0.1.29`. The build and GameTests passed, but navigation and animal integration have failed intermittently in other runs and still need in-game verification. Extract the zip.
+1. Open [CI run 43489006475](https://github.com/Fierylemming/simple/actions/runs/43489006475) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `8006a7d`, version `0.1.29`. The build and GameTests passed, but navigation and animal integration have failed intermittently in other runs and still need in-game verification. Extract the zip.
 2. In Prism Launcher, create a **Minecraft 1.21.1, NeoForge 21.1.265, Java 21** instance. Place the extracted SimpleColonies jar in that instance's `mods` folder; remove any older SimpleColonies jar first. Do not install it alongside another copy. For a server, install the same version on both client and server.
 3. Start a new world with cheats enabled, in the Overworld. No public overhaul release has been made.
 
@@ -25,7 +25,7 @@ This is an **unfinished test build**, not the completed overhaul. Back up any ex
 
 - Fishing-to-shore pathfinding has had intermittent automated failures, despite passing the latest run. Fishing currently gathers excess wild fish by hand, not by rod; unmarked player fish cannot always be distinguished from wild fish. Keep valuable fish away from fishing sites.
 - Tree and mining recognition is heuristic; keep player structures and valuables away from worksites. Shelter is a preliminary enclosure check, not a guarantee against open doors, hostile door breaking or villagers wandering out at night.
-- Farmers, shepherds and couriers carry some physical items, but many jobs still access shared stock remotely; not all professions, buildings, armor, social behaviors or physical supply chains are complete. Starter structures and natural-world navigation need further in-game validation.
+- Farmers, shepherds, butchers, fishermen and couriers carry some physical items, but many jobs still access shared stock remotely; not all professions, buildings, armor, social behaviors or physical supply chains are complete. Starter structures and natural-world navigation need further in-game validation.
 - Test storage, marker changes, jobs, housing, nighttime shelter, save/reload and dedicated-server behavior. Note the colony ID, coordinates, reproduction steps, screenshots and `logs/latest.log` for any issue. Do not run `/colony reset_citizens` on a world you care about; it can remove citizen records, including unloaded villagers.
 
 ## Tool replacement
@@ -103,3 +103,9 @@ For a completed generated level-one smithy, assign a builder, leave a flat clear
 ### Farmer harvest and bread transport
 
 New starter halls put their starting supplies into the generated, automatically shared hall chest; if no safe hall was built, founding supplies remain in legacy virtual stock. Existing saves are not migrated. A farmer carries real harvested drops to a reachable shared container, retaining cargo when storage is full or removed. For bread, it collects plain wheat from shared physical storage, brings it to its claimed composter, and carries the resulting bread to shared storage. It does not use virtual wheat for this recipe. To refill empty farmland, the farmer walks to shared storage for plain seeds and carries them back; a seed from the current harvest may be replanted immediately. Several other jobs still access stock remotely; this is not a complete physical supply chain.
+
+### Butcher and fisherman transport preview
+
+A butcher near a completed butcher hut attacks excess unnamed adult cows or pigs, leaves a breeding pair, and carries eligible actual drops to a shared container. For breeding it walks to collect plain wheat for cows or carrots, potatoes or beetroot for pigs; it needs enough for the pair while leaving two in shared storage. It tries to wait until both parents are nearby and reachable before feeding; vanilla animal AI still controls mating. The job cannot identify all unnamed player livestock, so keep pets and valuable animals away.
+
+A fisherman near a completed harbor and claimed barrel still gathers excess wild cod or salmon **by hand**, not by rod. Its actual catch is carried to shared storage and remains with the worker if storage is unavailable. Unnamed player fish are not reliably distinguishable from wild ones. Both workers retain carried items across reloads and drop them on death or job change. Virtual stock is not physically collectible as livestock feed. These are preliminary workflows, not complete professions or a final release.
