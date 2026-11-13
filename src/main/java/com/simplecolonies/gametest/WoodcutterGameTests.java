@@ -197,6 +197,39 @@ public class WoodcutterGameTests {
     }
 
     @GameTest(template = "isolated", timeoutTicks = 2200)
+    public static void harvestsCompactSquareSpruce(GameTestHelper helper) {
+        harvestCompactSquare(helper, Blocks.SPRUCE_LOG, Blocks.SPRUCE_LEAVES, Blocks.SPRUCE_SAPLING, "spruce");
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 2200)
+    public static void harvestsCompactSquareJungle(GameTestHelper helper) {
+        harvestCompactSquare(helper, Blocks.JUNGLE_LOG, Blocks.JUNGLE_LEAVES, Blocks.JUNGLE_SAPLING, "jungle");
+    }
+
+    private static void harvestCompactSquare(GameTestHelper helper, net.minecraft.world.level.block.Block log,
+            net.minecraft.world.level.block.Block leaves, net.minecraft.world.level.block.Block sapling, String species) {
+        makeSquareDarkOak(helper);
+        for (int x = -1; x <= 2; x++) for (int z = -1; z <= 2; z++)
+            if (x < 0 || x > 1 || z < 0 || z > 1) helper.setBlock(ROOT.offset(x, 3, z), leaves);
+        for (int x = 0; x < 2; x++) for (int z = 0; z < 2; z++) for (int y = 0; y < 4; y++)
+            helper.setBlock(ROOT.offset(x, y, z), log);
+        Colony colony = colony(helper);
+        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        colony.depositToWarehouse("minecraft:" + species + "_sapling", 4);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(52, 1, 56));
+        var job = new WoodcutterJob(worker, colony);
+        for (int tick = 1; tick < 2200; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.succeedWhen(() -> {
+            if (colony.getWarehouseCount(helper.getLevel(), "minecraft:" + species + "_log") != 16
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:" + species + "_sapling") != 0
+                    || worker.getMainHandItem().getDamageValue() != 16)
+                helper.fail("Square " + species + " incomplete: " + job.getState());
+            for (int x = 0; x < 2; x++) for (int z = 0; z < 2; z++)
+                if (!helper.getBlockState(ROOT.offset(x, 0, z)).is(sapling)) helper.fail("Square " + species + " not replanted");
+        });
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 2200)
     public static void squareTreeDoesNotWasteThreeSaplings(GameTestHelper helper) {
         makeSquareDarkOak(helper);
         Colony colony = colony(helper);
