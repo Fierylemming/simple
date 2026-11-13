@@ -44,6 +44,13 @@ public class BuildingMarkerGameTests {
         Colony loaded = Colony.load(colony.save());
         if (loaded.getBuildings().size() != 1 || loaded.getBuildings().getFirst().getType() != BuildingType.MARKET)
             helper.fail("Marker building did not survive reload");
+        menu.clickMenuButton(player, BuildingMarkerMenu.BTN_SET_PASTURE);
+        if (colony.getBuildings().size() != 1 || colony.getBuildings().getFirst().getType() != BuildingType.PASTURE
+                || marker.getBuildingType() != BuildingType.PASTURE || !absolute.equals(marker.getLinkedBuildingPos()))
+            helper.fail("Pasture designation failed");
+        var savedPasture = Colony.load(colony.save());
+        if (savedPasture.getBuildings().getFirst().getType() != BuildingType.PASTURE)
+            helper.fail("Pasture designation did not survive reload");
         menu.clickMenuButton(player, BuildingMarkerMenu.BTN_CLEAR);
         if (!colony.getBuildings().isEmpty() || marker.getBuildingType() != null || marker.getLinkedBuildingPos() != null)
             helper.fail("Clear left a phantom building");

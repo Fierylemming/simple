@@ -52,8 +52,17 @@ public class VillagerMenuGameTests {
         menu.clickMenuButton(player, VillagerInteractionMenu.BTN_SET_UNEMPLOYED);
         if (worker.getColonyJob() != JobType.GUARD) helper.fail("Distant player reassigned a villager");
         player.moveTo(near.getX() + 0.5, near.getY(), near.getZ() + 0.5);
+        menu.clickMenuButton(player, VillagerInteractionMenu.BTN_SET_SHEPHERD);
+        if (worker.getColonyJob() != JobType.SHEPHERD || citizen.job != JobType.SHEPHERD || citizen.isSoldier)
+            helper.fail("Could not assign shepherd");
+        worker.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SHEARS));
         menu.clickMenuButton(player, VillagerInteractionMenu.BTN_SET_UNEMPLOYED);
-        if (worker.getColonyJob() != JobType.UNEMPLOYED || citizen.isSoldier) helper.fail("Could not unassign guard");
+        if (worker.getColonyJob() != JobType.UNEMPLOYED || citizen.isSoldier || !worker.getMainHandItem().isEmpty())
+            helper.fail("Could not unassign shepherd and safely stow its shears");
+        boolean foundShears = false;
+        for (int i = 0; i < worker.getInventory().getContainerSize(); i++)
+            if (worker.getInventory().getItem(i).is(net.minecraft.world.item.Items.SHEARS)) foundShears = true;
+        if (!foundShears) helper.fail("Shepherd's shears disappeared on job change");
         helper.succeed();
     }
 }
