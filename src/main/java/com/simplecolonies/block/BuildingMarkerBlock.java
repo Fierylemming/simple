@@ -43,7 +43,7 @@ public class BuildingMarkerBlock extends Block implements EntityBlock {
         if (level.isClientSide) return InteractionResult.SUCCESS;
         if (!(player instanceof ServerPlayer sp)) return InteractionResult.CONSUME;
 
-        Colony colony = ColonyManager.getInstance().getColonyAt(pos).orElse(null);
+        Colony colony = ColonyManager.getInstance().getColonyAt(level.dimension(), pos).orElse(null);
         if (colony == null) {
             sp.displayClientMessage(Component.literal("§cNo colony here. Place a Town Hall nearby first, or expand colony radius to include this spot."), true);
             return InteractionResult.FAIL;
@@ -76,10 +76,11 @@ public class BuildingMarkerBlock extends Block implements EntityBlock {
     @Override
     public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
         if (!state.is(newState.getBlock())) {
-            // Optionally unregister building if marker removed — we keep it for now but mark needs repair
-            BlockEntity be = level.getBlockEntity(pos);
-            if (be instanceof BuildingMarkerBlockEntity marker && marker.getLinkedBuildingPos() != null) {
-                // Could remove from colony — but we keep so player doesn't lose housing accidentally
+            if (!level.isClientSide && level.dimension().equals(Level.OVERWORLD)) {
+                BlockEntity be = level.getBlockEntity(pos);
+                if (be instanceof BuildingMarkerBlockEntity marker && pos.equals(marker.getLinkedBuildingPos()))
+                    ColonyManager.getInstance().getColonyAt(level.dimension(), pos)
+                            .ifPresent(colony -> colony.removeMarkerBuilding(pos, marker.getBuildingType()));
             }
         }
         super.onRemove(state, level, pos, newState, movedByPiston);

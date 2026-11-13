@@ -87,6 +87,12 @@ public class BuildingMarkerMenu extends AbstractContainerMenu {
         if (chosen == null && id != BTN_CLEAR) return false;
         var marker = (BuildingMarkerBlockEntity) player.level().getBlockEntity(markerPos);
         boolean linked = markerPos.equals(marker.getLinkedBuildingPos());
+        var atMarker = colony.getBuildings().stream().filter(b -> b.getPos().equals(markerPos)).toList();
+        if (linked && (!atMarker.isEmpty() && (atMarker.size() != 1 || !atMarker.getFirst().isPlayerPlaced
+                || marker.getBuildingType() != atMarker.getFirst().getType()))) {
+            player.displayClientMessage(Component.literal("§cMarker no longer matches its building record."), true);
+            return true;
+        }
         if (!colony.updateMarkerBuilding(markerPos, linked, chosen)) {
             player.displayClientMessage(Component.literal("§cThat position is already used by another building."), true);
             return true;
@@ -104,6 +110,7 @@ public class BuildingMarkerMenu extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player player) {
-        return player.distanceToSqr(markerPos.getX()+0.5, markerPos.getY()+0.5, markerPos.getZ()+0.5) < 256;
+        return player.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)
+                && player.distanceToSqr(markerPos.getX()+0.5, markerPos.getY()+0.5, markerPos.getZ()+0.5) < 256;
     }
 }

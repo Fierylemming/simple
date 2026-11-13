@@ -22,8 +22,11 @@ public class TownHallSafetyGameTests {
     public static void schematicPlaceholderNeverConsumesItemsOrQueuesFakeHouse(GameTestHelper helper) {
         var center = helper.absolutePos(new BlockPos(8, 1, 8));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
+        helper.setBlock(new BlockPos(8, 1, 8), com.simplecolonies.block.ModBlocks.TOWN_HALL.get());
+        ((com.simplecolonies.block.entity.TownHallBlockEntity) helper.getBlockEntity(new BlockPos(8, 1, 8))).setColonyId(colony.getId());
         colony.depositToWarehouse("create:schematic", 1);
         var player = helper.makeMockPlayer(GameType.SURVIVAL);
+        player.moveTo(center.getX() + .5, center.getY(), center.getZ() + .5);
         colony.setLeader(player);
         var menu = new TownHallMenu(1, player.getInventory(), colony, center);
         menu.clickMenuButton(player, TownHallMenu.BTN_CREATE_SCHEMATIC);
@@ -37,7 +40,10 @@ public class TownHallSafetyGameTests {
     public static void donationPreservesNamedBread(GameTestHelper helper) {
         var center = helper.absolutePos(new BlockPos(8, 1, 8));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
+        helper.setBlock(new BlockPos(8, 1, 8), com.simplecolonies.block.ModBlocks.TOWN_HALL.get());
+        ((com.simplecolonies.block.entity.TownHallBlockEntity) helper.getBlockEntity(new BlockPos(8, 1, 8))).setColonyId(colony.getId());
         var player = helper.makeMockPlayer(GameType.SURVIVAL);
+        player.moveTo(center.getX() + .5, center.getY(), center.getZ() + .5);
         ItemStack special = new ItemStack(Items.BREAD, 3);
         special.set(DataComponents.CUSTOM_NAME, Component.literal("Keepsake"));
         player.getInventory().setItem(0, special);
@@ -47,6 +53,15 @@ public class TownHallSafetyGameTests {
         if (player.getInventory().getItem(0).getCount() != 3 || !player.getInventory().getItem(0).has(DataComponents.CUSTOM_NAME)
                 || !player.getInventory().getItem(1).isEmpty() || colony.getWarehouseCount("minecraft:bread") != 2)
             helper.fail("Donation consumed or converted named bread");
+        // A stale menu cannot donate after the player moves away or the hall is removed.
+        player.getInventory().setItem(1, new ItemStack(Items.BREAD, 2));
+        player.moveTo(center.getX() + 40, center.getY(), center.getZ());
+        if (menu.clickMenuButton(player, TownHallMenu.BTN_DONATE_FOOD) || player.getInventory().getItem(1).getCount() != 2)
+            helper.fail("Distant player used a stale town hall menu");
+        player.moveTo(center.getX() + .5, center.getY(), center.getZ() + .5);
+        helper.setBlock(new BlockPos(8, 1, 8), net.minecraft.world.level.block.Blocks.AIR);
+        if (menu.clickMenuButton(player, TownHallMenu.BTN_DONATE_FOOD) || player.getInventory().getItem(1).getCount() != 2)
+            helper.fail("Removed hall left a usable menu");
         helper.succeed();
     }
 }

@@ -33,9 +33,13 @@ public class TownHallBlock extends Block implements EntityBlock {
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
         if (level.isClientSide) return InteractionResult.SUCCESS;
+        if (!level.dimension().equals(Level.OVERWORLD)) {
+            player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cColonies can only be founded in the Overworld."), true);
+            return InteractionResult.FAIL;
+        }
 
         ColonyManager mgr = ColonyManager.getInstance();
-        Colony colony = mgr.getColonyAt(pos).orElse(null);
+        Colony colony = mgr.getColonyAt(level.dimension(), pos).orElse(null);
 
         if (colony == null) {
             // Create new colony here if player places/activates in wilderness
@@ -85,7 +89,7 @@ public class TownHallBlock extends Block implements EntityBlock {
             // Auto-link BE if colony already exists at pos (village generated via structure)
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof TownHallBlockEntity th) {
-                Colony colony = ColonyManager.getInstance().getColonyAt(pos).orElse(null);
+                Colony colony = ColonyManager.getInstance().getColonyAt(level.dimension(), pos).orElse(null);
                 if (colony != null) th.setColonyId(colony.getId());
             }
         }

@@ -45,7 +45,7 @@ public class ColonyEventHandler {
         for (var player : level.players()) {
             if (tickCounter < nextPlacementAttempt.getOrDefault(player.getUUID(), 0L)) continue;
             BlockPos playerPos = player.blockPosition();
-            if (ColonyManager.getInstance().getColonyAt(playerPos).isPresent()) continue;
+            if (ColonyManager.getInstance().getColonyAt(level.dimension(), playerPos).isPresent()) continue;
             FoundVillage found = findNearbyVillageStructure(level, playerPos, 32);
             if (found == null) continue;
             // The anchor is stable even when a different player approaches the same structure.
@@ -103,7 +103,7 @@ public class ColonyEventHandler {
     public static void onFinalizeSpawn(FinalizeSpawnEvent event) {
         if (event.getEntity() instanceof ColonyVillager cv) {
             var level = event.getLevel().getLevel();
-            var colonyOpt = ColonyManager.getInstance().getColonyAt(cv.blockPosition());
+            var colonyOpt = ColonyManager.getInstance().getColonyAt(level.dimension(), cv.blockPosition());
             colonyOpt.ifPresent(colony -> {
                 cv.setColony(colony);
                 SimpleColonies.LOGGER.debug("Assigned spawned ColonyVillager {} to colony #{}", cv.getUUID(), colony.getId());

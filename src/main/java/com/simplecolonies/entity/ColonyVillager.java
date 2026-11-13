@@ -66,7 +66,7 @@ public class ColonyVillager extends Villager {
         this.setCustomName(Component.literal(randomName()));
         this.setCustomNameVisible(false);
         // Try auto-assign to nearest colony if spawned via village structure
-        var colonyOpt = ColonyManager.getInstance().getColonyAt(blockPosition());
+        var colonyOpt = ColonyManager.getInstance().getColonyAt(level().dimension(), blockPosition());
         if (colonyOpt.isPresent()) {
             setColony(colonyOpt.get());
             // Random job to make colony alive immediately

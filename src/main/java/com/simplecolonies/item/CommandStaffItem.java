@@ -22,7 +22,7 @@ public class CommandStaffItem extends Item {
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         if (level.isClientSide) return InteractionResultHolder.success(player.getItemInHand(hand));
         if (player.isShiftKeyDown() && level instanceof ServerLevel serverLevel) {
-            Colony colony = ColonyManager.getInstance().getColonyAt(player.blockPosition()).orElse(null);
+            Colony colony = ColonyManager.getInstance().getColonyAt(level.dimension(), player.blockPosition()).orElse(null);
             if (colony == null || !colony.isLeader(player)) {
                 player.displayClientMessage(Component.literal("§cOnly a colony leader can rally defenders here."), true);
             } else {

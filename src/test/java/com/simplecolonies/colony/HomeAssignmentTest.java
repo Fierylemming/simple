@@ -39,6 +39,22 @@ class HomeAssignmentTest {
         assertEquals(1, restored.getCitizens().stream().filter(c -> c.home == null).count());
     }
 
+    @Test void markerRemovalOnlyTouchesMatchingPlayerBuildings() {
+        Colony colony = new Colony(44, CultureType.ROMAN, BlockPos.ZERO);
+        BlockPos housePos = new BlockPos(6, 0, 0), generatedPos = new BlockPos(9, 0, 0);
+        colony.registerPlayerBuilding(new Building(BuildingType.HOUSE, housePos, CultureType.ROMAN, true));
+        var generated = new Building(BuildingType.HOUSE, generatedPos, CultureType.ROMAN);
+        generated.setState(com.simplecolonies.building.BuildingState.COMPLETE);
+        colony.registerPlayerBuilding(generated);
+        assertFalse(colony.removeMarkerBuilding(housePos, BuildingType.WAREHOUSE));
+        assertFalse(colony.removeMarkerBuilding(generatedPos, BuildingType.HOUSE));
+        assertFalse(colony.updateMarkerBuilding(generatedPos, true, BuildingType.FARM));
+        assertEquals(2, colony.getBuildings().size());
+        assertTrue(colony.removeMarkerBuilding(housePos, BuildingType.HOUSE));
+        assertEquals(1, colony.getBuildings().size());
+        assertSame(generated, colony.getBuildings().getFirst());
+    }
+
     @Test void legacyCitizensHaveNoInventedHomeAndUnfinishedHousesAreIgnored() {
         var legacy = new CitizenData(UUID.randomUUID(), "Legacy", JobType.UNEMPLOYED).save();
         legacy.remove("home");

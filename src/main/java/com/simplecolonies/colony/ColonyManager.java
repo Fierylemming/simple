@@ -76,6 +76,7 @@ public class ColonyManager {
     }
 
     private Colony createColony(ServerLevel level, CultureType culture, BlockPos center, StarterPlan plan) {
+        if (level != null && !level.dimension().equals(Level.OVERWORLD)) return null;
         if (colonies.size() >= com.simplecolonies.config.ColonyConfig.MAX_COLONIES_PER_DIMENSION.get()) return null;
         int id = nextId++;
         Colony colony = new Colony(id, culture, center);
@@ -565,6 +566,11 @@ public class ColonyManager {
 
     public Optional<Colony> getColonyAt(BlockPos pos) {
         return colonies.values().stream().filter(c -> c.isInside(pos)).findFirst();
+    }
+
+    /** Colonies are stored in the Overworld; equal coordinates elsewhere are not colony territory. */
+    public Optional<Colony> getColonyAt(net.minecraft.resources.ResourceKey<Level> dimension, BlockPos pos) {
+        return Level.OVERWORLD.equals(dimension) ? getColonyAt(pos) : Optional.empty();
     }
 
     public Collection<Colony> getAll() { return Collections.unmodifiableCollection(colonies.values()); }

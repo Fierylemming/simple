@@ -66,6 +66,7 @@ public class TownHallMenu extends AbstractContainerMenu {
 
     @Override
     public boolean clickMenuButton(Player player, int id) {
+        if (player.level().isClientSide || !stillValid(player)) return false;
         boolean isLeader = colony.isLeader(player);
         var level = player.level() instanceof net.minecraft.server.level.ServerLevel sl ? sl : null;
 
@@ -190,7 +191,14 @@ public class TownHallMenu extends AbstractContainerMenu {
     @Override
     public ItemStack quickMoveStack(Player player, int index) { return ItemStack.EMPTY; }
     @Override
-    public boolean stillValid(Player player) { return player.distanceToSqr(pos.getX()+0.5, pos.getY()+0.5, pos.getZ()+0.5) < 400; }
+    public boolean stillValid(Player player) {
+        var level = player.level();
+        return colony != null && level.dimension().equals(net.minecraft.world.level.Level.OVERWORLD)
+                && level.hasChunkAt(pos) && colony.isInside(pos)
+                && level.getBlockEntity(pos) instanceof com.simplecolonies.block.entity.TownHallBlockEntity hall
+                && hall.getColonyId() == colony.getId()
+                && player.distanceToSqr(pos.getX()+0.5, pos.getY()+0.5, pos.getZ()+0.5) < 400;
+    }
     public List<CitizenData> getCitizensSorted() {
         var list = new ArrayList<>(colony.getCitizens());
         list.sort(java.util.Comparator.comparing(c -> c.job.displayName));

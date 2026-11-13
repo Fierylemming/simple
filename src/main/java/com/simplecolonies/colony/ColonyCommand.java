@@ -37,7 +37,7 @@ public class ColonyCommand {
                 }))
                 .then(Commands.literal("info").executes(ctx -> {
                     ServerPlayer p = ctx.getSource().getPlayerOrException();
-                    var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
+                    var colony = ColonyManager.getInstance().getColonyAt(p.level().dimension(), p.blockPosition());
                     if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony — stand near town hall")); return 0; }
                     Colony c = colony.get();
                     return sendInfo(ctx.getSource(), c, p);
@@ -52,7 +52,7 @@ public class ColonyCommand {
                 .then(Commands.literal("research")
                         .executes(ctx -> {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
-                            var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
+                            var colony = ColonyManager.getInstance().getColonyAt(p.level().dimension(), p.blockPosition());
                             if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony")); return 0; }
                             return sendResearch(ctx.getSource(), colony.get(), p);
                         })
@@ -67,7 +67,7 @@ public class ColonyCommand {
                 .then(Commands.literal("warehouse")
                         .executes(ctx -> {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
-                            var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
+                            var colony = ColonyManager.getInstance().getColonyAt(p.level().dimension(), p.blockPosition());
                             if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony")); return 0; }
                             return sendWarehouse(ctx.getSource(), colony.get(), p);
                         })
@@ -84,7 +84,7 @@ public class ColonyCommand {
                                 .then(Commands.argument("count", IntegerArgumentType.integer(1, 10000))
                                         .executes(ctx -> {
                                             ServerPlayer p = ctx.getSource().getPlayerOrException();
-                                            var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
+                                            var colony = ColonyManager.getInstance().getColonyAt(p.level().dimension(), p.blockPosition());
                                             if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony")); return 0; }
                                             String item = StringArgumentType.getString(ctx, "item");
                                             int count = IntegerArgumentType.getInteger(ctx, "count");
@@ -109,7 +109,7 @@ public class ColonyCommand {
                         .then(Commands.argument("upgradeId", StringArgumentType.string())
                                 .executes(ctx -> {
                                     ServerPlayer p = ctx.getSource().getPlayerOrException();
-                                    var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
+                                    var colony = ColonyManager.getInstance().getColonyAt(p.level().dimension(), p.blockPosition());
                                     if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony")); return 0; }
                                     String uid = StringArgumentType.getString(ctx, "upgradeId");
                                     return forceUnlock(ctx.getSource(), colony.get(), uid);
@@ -126,7 +126,7 @@ public class ColonyCommand {
                         .then(Commands.argument("upgradeId", StringArgumentType.string())
                                 .executes(ctx -> {
                                     ServerPlayer p = ctx.getSource().getPlayerOrException();
-                                    var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
+                                    var colony = ColonyManager.getInstance().getColonyAt(p.level().dimension(), p.blockPosition());
                                     if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony")); return 0; }
                                     String uid = StringArgumentType.getString(ctx, "upgradeId");
                                     return tryBuy(ctx.getSource(), colony.get(), uid, p);
@@ -143,7 +143,7 @@ public class ColonyCommand {
                 .then(Commands.literal("tickprogress").requires(src -> src.hasPermission(2))
                         .executes(ctx -> {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
-                            var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
+                            var colony = ColonyManager.getInstance().getColonyAt(p.level().dimension(), p.blockPosition());
                             if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony")); return 0; }
                             ServerLevel lvl = p.serverLevel();
                             colony.get().getResearch().tickAutoProgress(lvl);
@@ -175,7 +175,7 @@ public class ColonyCommand {
                 .then(Commands.literal("status")
                         .executes(ctx -> {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
-                            var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
+                            var colony = ColonyManager.getInstance().getColonyAt(p.level().dimension(), p.blockPosition());
                             if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony.")); return 0; }
                             return sendWorkStatus(ctx.getSource(), colony.get());
                         })
@@ -187,7 +187,7 @@ public class ColonyCommand {
                 .then(Commands.literal("build").requires(src -> src.hasPermission(2))
                         .then(Commands.literal("house").executes(ctx -> {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
-                            var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
+                            var colony = ColonyManager.getInstance().getColonyAt(p.level().dimension(), p.blockPosition());
                             if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Stand inside a colony first.")); return 0; }
                             if (!p.serverLevel().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) {
                                 ctx.getSource().sendFailure(Component.literal("Colonies currently build only in the overworld.")); return 0;

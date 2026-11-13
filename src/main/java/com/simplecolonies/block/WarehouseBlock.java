@@ -19,7 +19,7 @@ public class WarehouseBlock extends Block {
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
         if (level.isClientSide) return InteractionResult.SUCCESS;
-        Colony colony = ColonyManager.getInstance().getColonyAt(pos).orElse(null);
+        Colony colony = ColonyManager.getInstance().getColonyAt(level.dimension(), pos).orElse(null);
         if (colony != null && player instanceof ServerPlayer sp) {
             // Set as warehouse hub if leader
             if (colony.isLeader(player)) {

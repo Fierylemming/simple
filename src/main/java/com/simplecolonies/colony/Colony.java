@@ -730,7 +730,7 @@ public class Colony {
         if (existing.size() > 1) return false;
         if (!existing.isEmpty()) {
             var building = existing.getFirst();
-            if (!linkedMarker || building.getState() != com.simplecolonies.building.BuildingState.COMPLETE) return false;
+            if (!linkedMarker || !building.isPlayerPlaced || building.getState() != com.simplecolonies.building.BuildingState.COMPLETE) return false;
             buildings.remove(building);
         }
         if (type != null) buildings.add(new Building(type, pos, culture, true));
@@ -739,6 +739,17 @@ public class Colony {
         if (type == BuildingType.WAREHOUSE) warehouseManager.setWarehouseCenter(pos);
         ColonyManager.getInstance().markDirty(this);
         return true;
+    }
+
+    /** Remove only the single completed player-designated record represented by
+     * this exact marker. Never delete generated or ambiguous records. */
+    public boolean removeMarkerBuilding(BlockPos pos, BuildingType expectedType) {
+        if (expectedType == null) return false;
+        var matches = buildings.stream().filter(b -> b.getPos().equals(pos)).toList();
+        if (matches.size() != 1 || !matches.getFirst().isPlayerPlaced
+                || matches.getFirst().getType() != expectedType
+                || matches.getFirst().getState() != com.simplecolonies.building.BuildingState.COMPLETE) return false;
+        return updateMarkerBuilding(pos, true, null);
     }
 
     // --- NBT ---

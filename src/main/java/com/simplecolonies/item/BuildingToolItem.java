@@ -26,7 +26,7 @@ public class BuildingToolItem extends Item {
         BlockPos pos = ctx.getClickedPos();
         if (level.isClientSide) return InteractionResult.SUCCESS;
         if (ctx.getPlayer() == null) return InteractionResult.FAIL;
-        Colony colony = ColonyManager.getInstance().getColonyAt(pos).orElse(null);
+        Colony colony = ColonyManager.getInstance().getColonyAt(level.dimension(), pos).orElse(null);
         if (colony == null) {
             ctx.getPlayer().displayClientMessage(Component.literal("§cNot in a colony radius. Place Town Hall first."), true);
             return InteractionResult.FAIL;
