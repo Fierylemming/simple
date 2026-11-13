@@ -527,7 +527,7 @@ public class Colony {
                     || !level.getBlockState(p.below()).isFaceSturdy(level, p.below(), net.minecraft.core.Direction.UP)) continue;
             var area = new net.minecraft.world.phys.AABB(p.getX() + 0.2, p.getY(), p.getZ() + 0.2,
                     p.getX() + 0.8, p.getY() + 1.8, p.getZ() + 0.8);
-            if (!level.getEntities(null, area, e -> e.isAlive() && !e.isSpectator()).isEmpty()) continue;
+            if (!level.getEntities((net.minecraft.world.entity.Entity) null, area, e -> e.isAlive() && !e.isSpectator()).isEmpty()) continue;
             spawnAt = p; break;
         }
         if (spawnAt == null || !consumeStock(level, costId, cost)) return false;
