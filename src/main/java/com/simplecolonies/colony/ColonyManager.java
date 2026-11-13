@@ -132,6 +132,9 @@ public class ColonyManager {
                 return;
             }
             BlockPos spawnPos = findSafeSpawn(level, pos);
+            // A rough shore can block the normal farm/worksite approach. The
+            // already-built hall is a safe second search, not a terrain edit.
+            if (spawnPos == null) spawnPos = findSafeSpawn(level, colony.getCenter().offset(1, 0, 1));
             if (spawnPos == null) {
                 SimpleColonies.LOGGER.warn("No safe loaded spawn location for colony #{} near {}; leaving terrain untouched", colony.getId(), pos);
                 return;
@@ -156,25 +159,33 @@ public class ColonyManager {
 
     BlockPos findSafeSpawn(ServerLevel level, BlockPos pos) {
         // Try exact
-        if (isSpawnable(level, pos)) return pos;
+        if (isOpenFounderSpot(level, pos)) return pos;
         // Never inspect or load chunks merely to find a spawn.
         if (!level.isLoaded(pos)) return null;
         // Heightmap top
         int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, pos.getX(), pos.getZ());
         BlockPos h = new BlockPos(pos.getX(), y, pos.getZ());
-        if (isSpawnable(level, h)) return h;
+        if (isOpenFounderSpot(level, h)) return h;
         // Also check WORLD_SURFACE for water case (your beach farm over water)
         int wy = level.getHeight(Heightmap.Types.WORLD_SURFACE, pos.getX(), pos.getZ());
         BlockPos wh = new BlockPos(pos.getX(), wy + 1, pos.getZ());
-        if (isSpawnable(level, wh)) return wh;
+        if (isOpenFounderSpot(level, wh)) return wh;
         // Search 7x7x 8
         for (int dx = -3; dx <= 3; dx++) for (int dz = -3; dz <= 3; dz++) for (int dy = -3; dy <= 4; dy++) {
             BlockPos p = pos.offset(dx, dy, dz);
-            if (isSpawnable(level, p)) return p;
+            if (isOpenFounderSpot(level, p)) return p;
         }
         // No safe position: do not construct a platform over somebody's blocks
         // or force a spawn in water, a wall, an unloaded chunk or the void.
         return null;
+    }
+
+    private boolean isOpenFounderSpot(ServerLevel level, BlockPos pos) {
+        if (!isSpawnable(level, pos)) return false;
+        var box = new net.minecraft.world.phys.AABB(pos.getX() + 0.2, pos.getY(), pos.getZ() + 0.2,
+                pos.getX() + 0.8, pos.getY() + 1.8, pos.getZ() + 0.8);
+        return level.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class, box,
+                net.minecraft.world.entity.LivingEntity::isAlive).isEmpty();
     }
 
     private boolean isSpawnable(ServerLevel level, BlockPos pos) {
