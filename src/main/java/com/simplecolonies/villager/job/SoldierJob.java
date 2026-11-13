@@ -21,7 +21,7 @@ public class SoldierJob extends AbstractJob {
     }
     public boolean isFollowing() { return followingLeader; }
 
-    private boolean hasValidCommander(ServerLevel level) {
+    public boolean hasValidCommander(ServerLevel level) {
         return followingLeader && commander != null && commander.isAlive() && !commander.isRemoved()
                 && commander.level() == level && colony.isLeader(commander);
     }
@@ -49,7 +49,8 @@ public class SoldierJob extends AbstractJob {
             LivingEntity recent = commander.getLastHurtMob();
             if (recent instanceof Monster && recent.isAlive() && villager.distanceToSqr(recent) < 400) target = recent;
         }
-        if (target == null) target = level.getEntitiesOfClass(Monster.class, villager.getBoundingBox().inflate(16, 6, 16),
+        if (target == null && level.dimension().equals(net.minecraft.world.level.Level.OVERWORLD))
+            target = level.getEntitiesOfClass(Monster.class, villager.getBoundingBox().inflate(16, 6, 16),
                         m -> m.isAlive() && colony.isInside(m.blockPosition()))
                 .stream().min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
         if (target != null) {

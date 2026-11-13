@@ -286,7 +286,8 @@ public class ColonyVillager extends Villager {
 
     @Override
     public void tick() {
-        if (!level().isClientSide && level() instanceof ServerLevel sl && colonyId != -1) {
+        if (!level().isClientSide && level() instanceof ServerLevel sl && colonyId != -1
+                && sl.dimension().equals(Level.OVERWORLD)) {
             ColonyManager.getInstance().getColony(colonyId).ifPresent(c -> updateWorkstation(sl, c));
         }
         super.tick();
@@ -298,16 +299,20 @@ public class ColonyVillager extends Villager {
             Colony colony = ColonyManager.getInstance().getColony(colonyId).orElse(null);
             if (colony == null) return;
 
-            // Non-combat citizens seek shelter at night, even when there are no beds.
-            if (sl.isNight() && !job.isCombat && !isTrading()) {
+            boolean homeDimension = sl.dimension().equals(Level.OVERWORLD);
+            // Colony territory and workstations exist only in the Overworld.
+            // A defender may still follow a valid commander in another dimension.
+            if (homeDimension && sl.isNight() && !job.isCombat && !isTrading()) {
                 seekShelter(sl, colony);
-            } else if (!isBaby() && jobInstance != null && (job.isCombat || !isInDanger()
-                    && ((job == JobType.SHEPHERD && (!courierCargo.isEmpty() || !courierCargoExtra.isEmpty()))
-                        || updateWorkstation(sl, colony)))) {
+            } else if (!isBaby() && jobInstance != null
+                    && (job.isCombat ? (homeDimension || jobInstance instanceof SoldierJob soldier && soldier.hasValidCommander(sl))
+                        : (homeDimension && !isInDanger()
+                            && ((job == JobType.SHEPHERD && (!courierCargo.isEmpty() || !courierCargoExtra.isEmpty()))
+                                || updateWorkstation(sl, colony)))) {
                 jobInstance.tick(sl);
             }
 
-            if (!sl.isNight()) trySocialize(sl);
+            if (homeDimension && !sl.isNight()) trySocialize(sl);
             colony.getCitizens().stream().filter(c -> c.uuid.equals(getUUID())).findFirst()
                     .ifPresent(c -> {
                         if (c.isChild != isBaby()) {
