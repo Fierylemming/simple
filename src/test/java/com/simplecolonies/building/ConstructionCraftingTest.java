@@ -79,4 +79,17 @@ class ConstructionCraftingTest {
         assertNull(ConstructionCrafting.requiredInputs(Map.of("minecraft:oak_log", 1), "minecraft:oak_door"));
     }
 
+    @Test void stonePickaxeUsesPhysicalInputsAndRetainsMatchingLeftovers() {
+        var available = Map.of("minecraft:cobblestone", 3, "minecraft:birch_log", 1);
+        assertEquals(available, ConstructionCrafting.requiredInputs(available, "minecraft:stone_pickaxe"));
+        Stock s = new Stock(); available.forEach(s::add);
+        assertTrue(ConstructionCrafting.take(s, "minecraft:stone_pickaxe"));
+        assertEquals(0, s.count("minecraft:cobblestone"));
+        assertEquals(0, s.count("minecraft:birch_log"));
+        assertEquals(2, s.count("minecraft:birch_planks"));
+        assertEquals(2, s.count("minecraft:stick"));
+        assertEquals(0, s.count("minecraft:stone_pickaxe"));
+        assertNull(ConstructionCrafting.requiredInputs(Map.of("minecraft:cobblestone", 2, "minecraft:stick", 2), "minecraft:stone_pickaxe"));
+    }
+
 }

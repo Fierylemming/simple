@@ -29,14 +29,63 @@ public class MinerJob extends AbstractJob {
     private boolean restored;
     private String lastFirstSite = "not checked";
     private String unsafeReason = "";
+    private final PhysicalJobCargo cargo;
+    private final PhysicalToolPickup toolPickup;
+    private final PhysicalBuilderMaterials materials;
+    private static final net.minecraft.world.item.Item[] PICKAXES = {
+            Items.NETHERITE_PICKAXE, Items.DIAMOND_PICKAXE, Items.IRON_PICKAXE, Items.STONE_PICKAXE };
 
-    public MinerJob(Villager villager, Colony colony) { super(villager, colony, JobType.MINER); }
+    public MinerJob(Villager villager, Colony colony) {
+        super(villager, colony, JobType.MINER);
+        ColonyVillager worker = villager instanceof ColonyVillager cv ? cv : null;
+        cargo = worker == null ? null : new PhysicalJobCargo(worker, colony);
+        toolPickup = worker == null ? null : new PhysicalToolPickup(worker, colony);
+        materials = worker == null ? null : new PhysicalBuilderMaterials(worker, colony);
+    }
     public String diagnostic() { return "entrance=" + entrance + ", direction=" + direction + ", step=" + step + ", nextSite=" + siteIndex + ", firstSite=" + lastFirstSite; }
 
     @Override protected void doWork(ServerLevel level) {
         if (!restored) { readMemory(); restored = true; }
-        int tier = equipPickaxe(level);
-        if (tier == 0) { craftStoneReplacement(level, "pickaxe"); return; }
+        if (cargo != null) {
+            var delivery = cargo.deliver(level);
+            if (delivery != PhysicalJobCargo.Delivery.NONE) {
+                state = delivery == PhysicalJobCargo.Delivery.MOVING ? JobState.GOING_TO_WORK
+                        : delivery == PhysicalJobCargo.Delivery.DELIVERED ? JobState.WORKING : JobState.WAITING_FOR_CHEST;
+                ticksUntilNextWork = delivery == PhysicalJobCargo.Delivery.MOVING ? 10 : 40;
+                return;
+            }
+        }
+        int tier = tier(villager.getMainHandItem());
+        if (tier == 0) {
+            if (!villager.getMainHandItem().isEmpty()) { state = JobState.NEEDS_TOOL; ticksUntilNextWork = 100; return; }
+            if (toolPickup == null) { tier = equipPickaxe(level); if (tier == 0) craftStoneReplacement(level, "pickaxe"); return; }
+            var picked = toolPickup.equip(level, PICKAXES);
+            if (picked == PhysicalToolPickup.Result.EQUIPPED) { state = JobState.WORKING; ticksUntilNextWork = 20; return; }
+            if (picked == PhysicalToolPickup.Result.MOVING || picked == PhysicalToolPickup.Result.BLOCKED) {
+                state = picked == PhysicalToolPickup.Result.MOVING ? JobState.GOING_TO_WORK : JobState.STUCK;
+                ticksUntilNextWork = picked == PhysicalToolPickup.Result.MOVING ? 10 : 60; return;
+            }
+            var result = materials.prepare(level, "minecraft:stone_pickaxe");
+            if (result == PhysicalBuilderMaterials.Result.READY && materials.takePrepared("minecraft:stone_pickaxe")) {
+                villager.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.STONE_PICKAXE));
+                state = JobState.WORKING; ticksUntilNextWork = 20;
+            } else {
+                state = result == PhysicalBuilderMaterials.Result.MOVING ? JobState.GOING_TO_WORK
+                        : result == PhysicalBuilderMaterials.Result.WORKING ? JobState.WORKING
+                        : result == PhysicalBuilderMaterials.Result.MISSING ? JobState.NEEDS_TOOL : JobState.STUCK;
+                ticksUntilNextWork = result == PhysicalBuilderMaterials.Result.MOVING ? 10 : 40;
+            }
+            return;
+        }
+        if (materials != null) {
+            var result = materials.returnSurplus(level);
+            if (result != PhysicalBuilderMaterials.Result.READY) {
+                state = result == PhysicalBuilderMaterials.Result.MOVING ? JobState.GOING_TO_WORK
+                        : result == PhysicalBuilderMaterials.Result.WORKING ? JobState.WORKING : JobState.WAITING_FOR_CHEST;
+                ticksUntilNextWork = result == PhysicalBuilderMaterials.Result.MOVING ? 10 : 40;
+                return;
+            }
+        }
         if (entrance == null && !selectSite(level)) { state = JobState.STUCK; ticksUntilNextWork = 100; return; }
         BlockPos stand = entrance.relative(direction, step).below(step);
         if (!level.isLoaded(stand) || !colony.isInside(stand)) { state = JobState.STUCK; ticksUntilNextWork = 80; return; }
@@ -61,7 +110,16 @@ public class MinerJob extends AbstractJob {
             ItemStack tool = villager.getMainHandItem();
             var drops = Block.getDrops(block, level, target, null, villager, tool);
             if (!level.destroyBlock(target, false)) { state = JobState.STUCK; ticksUntilNextWork = 40; return; }
-            for (ItemStack drop : drops) if (!drop.isEmpty()) depositToColony(level, BuiltInRegistries.ITEM.getKey(drop.getItem()).toString(), drop.getCount());
+            for (ItemStack drop : drops) {
+                if (drop.isEmpty()) continue;
+                if (cargo == null) depositToColony(level, BuiltInRegistries.ITEM.getKey(drop.getItem()).toString(), drop.getCount());
+                else {
+                    cargo.collectStack(drop);
+                    // Modded blocks may produce more than the worker can carry.
+                    // Leave those exact stacks at the quarry, never in virtual stock.
+                    if (!drop.isEmpty()) Block.popResource(level, target, drop);
+                }
+            }
             villager.swing(InteractionHand.MAIN_HAND);
             tool.hurtAndBreak(1, villager, EquipmentSlot.MAINHAND);
             state = JobState.WORKING; ticksUntilNextWork = 25; return;

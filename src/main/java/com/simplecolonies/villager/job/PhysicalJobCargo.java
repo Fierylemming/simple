@@ -22,6 +22,14 @@ final class PhysicalJobCargo {
      * stays in its original item entity with all components intact. */
     void collect(ItemEntity entity) {
         ItemStack stack = entity.getItem();
+        collectStack(stack);
+        if (stack.isEmpty()) entity.discard();
+        else entity.setItem(stack);
+    }
+
+    /** Take items from a freshly generated drop stack, leaving any excess in
+     * the caller's stack so it can be spawned in the world. */
+    void collectStack(ItemStack stack) {
         if (stack.isEmpty()) return;
         if (worker.getCourierCargo().isEmpty()) worker.setCourierCargo(stack.split(stack.getMaxStackSize()));
         else merge(worker.getCourierCargo(), stack);
@@ -29,8 +37,6 @@ final class PhysicalJobCargo {
             if (worker.getCourierCargoExtra().isEmpty()) worker.setCourierCargoExtra(stack.split(stack.getMaxStackSize()));
             else merge(worker.getCourierCargoExtra(), stack);
         }
-        if (stack.isEmpty()) entity.discard();
-        else entity.setItem(stack);
     }
 
     private static void merge(ItemStack target, ItemStack source) {

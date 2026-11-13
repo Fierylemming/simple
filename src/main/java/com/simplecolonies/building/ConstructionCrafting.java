@@ -21,6 +21,28 @@ public final class ConstructionCrafting {
     public static boolean take(Stock stock, String id) {
         if (id == null || id.isEmpty()) return true;
         if (stock.count(id) > 0) return stock.consume(id, 1);
+        if (id.equals("minecraft:stone_pickaxe")) {
+            if (stock.count("minecraft:cobblestone") < 3) return false;
+            if (stock.count(STICK) < 2) {
+                HouseTimber source = null;
+                for (var wood : HouseTimber.all()) {
+                    if (stock.count(woodId(wood, "planks")) >= 2 || stock.count(woodId(wood, "log")) > 0) {
+                        source = wood; break;
+                    }
+                }
+                if (source == null) return false;
+                String planks = woodId(source, "planks");
+                if (stock.count(planks) < 2) {
+                    if (!stock.consume(woodId(source, "log"), 1)) return false;
+                    stock.add(planks, 4);
+                }
+                if (!stock.consume(planks, 2)) return false;
+                stock.add(STICK, 4);
+            }
+            if (!stock.consume("minecraft:cobblestone", 3) || !stock.consume(STICK, 2)) return false;
+            stock.add(id, 1);
+            return stock.consume(id, 1);
+        }
         if (id.equals("minecraft:furnace")) {
             if (stock.count("minecraft:cobblestone") < 8 || !stock.consume("minecraft:cobblestone", 8)) return false;
             stock.add(id, 1);
