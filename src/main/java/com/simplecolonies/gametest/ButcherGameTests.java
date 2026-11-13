@@ -123,7 +123,10 @@ public class ButcherGameTests {
         BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
-        colony.depositToWarehouse("minecraft:wheat", 4);
+        BlockPos chest = new BlockPos(54, 1, 56);
+        helper.setBlock(chest, Blocks.CHEST);
+        ((net.minecraft.world.Container) helper.getBlockEntity(chest)).setItem(0, new ItemStack(Items.WHEAT, 4));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
         var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(56, 1, 56));
         worker.setNoAi(true);
         var first = helper.spawn(EntityType.COW, new BlockPos(58, 1, 55));
@@ -132,8 +135,9 @@ public class ButcherGameTests {
         var job = new ButcherJob(worker, colony);
         for (int tick = 1; tick < 300; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
         helper.runAtTickTime(250, () -> {
-            if (first.isInLove() || second.isInLove() || colony.getWarehouseCount(helper.getLevel(), "minecraft:wheat") != 4)
-                helper.fail("Butcher fed livestock through a wall");
+            if (first.isInLove() || second.isInLove()
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:wheat") + worker.getWorkSupplies().getCount() != 4)
+                helper.fail("Butcher fed livestock through a wall or lost its carried wheat");
             helper.succeed();
         });
     }
@@ -162,7 +166,7 @@ public class ButcherGameTests {
         });
     }
 
-    @GameTest(template = "isolated", timeoutTicks = 1300)
+    @GameTest(template = "isolated", timeoutTicks = 2200)
     public static void feedsPairToProduceRealCalf(GameTestHelper helper) {
         for (int x = 40; x <= 72; x++) for (int z = 40; z <= 72; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
         for (int i = 50; i <= 62; i++) {
@@ -172,16 +176,29 @@ public class ButcherGameTests {
         BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
-        colony.depositToWarehouse("minecraft:wheat", 4);
+        BlockPos chest = new BlockPos(52, 1, 54);
+        helper.setBlock(chest, Blocks.CHEST);
+        ((net.minecraft.world.Container) helper.getBlockEntity(chest)).setItem(0, new ItemStack(Items.WHEAT, 4));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
         var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(54, 1, 56));
         Cow first = helper.spawn(EntityType.COW, new BlockPos(56, 1, 56));
         Cow second = helper.spawn(EntityType.COW, new BlockPos(58, 1, 56));
         var job = new ButcherJob(worker, colony);
         boolean[] fed = {false, false};
+        boolean[] collected = {false};
+        BlockPos absChest = helper.absolutePos(chest);
         long[] fedAt = {-1, -1};
-        for (int tick = 1; tick < 1300; tick++) helper.runAtTickTime(tick, () -> {
+        for (int tick = 1; tick < 2200; tick++) helper.runAtTickTime(tick, () -> {
             boolean firstBefore = first.isInLove(), secondBefore = second.isInLove();
             job.tick(helper.getLevel());
+            if (!collected[0] && !worker.getWorkSupplies().isEmpty()) {
+                if (worker.distanceToSqr(absChest.getX()+.5, absChest.getY()+.5, absChest.getZ()+.5) > 9)
+                    helper.fail("Butcher collected food remotely");
+                var tag = new net.minecraft.nbt.CompoundTag(); worker.addAdditionalSaveData(tag);
+                var saved = ItemStack.parseOptional(helper.getLevel().registryAccess(), tag.getCompound("workSupplies"));
+                if (!saved.is(Items.WHEAT) || saved.getCount() != worker.getWorkSupplies().getCount()) helper.fail("Breeding food did not persist");
+                collected[0] = true;
+            }
             if (!firstBefore && first.isInLove()) {
                 if (worker.distanceToSqr(first) > 6.25) helper.fail("Fed cow from too far away");
                 fed[0] = true; fedAt[0] = helper.getLevel().getGameTime();
@@ -191,9 +208,9 @@ public class ButcherGameTests {
                 fed[1] = true; fedAt[1] = helper.getLevel().getGameTime();
             }
         });
-        helper.runAtTickTime(1200, () -> {
+        helper.runAtTickTime(2100, () -> {
             var herd = helper.getLevel().getEntitiesOfClass(Cow.class, new AABB(center).inflate(8, 4, 8), Cow::isAlive);
-            if (!fed[0] || !fed[1] || herd.stream().noneMatch(Cow::isBaby)
+            if (!collected[0] || !fed[0] || !fed[1] || herd.stream().noneMatch(Cow::isBaby)
                     || !first.isAlive() || !second.isAlive() || colony.getWarehouseCount(helper.getLevel(), "minecraft:wheat") != 2)
                 helper.fail("Breeding incomplete: fed=" + fed[0] + "," + fed[1] + " herd=" + herd.size()
                         + " wheat=" + colony.getWarehouseCount(helper.getLevel(), "minecraft:wheat") + " state=" + job.getState()
@@ -203,7 +220,7 @@ public class ButcherGameTests {
         });
     }
 
-    @GameTest(template = "isolated", timeoutTicks = 1300)
+    @GameTest(template = "isolated", timeoutTicks = 2200)
     public static void feedsPigsWithRealCarrots(GameTestHelper helper) {
         for (int x = 40; x <= 72; x++) for (int z = 40; z <= 72; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
         for (int i = 50; i <= 62; i++) {
@@ -213,13 +230,16 @@ public class ButcherGameTests {
         BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
-        colony.depositToWarehouse("minecraft:carrot", 4);
+        BlockPos chest = new BlockPos(52, 1, 54);
+        helper.setBlock(chest, Blocks.CHEST);
+        ((net.minecraft.world.Container) helper.getBlockEntity(chest)).setItem(0, new ItemStack(Items.CARROT, 4));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
         var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(54, 1, 56));
         var first = helper.spawn(EntityType.PIG, new BlockPos(56, 1, 56));
         var second = helper.spawn(EntityType.PIG, new BlockPos(58, 1, 56));
         var job = new ButcherJob(worker, colony);
-        for (int tick = 1; tick < 1300; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
-        helper.runAtTickTime(1200, () -> {
+        for (int tick = 1; tick < 2200; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(2100, () -> {
             var pigs = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.animal.Pig.class,
                     new AABB(center).inflate(8, 4, 8), net.minecraft.world.entity.animal.Pig::isAlive);
             if (!first.isAlive() || !second.isAlive() || pigs.stream().noneMatch(net.minecraft.world.entity.animal.Pig::isBaby)
@@ -227,6 +247,40 @@ public class ButcherGameTests {
                 helper.fail("Pig breeding incomplete: pigs=" + pigs.size() + " carrots="
                         + colony.getWarehouseCount(helper.getLevel(), "minecraft:carrot") + " state=" + job.getState());
             helper.succeed();
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 700)
+    public static void breedingUsesOnlyPlainSharedFoodAndPreservesReserve(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos center = helper.absolutePos(new BlockPos(8, 1, 8)), chest = new BlockPos(6, 1, 8);
+        helper.setBlock(chest, Blocks.CHEST);
+        var container = (net.minecraft.world.Container) helper.getBlockEntity(chest);
+        ItemStack special = new ItemStack(Items.WHEAT, 4);
+        special.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal("Keepsake"));
+        container.setItem(0, special);
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
+        colony.depositToWarehouse("minecraft:wheat", 20); // Cannot be physically collected.
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(7, 1, 9)); worker.setNoAi(true);
+        var first = helper.spawn(EntityType.COW, new BlockPos(8, 1, 9)); first.setNoAi(true);
+        var second = helper.spawn(EntityType.COW, new BlockPos(9, 1, 9)); second.setNoAi(true);
+        var job = new ButcherJob(worker, colony);
+        for (int tick = 1; tick < 700; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(140, () -> {
+            if (container.getItem(0).getCount() != 4 || first.isInLove() || second.isInLove() || !worker.getWorkSupplies().isEmpty())
+                helper.fail("Used virtual or customized breeding food");
+            container.setItem(0, new ItemStack(Items.WHEAT, 3));
+        });
+        helper.runAtTickTime(280, () -> {
+            if (container.countItem(Items.WHEAT) != 3 || first.isInLove() || second.isInLove() || !worker.getWorkSupplies().isEmpty())
+                helper.fail("Did not preserve two-item reserve for a pair");
+            container.setItem(0, new ItemStack(Items.WHEAT, 4));
+        });
+        helper.succeedWhen(() -> {
+            if (!first.isInLove() || !second.isInLove() || container.countItem(Items.WHEAT) != 2)
+                helper.fail("Did not physically feed pair with reserve intact: " + job.getState());
         });
     }
 

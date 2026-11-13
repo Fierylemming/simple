@@ -76,40 +76,107 @@ public class ButcherJob extends AbstractJob {
         ticksUntilNextWork = 40;
     }
 
-    /** Feed an eligible pair with real stock; vanilla animal AI creates the offspring. */
+    /** Collect real plain food before feeding; vanilla animal AI makes offspring. */
     private void breedLivestock(ServerLevel level, BlockPos center) {
         var all = level.getEntitiesOfClass(Animal.class, new AABB(center).inflate(8, 4, 8),
                 a -> a.isAlive() && colony.isInside(a.blockPosition()) && (a instanceof Cow || a instanceof Pig));
+        var supplies = worker().getWorkSupplies();
         for (Class<? extends Animal> species : java.util.List.of(Cow.class, Pig.class)) {
             var herd = all.stream().filter(a -> a.getClass() == species).toList();
-            if (herd.size() >= 4) continue; // Includes calves, piglets and named animals.
+            if (herd.size() >= 4) continue;
             var adults = herd.stream().filter(a -> !a.hasCustomName() && a.getAge() == 0).toList();
             var candidate = adults.stream().filter(a -> !a.isInLove() && a.canFallInLove())
-                    .filter(a -> adults.stream().anyMatch(other -> other != a && (other.isInLove() || other.canFallInLove())))
+                    .filter(a -> adults.stream().anyMatch(other -> other != a && a.distanceToSqr(other) <= 36
+                            && (other.isInLove() || other.canFallInLove())))
                     .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
             if (candidate == null) continue;
-            boolean partnerWaiting = adults.stream().anyMatch(a -> a != candidate && a.isInLove());
-            String[] foods = species == Cow.class ? new String[]{"minecraft:wheat"}
-                    : new String[]{"minecraft:carrot", "minecraft:potato", "minecraft:beetroot"};
-            String food = null;
-            for (String item : foods) {
-                // Preserve two items for other colony needs and enough for both parents.
-                if (colony.getWarehouseCount(level, item) >= (partnerWaiting ? 3 : 4)) { food = item; break; }
+            boolean partnerWaiting = adults.stream().anyMatch(a -> a != candidate && a.distanceToSqr(candidate) <= 36 && a.isInLove());
+            var foods = species == Cow.class ? java.util.List.of(net.minecraft.world.item.Items.WHEAT)
+                    : java.util.List.of(net.minecraft.world.item.Items.CARROT, net.minecraft.world.item.Items.POTATO, net.minecraft.world.item.Items.BEETROOT);
+            if (!supplies.isEmpty() && (!foods.contains(supplies.getItem()) || !plain(supplies))) continue;
+            int carried = supplies.isEmpty() ? 0 : supplies.getCount();
+            int needed = partnerWaiting ? 1 : 2;
+            if (carried < needed) {
+                // Select one food type, and recheck the two-item reserve before
+                // every removal to handle other workers or players changing stock.
+                var storage = colony.getWarehouseManager().courierStoragePositions(level);
+                net.minecraft.world.item.Item food = supplies.isEmpty() ? null : supplies.getItem();
+                if (food == null) for (var item : foods) {
+                    if (countFood(level, storage, item) >= needed - carried + 2) { food = item; break; }
+                }
+                if (food == null || countFood(level, storage, food) < needed - carried + 2) continue;
+                if (collectFood(level, storage, food, needed - carried)) return;
+                continue;
             }
-            if (food == null) continue;
             if (villager.distanceToSqr(candidate) > 6.25 || !villager.hasLineOfSight(candidate)) {
                 var path = villager.getNavigation().createPath(candidate, 1);
                 if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
                 villager.getNavigation().moveTo(path, 0.7);
                 state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
             }
-            if (!candidate.isAlive() || candidate.getAge() != 0 || candidate.isInLove() || !candidate.canFallInLove()) continue;
-            if (!colony.consumeStock(level, food, 1)) continue;
+            if (!candidate.isAlive() || candidate.hasCustomName() || candidate.getAge() != 0
+                    || candidate.isInLove() || !candidate.canFallInLove()) continue;
+            supplies.shrink(1);
+            if (supplies.isEmpty()) worker().setWorkSupplies(net.minecraft.world.item.ItemStack.EMPTY);
             candidate.setInLove(null);
             villager.getLookControl().setLookAt(candidate);
             villager.swing(InteractionHand.MAIN_HAND);
-            state = JobState.WORKING; ticksUntilNextWork = 20; return;
+            state = JobState.WORKING; ticksUntilNextWork = 5; return;
+        }
+        // If there is no longer a suitable pair, return unused carried food to
+        // shared storage rather than getting stuck on a different species.
+        if (!worker().getWorkSupplies().isEmpty()) {
+            worker().setCourierCargo(worker().getWorkSupplies());
+            worker().setWorkSupplies(net.minecraft.world.item.ItemStack.EMPTY);
+            state = JobState.WORKING; ticksUntilNextWork = 10; return;
         }
         state = JobState.NEEDS_RESOURCE; ticksUntilNextWork = 100;
+    }
+
+    private static boolean plain(net.minecraft.world.item.ItemStack stack) {
+        return !stack.isEmpty() && net.minecraft.world.item.ItemStack.isSameItemSameComponents(stack, stack.getItem().getDefaultInstance());
+    }
+
+    private int countFood(ServerLevel level, java.util.List<BlockPos> storage, net.minecraft.world.item.Item item) {
+        int count = 0;
+        for (var pos : storage) {
+            var c = colony.getWarehouseManager().courierContainer(level, pos);
+            if (c == null) continue;
+            for (int i = 0; i < c.getContainerSize(); i++)
+                if (c.getItem(i).is(item) && plain(c.getItem(i))) count += c.getItem(i).getCount();
+        }
+        return count;
+    }
+
+    private boolean collectFood(ServerLevel level, java.util.List<BlockPos> storage, net.minecraft.world.item.Item food, int missing) {
+        var warehouse = colony.getWarehouseManager();
+        var positions = storage.stream().filter(p -> {
+            var c = warehouse.courierContainer(level, p);
+            if (c == null) return false;
+            for (int i = 0; i < c.getContainerSize(); i++) if (c.getItem(i).is(food) && plain(c.getItem(i))) return true;
+            return false;
+        }).sorted(java.util.Comparator.comparingDouble(p -> p.distSqr(villager.blockPosition()))).toList();
+        for (var pos : positions) {
+            if (villager.distanceToSqr(pos.getX()+.5, pos.getY()+.5, pos.getZ()+.5) > 9) {
+                var path = villager.getNavigation().createPath(pos, 1);
+                if (path == null || !path.canReach()) continue;
+                villager.getNavigation().moveTo(path, .7);
+                state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return true;
+            }
+            var c = warehouse.courierContainer(level, pos);
+            int allowed = Math.min(missing, Math.max(0, countFood(level, storage, food) - 2));
+            if (c == null || allowed <= 0) return false;
+            for (int i = 0; i < c.getContainerSize(); i++) {
+                if (!c.getItem(i).is(food) || !plain(c.getItem(i))) continue;
+                var taken = c.removeItem(i, allowed);
+                if (taken.isEmpty()) continue;
+                c.setChanged();
+                if (worker().getWorkSupplies().isEmpty()) worker().setWorkSupplies(taken);
+                else worker().getWorkSupplies().grow(taken.getCount());
+                villager.swing(InteractionHand.MAIN_HAND);
+                state = JobState.WORKING; ticksUntilNextWork = 10; return true;
+            }
+        }
+        return false;
     }
 }
