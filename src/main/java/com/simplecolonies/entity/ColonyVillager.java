@@ -304,12 +304,13 @@ public class ColonyVillager extends Villager {
             // A defender may still follow a valid commander in another dimension.
             if (homeDimension && sl.isNight() && !job.isCombat && !isTrading()) {
                 seekShelter(sl, colony);
-            } else if (!isBaby() && jobInstance != null
-                    && (job.isCombat ? (homeDimension || jobInstance instanceof SoldierJob soldier && soldier.hasValidCommander(sl))
-                        : (homeDimension && !isInDanger()
+            } else if (!isBaby() && jobInstance != null) {
+                boolean mayWork = job.isCombat
+                        ? homeDimension || (jobInstance instanceof SoldierJob soldier && soldier.hasValidCommander(sl))
+                        : homeDimension && !isInDanger()
                             && ((job == JobType.SHEPHERD && (!courierCargo.isEmpty() || !courierCargoExtra.isEmpty()))
-                                || updateWorkstation(sl, colony)))) {
-                jobInstance.tick(sl);
+                                || updateWorkstation(sl, colony));
+                if (mayWork) jobInstance.tick(sl);
             }
 
             if (homeDimension && !sl.isNight()) trySocialize(sl);
