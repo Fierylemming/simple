@@ -119,6 +119,13 @@ public class WarehouseGameTests {
             helper.fail("Upgrade did not charge exactly " + entry.getKey());
         if (Colony.load(colony.save()).getBuildings().getFirst().getHousingCapacity() != 8)
             helper.fail("Marker upgrade did not persist");
+        var farm = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.FARM, center.east(6), CultureType.ROMAN, true);
+        var farmCost = com.simplecolonies.building.BuildingUpgrade.costForUpgrade(farm);
+        farmCost.forEach(colony::depositToWarehouse);
+        if (com.simplecolonies.building.BuildingUpgrade.tryUpgrade(colony, farm, helper.getLevel(), null)
+                || farm.getLevel() != 1) helper.fail("Charged for a nonfunctional farm upgrade");
+        for (var entry : farmCost.entrySet()) if (colony.getWarehouseCount(helper.getLevel(), entry.getKey()) != entry.getValue())
+            helper.fail("Nonfunctional upgrade consumed " + entry.getKey());
         var natural = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.HOUSE, center.east(8), CultureType.ROMAN);
         natural.setState(com.simplecolonies.building.BuildingState.COMPLETE);
         if (com.simplecolonies.building.BuildingUpgrade.tryUpgrade(colony, natural, helper.getLevel(), null))

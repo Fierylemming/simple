@@ -65,7 +65,9 @@ public class BuildingUpgrade {
     }
 
     public static boolean canUpgrade(Colony colony, Building building, net.minecraft.server.level.ServerLevel level) {
-        if (!building.isPlayerPlaced) return false; // visual upgrade plans not implemented
+        if (!building.isPlayerPlaced || building.getType() != BuildingType.HOUSE) return false;
+        // Other marker upgrades currently change no functioning capacity. Never
+        // charge for an upgrade that neither builds nor does useful work.
         if (building.getLevel() >= maxLevel(building.getType())) return false;
         if (building.getState() != BuildingState.COMPLETE) return false; // only upgrade finished buildings
         Map<String, Integer> cost = costForUpgrade(building);
@@ -77,7 +79,7 @@ public class BuildingUpgrade {
 
     public static boolean tryUpgrade(Colony colony, Building building, net.minecraft.server.level.ServerLevel level, net.minecraft.world.entity.player.Player player) {
         if (!canUpgrade(colony, building, level)) {
-            if (player != null) player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cNot enough mats to upgrade " + building.getType().displayName + " to Lv" + (building.getLevel()+1)), true);
+            if (player != null) player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cUpgrade unavailable or insufficient materials for " + building.getType().displayName + " to Lv" + (building.getLevel()+1)), true);
             return false;
         }
         // The marker upgrade changes capacity only: it does not build a larger

@@ -260,18 +260,17 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
         for(var b: c.getBuildings()){
             if(y>topPos+210) break;
             boolean done = b.getState()==com.simplecolonies.building.BuildingState.COMPLETE;
-            String mats = com.simplecolonies.building.MaterialProgression.get(b.getCulture(), Math.min(b.getLevel(),5)).lore();
-            drawBuildingCard(g,x,y,b,done,mats);
+            drawBuildingCard(g,x,y,b,done);
             y+=32;
         }
     }
-    private void drawBuildingCard(GuiGraphics g,int x,int y, Building b, boolean done, String mats){
+    private void drawBuildingCard(GuiGraphics g,int x,int y, Building b, boolean done){
         int w=300;
         g.fill(x,y,x+w,y+28, done?C_GREEN_BG:0xFFF7F0DE); g.fill(x,y,x+w,y+1, done?C_GREEN:C_GOLD); g.fill(x,y+27,x+w,y+28, C_DIV); g.fill(x,y,x+2,y+28, done?C_GREEN:C_GOLD);
         // icon
         g.fill(x+4,y+4, x+20,y+20, C_PARCH_SHADOW); g.drawString(font, BuildingIcon(b.getType()), x+7,y+6, C_TEXT,false);
         g.drawString(font, b.getType().displayName+" Lv"+b.getLevel()+"  ["+b.getState()+"]", x+24,y+2, done?C_GREEN: C_TEXT,false);
-        g.drawString(font, b.getPos().toShortString()+"  "+mats, x+24,y+13, C_TEXT_MUTED,false);
+        g.drawString(font, b.getPos().toShortString(), x+24,y+13, C_TEXT_MUTED,false);
         // upgrade hint
         String up = b.isPlayerPlaced ? (b.getType()==BuildingType.HOUSE ? "Marker: "+b.getHousingCapacity()+" shelter slots; no beds" : "Player-designated building") : "Generated plan; visual upgrades not implemented";
         g.drawString(font, up, x+24,y+22, b.getLevel()>=5?C_GOLD:C_TEXT_MID,false);
