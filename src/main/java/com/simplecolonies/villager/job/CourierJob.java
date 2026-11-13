@@ -89,7 +89,7 @@ public class CourierJob extends AbstractJob {
         if (c == null || cargo.isEmpty()) return false;
         for (int i = 0; i < c.getContainerSize(); i++) {
             ItemStack existing = c.getItem(i);
-            if (!c.canPlaceItem(i, cargo)) continue;
+            if (!com.simplecolonies.warehouse.WarehouseManager.accepts(c, i, cargo)) continue;
             if (existing.isEmpty() || (ItemStack.isSameItemSameComponents(existing, cargo)
                     && existing.getCount() < Math.min(existing.getMaxStackSize(), c.getMaxStackSize()))) return true;
         }
@@ -98,12 +98,12 @@ public class CourierJob extends AbstractJob {
     static void insert(Container c, ItemStack cargo) {
         for (int i = 0; i < c.getContainerSize() && !cargo.isEmpty(); i++) {
             ItemStack stack = c.getItem(i);
-            if (stack.isEmpty() || !ItemStack.isSameItemSameComponents(stack, cargo) || !c.canPlaceItem(i, cargo)) continue;
+            if (stack.isEmpty() || !ItemStack.isSameItemSameComponents(stack, cargo) || !com.simplecolonies.warehouse.WarehouseManager.accepts(c, i, cargo)) continue;
             int n = Math.min(cargo.getCount(), Math.min(stack.getMaxStackSize(), c.getMaxStackSize()) - stack.getCount());
             if (n > 0) { stack.grow(n); cargo.shrink(n); c.setChanged(); }
         }
         for (int i = 0; i < c.getContainerSize() && !cargo.isEmpty(); i++) {
-            if (!c.getItem(i).isEmpty() || !c.canPlaceItem(i, cargo)) continue;
+            if (!c.getItem(i).isEmpty() || !com.simplecolonies.warehouse.WarehouseManager.accepts(c, i, cargo)) continue;
             int n = Math.min(cargo.getCount(), Math.min(cargo.getMaxStackSize(), c.getMaxStackSize()));
             c.setItem(i, cargo.split(n)); c.setChanged();
         }

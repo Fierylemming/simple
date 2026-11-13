@@ -495,6 +495,8 @@ public class ColonyVillager extends Villager {
             return !(state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock)
                     || !state.is(net.minecraft.tags.BlockTags.WOODEN_DOORS)
                     || !state.getValue(net.minecraft.world.level.block.DoorBlock.OPEN)
+                    || state.getValue(net.minecraft.world.level.block.DoorBlock.POWERED)
+                    || level.hasNeighborSignal(p) || level.hasNeighborSignal(p.above())
                     || !level.getEntitiesOfClass(net.minecraft.world.entity.player.Player.class,
                             new net.minecraft.world.phys.AABB(p).expandTowards(0, 1, 0).inflate(4)).isEmpty();
         });
@@ -516,7 +518,7 @@ public class ColonyVillager extends Villager {
                     && state.getValue(net.minecraft.world.level.block.DoorBlock.OPEN)
                     && level.getEntitiesOfClass(net.minecraft.world.entity.player.Player.class,
                             new net.minecraft.world.phys.AABB(p).expandTowards(0, 1, 0).inflate(4)).isEmpty())
-                shelterDoors.put(p.immutable(), now + 120);
+                shelterDoors.put(p.immutable(), now + 600);
         }
         if (shelterDoors.isEmpty() || !shelterInterior.contains(blockPosition())) return;
         boolean registered = colony.getBuildings().stream().anyMatch(b -> b.getPos().equals(shelterAnchor)
