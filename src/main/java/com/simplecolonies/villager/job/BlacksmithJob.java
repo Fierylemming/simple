@@ -28,6 +28,19 @@ public class BlacksmithJob extends AbstractJob {
             villager.swing(InteractionHand.MAIN_HAND);
             state = JobState.WORKING; ticksUntilNextWork = 100; return;
         }
+        // Shepherds require physical shears. Craft one spare only when an
+        // actual shared container has room; virtual-only output could never be
+        // collected by the shepherd. Inputs still use the provisional stock network.
+        boolean shepherds = colony.getCitizens().stream().anyMatch(c -> !c.isChild && c.job == JobType.SHEPHERD);
+        var warehouse = colony.getWarehouseManager();
+        if (shepherds && stock.count("minecraft:shears") == 0 && stock.count(IRON) >= 2
+                && warehouse.courierStoragePositions(level).stream().anyMatch(p -> CourierJob.canInsert(
+                        warehouse.courierContainer(level, p), new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SHEARS)))
+                && stock.consume(IRON, 2)) {
+            stock.add("minecraft:shears", 1);
+            villager.swing(InteractionHand.MAIN_HAND);
+            state = JobState.WORKING; ticksUntilNextWork = 100; return;
+        }
         var site = villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE);
         var result = site.isEmpty() ? SmithFurnace.Result.UNAVAILABLE
                 : SmithFurnace.work(level, colony, villager, site.get().pos());

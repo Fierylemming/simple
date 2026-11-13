@@ -94,6 +94,45 @@ public class BlacksmithGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 600)
+    public static void makesOneShearsFromRealIronForShepherd(GameTestHelper helper) {
+        Colony colony = colony(helper);
+        colony.getCitizens().forEach(c -> c.job = JobType.UNEMPLOYED);
+        colony.addCitizen(new CitizenData(UUID.randomUUID(), "Shepherd", JobType.SHEPHERD));
+        BlockPos chest = new BlockPos(60, 1, 56);
+        helper.setBlock(chest, Blocks.CHEST);
+        var storage = (net.minecraft.world.Container) helper.getBlockEntity(chest);
+        storage.setItem(0, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_INGOT, 4));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
+        var worker = worker(helper, new BlockPos(54, 1, 56));
+        var job = new BlacksmithJob(worker, colony);
+        for (int tick = 1; tick < 600; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(500, () -> {
+            if (colony.getWarehouseCount(helper.getLevel(), "minecraft:iron_ingot") != 2
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:shears") != 1
+                    || !storage.getItem(1).is(net.minecraft.world.item.Items.SHEARS))
+                helper.fail("Smith did not produce one physical shears from exactly two iron: " + colony.getWarehouseSnapshot(helper.getLevel()));
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 300)
+    public static void doesNotCraftUncollectableShears(GameTestHelper helper) {
+        Colony colony = colony(helper);
+        colony.getCitizens().forEach(c -> c.job = JobType.UNEMPLOYED);
+        colony.addCitizen(new CitizenData(UUID.randomUUID(), "Shepherd", JobType.SHEPHERD));
+        colony.depositToWarehouse("minecraft:iron_ingot", 2);
+        var worker = worker(helper, new BlockPos(54, 1, 56));
+        var job = new BlacksmithJob(worker, colony);
+        for (int tick = 1; tick < 300; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(250, () -> {
+            if (colony.getWarehouseCount(helper.getLevel(), "minecraft:iron_ingot") != 2
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:shears") != 0)
+                helper.fail("Smith created shears without accessible shared storage");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 500)
     public static void missingSticksDoNotConsumeStone(GameTestHelper helper) {
         Colony colony = colony(helper);
