@@ -94,6 +94,8 @@ public class ShelterGameTests {
         colony.registerPlayerBuilding(new Building(BuildingType.TOWN_HALL, colony.getCenter(), CultureType.ROMAN, true));
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), hall.west());
         helper.runAtTickTime(20, () -> {
+            var inside = helper.absolutePos(hall.west());
+            worker.moveTo(inside.getX() + 0.5, inside.getY(), inside.getZ() + 0.5);
             worker.setOnGround(true);
             var outside = helper.absolutePos(new BlockPos(8, 1, 2));
             worker.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET,
