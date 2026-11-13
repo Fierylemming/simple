@@ -251,8 +251,8 @@ public class WarehouseManager {
             for (int slot = 0; slot < container.getContainerSize() && remaining > 0; slot++) {
                 ItemStack stack = container.getItem(slot);
                 if (stack.isEmpty()) continue;
-                if (!stack.is(item) || !plainStock(stack)) continue;
-                int space = stack.getMaxStackSize() - stack.getCount();
+                if (!stack.is(item) || !plainStock(stack) || !container.canPlaceItem(slot, item.getDefaultInstance())) continue;
+                int space = Math.min(stack.getMaxStackSize(), container.getMaxStackSize()) - stack.getCount();
                 if (space <= 0) continue;
                 int put = Math.min(space, remaining);
                 stack.grow(put);
@@ -267,8 +267,8 @@ public class WarehouseManager {
             Container container = entry.getValue();
             for (int slot = 0; slot < container.getContainerSize() && remaining > 0; slot++) {
                 ItemStack stack = container.getItem(slot);
-                if (!stack.isEmpty()) continue;
-                int put = Math.min(item.getDefaultMaxStackSize(), remaining);
+                if (!stack.isEmpty() || !container.canPlaceItem(slot, item.getDefaultInstance())) continue;
+                int put = Math.min(Math.min(item.getDefaultMaxStackSize(), container.getMaxStackSize()), remaining);
                 ItemStack toPut = new ItemStack(item, put);
                 container.setItem(slot, toPut);
                 container.setChanged();

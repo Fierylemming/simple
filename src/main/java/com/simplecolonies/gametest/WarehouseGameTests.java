@@ -103,6 +103,23 @@ public class WarehouseGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void shulkerStorageRejectsNestedShulkersWithoutLosingItems(GameTestHelper helper) {
+        BlockPos box = new BlockPos(8, 1, 8), pos = helper.absolutePos(box);
+        helper.setBlock(box, Blocks.SHULKER_BOX);
+        Colony colony = new Colony(0, CultureType.ROMAN, pos);
+        var storage = colony.getWarehouseManager();
+        if (!storage.registerStorage(helper.getLevel(), pos)) helper.fail("Could not share shulker box");
+        if (storage.deposit(helper.getLevel(), pos, "minecraft:white_shulker_box", 1) != 0)
+            helper.fail("Deposit reported an item inserted into a rejecting container");
+        Container container = (Container) helper.getBlockEntity(box);
+        for (int i = 0; i < container.getContainerSize(); i++)
+            if (!container.getItem(i).isEmpty()) helper.fail("Inserted a shulker into a shulker box");
+        if (storage.deposit(helper.getLevel(), pos, "minecraft:bread", 2) != 2
+                || container.getItem(0).getCount() != 2) helper.fail("Ordinary deposit was refused");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void markerUpgradeChargesLiveStockAndPersistsCapacity(GameTestHelper helper) {
         BlockPos center = helper.absolutePos(new BlockPos(8, 1, 8));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
