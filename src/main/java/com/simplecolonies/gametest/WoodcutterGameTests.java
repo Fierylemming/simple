@@ -26,7 +26,7 @@ public class WoodcutterGameTests {
         for (int x = 35; x <= 75; x++) for (int z = 35; z <= 75; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
         // The isolated fixture has an artificial barrier ceiling inside the tree's
         // safety envelope. Remove just this roof section, never the side barriers.
-        for (int x = 50; x <= 62; x++) for (int z = 50; z <= 62; z++) for (int y = 5; y <= 8; y++) {
+        for (int x = 50; x <= 62; x++) for (int z = 50; z <= 62; z++) for (int y = 5; y <= 10; y++) {
             BlockPos pos = helper.absolutePos(new BlockPos(x, y, z));
             if (helper.getLevel().getBlockState(pos).is(Blocks.BARRIER))
                 helper.getLevel().setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
@@ -37,6 +37,36 @@ public class WoodcutterGameTests {
     }
     private static Colony colony(GameTestHelper helper) {
         return new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(45, 1, 56)));
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 1800)
+    public static void harvestsSixBlockBirchWithinActualToolReach(GameTestHelper helper) {
+        makeTree(helper);
+        for (int y = 0; y < 6; y++) helper.setBlock(ROOT.above(y), Blocks.BIRCH_LOG);
+        for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++)
+            if (x != 0 || z != 0) helper.setBlock(ROOT.offset(x, 5, z), Blocks.BIRCH_LEAVES);
+        Colony colony = colony(helper);
+        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        colony.depositToWarehouse("minecraft:birch_sapling", 1);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(48, 1, 56));
+        var job = new WoodcutterJob(worker, colony);
+        int[] cuts = {0};
+        for (int tick = 1; tick < 1800; tick++) helper.runAtTickTime(tick, () -> {
+            boolean[] before = new boolean[6];
+            for (int y = 0; y < 6; y++) before[y] = helper.getBlockState(ROOT.above(y)).is(Blocks.BIRCH_LOG);
+            job.tick(helper.getLevel());
+            for (int y = 0; y < 6; y++) if (before[y] && !helper.getBlockState(ROOT.above(y)).is(Blocks.BIRCH_LOG)) {
+                if (worker.getEyePosition().distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(helper.absolutePos(ROOT.above(y)))) > 20.25)
+                    helper.fail("Worker cut a tall trunk out of reach");
+                cuts[0]++;
+            }
+        });
+        helper.succeedWhen(() -> {
+            if (cuts[0] != 6 || !helper.getBlockState(ROOT).is(Blocks.BIRCH_SAPLING)
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:birch_log") != 6
+                    || worker.getMainHandItem().getDamageValue() != 6)
+                helper.fail("Six-log tree not harvested with a real axe: cuts=" + cuts[0] + " job=" + job.getState());
+        });
     }
 
     @GameTest(template = "isolated", timeoutTicks = 1400)
@@ -90,7 +120,7 @@ public class WoodcutterGameTests {
             job[0].tick(helper.getLevel());
             for (int y = 0; y < 4; y++) if (before[y] && !helper.getBlockState(ROOT.above(y)).is(Blocks.OAK_LOG)) {
                 BlockPos cut = helper.absolutePos(ROOT.above(y));
-                if (worker[0].distanceToSqr(cut.getX() + 0.5, cut.getY() + 0.5, cut.getZ() + 0.5) > 20.25)
+                if (worker[0].getEyePosition().distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(cut)) > 20.25)
                     helper.fail("Woodcutter cut from too far away");
             }
             if (!reloaded[0] && !helper.getBlockState(ROOT.above(3)).is(Blocks.OAK_LOG)) {

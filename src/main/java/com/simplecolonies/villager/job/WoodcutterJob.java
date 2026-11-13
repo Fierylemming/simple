@@ -17,8 +17,10 @@ import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.RotatedPillarBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
-/** Harvest short, recognizable, unbuilt trees; never use nearby leaves alone as proof. */
+/** Harvest reachable, recognizable, unbuilt trees; never use nearby leaves alone as proof. */
 public class WoodcutterJob extends AbstractJob {
+    private static final int MAX_GROUND_TRUNK = 6;
+    private static final double TOOL_REACH_SQ = 20.25;
     private record Species(net.minecraft.world.level.block.Block log, net.minecraft.world.level.block.Block leaves,
                            net.minecraft.world.level.block.Block sapling) {}
     private static final java.util.List<Species> SPECIES = java.util.List.of(
@@ -58,8 +60,9 @@ public class WoodcutterJob extends AbstractJob {
                 var candidate = new TreeView(level, species);
                 if (!candidate.trunk(base) || !candidate.loaded(base.below()) || !candidate.soil(base.below())) continue;
                 var found = SafeOakTree.trunk(candidate, base);
-                // The worker must be able to reach each block from ground level, without scaffolding.
-                if (found.isEmpty() || found.size() > 4) continue;
+                // Only trees whose upper logs can plausibly be reached from the
+                // ground; tall/branched trunks still require a safe climbing plan.
+                if (found.isEmpty() || found.size() > MAX_GROUND_TRUNK) continue;
                 treeBase = base;
                 treeSpecies = species;
                 tree = found;
@@ -92,7 +95,7 @@ public class WoodcutterJob extends AbstractJob {
         // alternates between walking to the tree and back to the crafting table.
         if (!equipAxeIfAvailable(level)) { craftStoneReplacement(level, "axe"); return; }
         BlockPos log = tree.get(remaining - 1);
-        if (villager.distanceToSqr(log.getX() + 0.5, log.getY() + 0.5, log.getZ() + 0.5) > 20.25) {
+        if (villager.getEyePosition().distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(log)) > TOOL_REACH_SQ) {
             net.minecraft.world.level.pathfinder.Path path = null;
             var candidates = new java.util.ArrayList<BlockPos>();
             for (Direction d : Direction.Plane.HORIZONTAL) candidates.add(treeBase.relative(d));
@@ -163,7 +166,7 @@ public class WoodcutterJob extends AbstractJob {
         if (!(villager instanceof ColonyVillager cv)) return;
         CompoundTag tag = cv.getWoodcutterMemory();
         int height = tag.getInt("height"), count = tag.getInt("remaining");
-        if (!tag.contains("base") || height < 3 || height > 4 || count < 1 || count > height) return;
+        if (!tag.contains("base") || height < 3 || height > MAX_GROUND_TRUNK || count < 1 || count > height) return;
         BlockPos base = BlockPos.of(tag.getLong("base"));
         if (!colony.isInside(base)) return;
         var logs = new java.util.ArrayList<BlockPos>();
