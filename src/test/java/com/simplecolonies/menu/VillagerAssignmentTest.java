@@ -12,7 +12,7 @@ class VillagerAssignmentTest {
     }
     @Test void everyProfessionHasExactlyOneButtonAndCommandsAreNotAssignments() {
         var jobs = EnumSet.noneOf(JobType.class);
-        for (int id = 100; id <= 116; id++) {
+        for (int id = 100; id <= VillagerInteractionMenu.BTN_SET_SHEPHERD; id++) {
             var job = VillagerInteractionMenu.assignmentForButton(id);
             if (job != null) assertTrue(jobs.add(job), "Duplicate button for " + job);
         }
