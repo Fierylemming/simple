@@ -36,11 +36,14 @@ public class ShelterGameTests {
         colony.registerPlayerBuilding(new Building(BuildingType.TOWN_HALL, colony.getCenter(), CultureType.ROMAN, true));
         ColonyVillager villager = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 3));
         boolean[] sawTrackedDoor = {false};
+        String[] whenTracked = {"never"};
         for (int tick = 1; tick < 1200; tick++) helper.runAtTickTime(tick, () -> {
             villager.seekShelter(helper.getLevel(), colony);
             var remembered = villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.DOORS_TO_CLOSE);
-            if (remembered.isPresent() && remembered.get().contains(net.minecraft.core.GlobalPos.of(helper.getLevel().dimension(), absDoor)))
+            if (remembered.isPresent() && remembered.get().contains(net.minecraft.core.GlobalPos.of(helper.getLevel().dimension(), absDoor))) {
                 sawTrackedDoor[0] = true;
+                whenTracked[0] = "time=" + helper.getLevel().getGameTime() + "; " + villager.shelterDiagnostic();
+            }
         });
         helper.succeedWhen(() -> {
             BlockPos p = villager.blockPosition();
@@ -58,7 +61,8 @@ public class ShelterGameTests {
                             .map(target -> target.getTarget().currentBlockPosition().toShortString())
                     + "; path=" + villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.PATH)
                     + "; doorsToClose=" + villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.DOORS_TO_CLOSE)
-                    + "; sawTrackedDoor=" + sawTrackedDoor[0] + "; center=" + colony.getCenter().toShortString()
+                    + "; sawTrackedDoor=" + sawTrackedDoor[0] + "; lastTracked=" + whenTracked[0]
+                    + "; now=" + helper.getLevel().getGameTime() + "; " + villager.shelterDiagnostic() + "; center=" + colony.getCenter().toShortString()
                     + "; door=" + absDoor.toShortString() + "; nearbyLiving="
                     + helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class,
                             new net.minecraft.world.phys.AABB(absDoor).inflate(2)).size()

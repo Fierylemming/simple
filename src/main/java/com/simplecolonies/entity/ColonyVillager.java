@@ -458,6 +458,11 @@ public class ColonyVillager extends Villager {
         shelterDoors.clear();
     }
 
+    String shelterDiagnostic() {
+        return "anchor=" + shelterAnchor + "; interior=" + shelterInterior + "; remembered=" + shelterDoors
+                + "; nextAttempt=" + nextShelterAttempt + "; danger=" + isInDanger();
+    }
+
     private void setShelterCache(net.minecraft.core.BlockPos anchor, java.util.List<net.minecraft.core.BlockPos> candidates) {
         if (!java.util.Objects.equals(shelterAnchor, anchor)) shelterDoors.clear();
         shelterAnchor = anchor;
