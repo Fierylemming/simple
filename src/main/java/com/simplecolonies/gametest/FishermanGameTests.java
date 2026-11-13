@@ -70,6 +70,10 @@ public class FishermanGameTests {
         Cod second = wildCod(helper, new BlockPos(58, 0, 57));
         Cod third = wildCod(helper, new BlockPos(58, 0, 58));
         var builder = helper.spawn(EntityType.VILLAGER, new BlockPos(50, 1, 50));
+        // A real colony builder uses a colony profession and cannot claim the
+        // fisher's barrel. A vanilla unemployed test villager could take it first.
+        builder.setVillagerData(builder.getVillagerData().setProfession(ColonyProfessions.profession(JobType.BUILDER)));
+        builder.refreshBrain(helper.getLevel());
         var builderJob = new com.simplecolonies.villager.job.BuilderJob(builder, colony);
         FishermanJob[] job = {null};
         net.minecraft.world.entity.npc.Villager[] fisher = {null};
