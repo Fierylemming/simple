@@ -82,13 +82,24 @@ public class FishermanGameTests {
                 builderJob.tick(helper.getLevel());
             } else {
                 if (job[0] == null) {
+                    // The vanilla builder fixture can inherit a barrel ticket while
+                    // building. Actual colony workers discard mismatched job sites.
+                    // End its shift and release only the ticket it actually holds.
+                    var absoluteSite = helper.absolutePos(SITE);
+                    boolean hasBarrel = builder.getBrain().getMemory(MemoryModuleType.JOB_SITE)
+                            .filter(p -> p.dimension().equals(helper.getLevel().dimension()) && p.pos().equals(absoluteSite)).isPresent()
+                            || builder.getBrain().getMemory(MemoryModuleType.POTENTIAL_JOB_SITE)
+                            .filter(p -> p.dimension().equals(helper.getLevel().dimension()) && p.pos().equals(absoluteSite)).isPresent();
+                    if (hasBarrel) helper.getLevel().getPoiManager().release(absoluteSite);
+                    builder.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
+                    builder.getBrain().eraseMemory(MemoryModuleType.POTENTIAL_JOB_SITE);
+                    builder.setNoAi(true);
                     fisher[0] = helper.spawn(EntityType.VILLAGER, SITE.east());
                     fisher[0].setVillagerData(fisher[0].getVillagerData().setProfession(ColonyProfessions.profession(JobType.FISHERMAN)));
                     fisher[0].refreshBrain(helper.getLevel());
                     // Give the vanilla test villager an actual POI ticket, as
                     // ColonyVillager.updateWorkstation does in gameplay. A bare
                     // JOB_SITE memory can be invalidated by vanilla AI at random.
-                    var absoluteSite = helper.absolutePos(SITE);
                     var claimed = helper.getLevel().getPoiManager().take(
                             fisher[0].getVillagerData().getProfession().heldJobSite(),
                             (type, pos) -> pos.equals(absoluteSite), absoluteSite, 1);
