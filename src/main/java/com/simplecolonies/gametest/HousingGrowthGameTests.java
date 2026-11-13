@@ -75,6 +75,27 @@ public class HousingGrowthGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 300)
+    public static void compactHouseLeavesOutsideFootprintUntouched(GameTestHelper helper) {
+        Colony colony = setup(helper);
+        BlockPos site = null;
+        for (int x = 70; x <= 76; x++) {
+            var candidate = helper.absolutePos(new BlockPos(x, 1, 56));
+            if (Building.houseVariantAt(candidate) == 0) { site = candidate; break; }
+        }
+        if (site == null) { helper.fail("Could not find compact house variant"); return; }
+        BlockPos obstacle = site.east(3);
+        helper.getLevel().setBlock(obstacle, Blocks.OBSIDIAN.defaultBlockState(), 3);
+        if (!colony.isClearBuildSite(helper.getLevel(), site)) helper.fail("Unused edge blocked compact house site");
+        var blueprint = new Building(BuildingType.HOUSE, site, CultureType.ROMAN);
+        if (blueprint.getRemainingPlacements().stream().anyMatch(p -> p.pos.equals(obstacle))
+                || !helper.getLevel().getBlockState(obstacle).is(Blocks.OBSIDIAN))
+            helper.fail("Compact plan altered property outside its footprint");
+        helper.getLevel().setBlock(site.east(), Blocks.OBSIDIAN.defaultBlockState(), 3);
+        if (colony.isClearBuildSite(helper.getLevel(), site)) helper.fail("Obstacle inside footprint was ignored");
+        helper.succeed();
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 500)
     public static void selectsAffordableHouseVariant(GameTestHelper helper) {
         Colony colony = setup(helper);

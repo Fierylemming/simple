@@ -452,6 +452,9 @@ public class Colony {
         int variant = Building.houseVariantAt(pos);
         if (!clearEntrance(level, pos.north(variant == 2 ? 4 : 3))) return false;
         for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) {
+            // Compact and L-shaped plans do not occupy the full bounding square.
+            // Leave unused terrain and structures untouched instead of rejecting it.
+            if (!Building.newHouseFootprint(pos, x, z)) continue;
             BlockPos ground = pos.offset(x, -1, z);
             if (!level.isLoaded(ground) || !isInside(ground)) return false;
             var soil = level.getBlockState(ground);

@@ -53,6 +53,10 @@ public class Building {
     public int getLevel() { return level; }
     public int getHouseVariant() { return houseVariant; }
     public static int houseVariantAt(BlockPos pos) { return LevelOneHouses.variant(pos); }
+    /** Footprint for newly queued houses; legacy saved plans remain unchanged. */
+    public static boolean newHouseFootprint(BlockPos origin, int x, int z) {
+        return CulturalHousePlans.footprint(houseVariantAt(origin), x, z);
+    }
     public void setLevel(int lvl) { this.level = Math.clamp(lvl, 1, 5); }
     public int getWorkerSlots() { return BuildingUpgrade.workerSlotsForLevel(level); }
     public int getSize() { return BuildingUpgrade.sizeForLevel(level); }
