@@ -209,6 +209,44 @@ public class ShepherdGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 400)
+    public static void removingPastureStopsFeedingAndKeepsCollectedWheat(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.COBBLESTONE);
+        BlockPos pasture = new BlockPos(8, 1, 8), loom = new BlockPos(7, 1, 7), chest = new BlockPos(5, 1, 8);
+        helper.setBlock(pasture, ModBlocks.BUILDING_MARKER.get()); helper.setBlock(loom, Blocks.LOOM); helper.setBlock(chest, Blocks.CHEST);
+        var center = helper.absolutePos(pasture); var absChest = helper.absolutePos(chest);
+        var marker = (BuildingMarkerBlockEntity) helper.getBlockEntity(pasture);
+        marker.setBuildingType(BuildingType.PASTURE); marker.setLinkedBuildingPos(center);
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        colony.registerPlayerBuilding(new Building(BuildingType.PASTURE, center, CultureType.ROMAN, true));
+        var container = (Container) helper.getBlockEntity(chest); container.setItem(0, new ItemStack(Items.WHEAT, 4));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), absChest)) helper.fail("Could not share chest");
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(6, 1, 8)); worker.setNoAi(true);
+        worker.setVillagerData(worker.getVillagerData().setProfession(ColonyProfessions.profession(JobType.SHEPHERD)));
+        worker.refreshBrain(helper.getLevel());
+        worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(loom)));
+        var first = helper.spawn(EntityType.SHEEP, new BlockPos(10, 1, 8)); first.setSheared(true); first.setNoAi(true);
+        var second = helper.spawn(EntityType.SHEEP, new BlockPos(11, 1, 8)); second.setSheared(true); second.setNoAi(true);
+        var job = new ShepherdJob(worker, colony);
+        for (int tick = 1; tick < 400; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(15, () -> {
+            if (container.getItem(0).getCount() != 3 || worker.getInventory().countItem(Items.WHEAT) != 1)
+                helper.fail("Did not carry one real wheat from shared storage");
+            CompoundTag saved = new CompoundTag(); worker.addAdditionalSaveData(saved);
+            var restored = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(2, 1, 2));
+            restored.readAdditionalSaveData(saved);
+            if (restored.getInventory().countItem(Items.WHEAT) != 1) helper.fail("Carried wheat was not saved");
+            restored.discard();
+            helper.setBlock(pasture, Blocks.AIR);
+        });
+        helper.runAtTickTime(300, () -> {
+            if (first.isInLove() || second.isInLove() || container.getItem(0).getCount() != 3
+                    || worker.getInventory().countItem(Items.WHEAT) != 1)
+                helper.fail("Removed pasture continued feeding or lost the carried item");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "empty", timeoutTicks = 300)
     public static void refusesStalePastureAndUnsharedTool(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
