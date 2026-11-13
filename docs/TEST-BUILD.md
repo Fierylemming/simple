@@ -4,7 +4,7 @@ This is an **unfinished test build**, not the completed overhaul. Back up any ex
 
 ## Get the build
 
-1. Open [CI run 43416447511](https://github.com/Fierylemming/simple/actions/runs/43416447511) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `6350ab0`, version `0.1.29`. The build and GameTests passed, but the fishing integration has failed intermittently in other runs and still needs in-game verification. Extract the zip.
+1. Open [CI run 43436978482](https://github.com/Fierylemming/simple/actions/runs/43436978482) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `aad5aa9`, version `0.1.29`. The build and GameTests passed, but the fishing integration has failed intermittently in other runs and still needs in-game verification. Extract the zip.
 2. In Prism Launcher, create a **Minecraft 1.21.1, NeoForge 21.1.265, Java 21** instance. Place the extracted SimpleColonies jar in that instance's `mods` folder; remove any older SimpleColonies jar first. Do not install it alongside another copy. For a server, install the same version on both client and server.
 3. Start a new world with cheats enabled, in the Overworld. No public overhaul release has been made.
 
@@ -57,3 +57,7 @@ Version 11 adds a builder-constructed cultural civic hall after level two, subje
 Foresters can harvest recognizable straight trunks up to ten logs only when they can physically reach each log from the ground or a reachable existing natural slope. They do not build scaffolding, and branched, multi-trunk and inaccessible tall trees remain unsupported. Replacement-tool crafting now accepts the timber species listed above and keeps correctly matched surplus. These changes passed [CI run 43421105592](https://github.com/Fierylemming/simple/actions/runs/43421105592). A subsequent physical birch-axe integration test passed, but its overall [CI run 43421133434](https://github.com/Fierylemming/simple/actions/runs/43421133434) failed an intermittent bedless-hall shelter test; shelter reliability remains unresolved. Neither run is a release.
 
 The subsequent [CI run 43421640302](https://github.com/Fierylemming/simple/actions/runs/43421640302) passed the build and complete GameTest suite at commit `50c6558`, including the physical birch-axe test. This does not resolve the intermittent shelter failure or replace real-world testing.
+
+### Latest safety and defender checks
+
+A following defender may now cross the colony boundary while its valid leader remains in the same dimension; dismissing it restores the ordinary return-to-colony behavior. Follow orders remain session-local, and chunks are not force-loaded. Builders pause if fluid appears in a queued placement or the upper half of a door. Butchers no longer tend or attack animals outside the colony or through solid walls. Unnamed player-owned livestock inside the designated work area are still indistinguishable from livestock intended for the butcher; keep them away. These changes passed the build and GameTests in [CI run 43436978482](https://github.com/Fierylemming/simple/actions/runs/43436978482). This is still an unfinished preview, not the requested final release.
