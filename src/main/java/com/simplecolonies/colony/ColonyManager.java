@@ -132,6 +132,10 @@ public class ColonyManager {
                 return;
             }
             BlockPos spawnPos = findSafeSpawn(level, pos);
+            if (spawnPos == null) {
+                SimpleColonies.LOGGER.warn("No safe loaded spawn location for colony #{} near {}; leaving terrain untouched", colony.getId(), pos);
+                return;
+            }
             villager.moveTo(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5, level.random.nextFloat() * 360, 0);
             villager.finalizeSpawn(level, level.getCurrentDifficultyAt(spawnPos), net.minecraft.world.entity.MobSpawnType.STRUCTURE, null);
             villager.setColony(colony);
@@ -150,9 +154,11 @@ public class ColonyManager {
         }
     }
 
-    private BlockPos findSafeSpawn(ServerLevel level, BlockPos pos) {
+    BlockPos findSafeSpawn(ServerLevel level, BlockPos pos) {
         // Try exact
         if (isSpawnable(level, pos)) return pos;
+        // Never inspect or load chunks merely to find a spawn.
+        if (!level.isLoaded(pos)) return null;
         // Heightmap top
         int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, pos.getX(), pos.getZ());
         BlockPos h = new BlockPos(pos.getX(), y, pos.getZ());
@@ -166,20 +172,13 @@ public class ColonyManager {
             BlockPos p = pos.offset(dx, dy, dz);
             if (isSpawnable(level, p)) return p;
         }
-        // Last resort: create a 3x3 dirt platform so villager doesn't spawn in water/void (fixes your beach over-water farm)
-        BlockPos fallback = new BlockPos(pos.getX(), level.getHeight(Heightmap.Types.WORLD_SURFACE, pos.getX(), pos.getZ()) + 1, pos.getZ());
-        // Build platform 3x3
-        for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
-            BlockPos plat = fallback.below().offset(dx, 0, dz);
-            if (level.getBlockState(plat).isAir() || level.getBlockState(plat).getFluidState().isSource() || !level.getBlockState(plat).isSolidRender(level, plat)) {
-                level.setBlock(plat, Blocks.DIRT.defaultBlockState(), 3);
-            }
-        }
-        if (level.getBlockState(fallback).canBeReplaced()) level.setBlock(fallback, Blocks.AIR.defaultBlockState(), 3);
-        return fallback;
+        // No safe position: do not construct a platform over somebody's blocks
+        // or force a spawn in water, a wall, an unloaded chunk or the void.
+        return null;
     }
 
     private boolean isSpawnable(ServerLevel level, BlockPos pos) {
+        if (!level.isLoaded(pos) || !level.isLoaded(pos.above()) || !level.isLoaded(pos.below())) return false;
         var below = level.getBlockState(pos.below());
         var at = level.getBlockState(pos);
         // Need air at pos, solid below (or farmland/dirt), not water
@@ -518,19 +517,12 @@ public class ColonyManager {
     }
 
     private void placeSimpleFarm(ServerLevel level, BlockPos origin, int halfSize) {
-        // Build solid dirt base first — fixes your screenshot where fence floated over water
+        // The validated plot and prepared foundation are dry and loaded. Limit
+        // changes to the validated footprint; never fill caves below it.
         for (int x = -halfSize; x <= halfSize; x++) for (int z = -halfSize; z <= halfSize; z++) {
             BlockPos ground = origin.offset(x, -1, z);
-            // Always ensure solid ground, overwriting water
+            // The topsoil layer was validated before constructing the farm.
             level.setBlock(ground, Blocks.DIRT.defaultBlockState(), 3);
-            // Pillars down if over deep water — create island
-            for (int dy = -2; dy >= -6; dy--) {
-                BlockPos below = origin.offset(x, dy, z);
-                var bs = level.getBlockState(below);
-                if (bs.isAir() || bs.getFluidState().isSource() || bs.is(Blocks.WATER)) {
-                    level.setBlock(below, Blocks.DIRT.defaultBlockState(), 3);
-                } else break;
-            }
             // Clear air above
             BlockPos above = origin.offset(x, 0, z);
             if (level.getBlockState(above).getFluidState().isSource() || level.getBlockState(above).canBeReplaced()) {
