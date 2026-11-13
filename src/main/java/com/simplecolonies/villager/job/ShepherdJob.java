@@ -134,11 +134,15 @@ public final class ShepherdJob extends AbstractJob {
         if (target == null) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
         boolean partnerWaiting = adults.stream().anyMatch(a -> a != target && a.isInLove());
         var inventory = villager.getInventory();
-        int carriedSlot = -1;
+        int carriedSlot = -1, carried = 0;
         for (int i = 0; i < inventory.getContainerSize(); i++) if (plainWheat(inventory.getItem(i))) {
-            carriedSlot = i; break;
+            if (carriedSlot < 0) carriedSlot = i;
+            carried += inventory.getItem(i).getCount();
         }
-        if (carriedSlot < 0) {
+        // Secure food for both parents before feeding either, otherwise a
+        // long trip back to storage can let the first parent's love expire.
+        int needed = partnerWaiting ? 1 : 2;
+        if (carried < needed) {
             if (!inventory.canAddItem(new ItemStack(Items.WHEAT))) { state = JobState.STUCK; ticksUntilNextWork = 100; return; }
             var warehouse = colony.getWarehouseManager();
             int amount = 0;
@@ -150,7 +154,7 @@ public final class ShepherdJob extends AbstractJob {
                     if (plainWheat(stack)) amount += stack.getCount();
                 }
             }
-            if (amount < (partnerWaiting ? 3 : 4)) { state = JobState.NEEDS_RESOURCE; ticksUntilNextWork = 100; return; }
+            if (amount < needed - carried + 2) { state = JobState.NEEDS_RESOURCE; ticksUntilNextWork = 100; return; }
             var source = storage.stream().filter(pos -> {
                 var c = warehouse.courierContainer(level, pos);
                 if (c == null) return false;

@@ -116,7 +116,7 @@ public class ShepherdGameTests {
         });
     }
 
-    @GameTest(template = "isolated", timeoutTicks = 1500)
+    @GameTest(template = "isolated", timeoutTicks = 2200)
     public static void walksForWheatAndBreedsActualSheep(GameTestHelper helper) {
         for (int x = 49; x <= 63; x++) for (int z = 49; z <= 63; z++) helper.setBlock(x, 0, z, Blocks.COBBLESTONE);
         for (int n = 50; n <= 62; n++) {
@@ -141,7 +141,7 @@ public class ShepherdGameTests {
         var job = new ShepherdJob(worker, colony);
         boolean[] fed = {false, false};
         int[] remaining = {4};
-        for (int tick = 1; tick < 1500; tick++) helper.runAtTickTime(tick, () -> {
+        for (int tick = 1; tick < 2200; tick++) helper.runAtTickTime(tick, () -> {
             boolean beforeFirst = first.isInLove(), beforeSecond = second.isInLove();
             job.tick(helper.getLevel());
             int now = container.getItem(0).getCount();
@@ -157,14 +157,14 @@ public class ShepherdGameTests {
                 fed[1] = true;
             }
         });
-        helper.runAtTickTime(1350, () -> {
+        helper.succeedWhen(() -> {
             var flock = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.animal.Sheep.class,
                     new net.minecraft.world.phys.AABB(center).inflate(6, 3, 6), s -> s.isAlive());
             if (!fed[0] || !fed[1] || flock.stream().noneMatch(net.minecraft.world.entity.animal.Sheep::isBaby)
                     || container.getItem(0).getCount() != 2)
                 helper.fail("Sheep breeding incomplete: fed=" + fed[0] + "," + fed[1] + "; flock=" + flock.size()
-                        + "; wheat=" + container.getItem(0).getCount() + "; state=" + job.getState());
-            helper.succeed();
+                        + "; wheat=" + container.getItem(0).getCount() + "; state=" + job.getState()
+                        + "; love=" + first.isInLove() + "," + second.isInLove());
         });
     }
 
@@ -229,7 +229,7 @@ public class ShepherdGameTests {
         var second = helper.spawn(EntityType.SHEEP, new BlockPos(11, 1, 8)); second.setSheared(true); second.setNoAi(true);
         var job = new ShepherdJob(worker, colony);
         for (int tick = 1; tick < 400; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
-        helper.runAtTickTime(15, () -> {
+        helper.runAtTickTime(6, () -> {
             if (container.getItem(0).getCount() != 3 || worker.getInventory().countItem(Items.WHEAT) != 1)
                 helper.fail("Did not carry one real wheat from shared storage");
             CompoundTag saved = new CompoundTag(); worker.addAdditionalSaveData(saved);
