@@ -112,12 +112,19 @@ public class WorksiteExpansionGameTests {
 
     @GameTest(template = "isolated", timeoutTicks = 100)
     public static void stoneSupportsHouseAndWorksiteWithoutReplacingObstacles(GameTestHelper helper) {
-        for (int x = 48; x <= 64; x++) for (int z = 48; z <= 64; z++) helper.setBlock(x, 0, z, Blocks.STONE);
+        for (int x = 48; x <= 64; x++) for (int z = 48; z <= 64; z++) {
+            helper.setBlock(x, 0, z, Blocks.STONE);
+            for (int y = 5; y <= 8; y++) {
+                BlockPos p = helper.absolutePos(new BlockPos(x, y, z));
+                if (helper.getLevel().getBlockState(p).is(Blocks.BARRIER)) helper.getLevel().setBlock(p, Blocks.AIR.defaultBlockState(), 3);
+            }
+        }
         BlockPos site = new BlockPos(56, 1, 56);
         var colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(36, 1, 56)));
         BlockPos absolute = helper.absolutePos(site);
-        if (!colony.isClearBuildSite(helper.getLevel(), absolute) || !colony.isClearWorksite(helper.getLevel(), absolute, false))
-            helper.fail("Flat stone should support construction");
+        boolean house = colony.isClearBuildSite(helper.getLevel(), absolute);
+        boolean workshop = colony.isClearWorksite(helper.getLevel(), absolute, false);
+        if (!house || !workshop) helper.fail("Flat stone should support construction: house=" + house + " workshop=" + workshop);
         helper.setBlock(site.offset(1, 0, 1), Blocks.OBSIDIAN);
         if (colony.isClearBuildSite(helper.getLevel(), absolute) || colony.isClearWorksite(helper.getLevel(), absolute, false))
             helper.fail("Stone plot planning ignored an existing obstacle");
