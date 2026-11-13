@@ -44,6 +44,46 @@ public class ShelterGameTests {
             if (!state.is(Blocks.OAK_DOOR) || state.getValue(DoorBlock.OPEN)) helper.fail("Hall door is not closed");
         });
     }
+    @GameTest(template = "empty", timeoutTicks = 600)
+    public static void restingCitizenDoesNotWanderOutOfIntactShelter(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos hall = new BlockPos(8, 1, 9);
+        for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) {
+            for (int y = 0; y <= 2; y++) if (Math.abs(x) == 3 || Math.abs(z) == 3)
+                helper.setBlock(hall.offset(x, y, z), Blocks.COBBLESTONE);
+            helper.setBlock(hall.offset(x, 3, z), Blocks.OAK_PLANKS);
+        }
+        var door = helper.absolutePos(hall.north(3));
+        var low = Blocks.OAK_DOOR.defaultBlockState().setValue(DoorBlock.FACING, Direction.NORTH);
+        helper.getLevel().setBlock(door, low, 2);
+        helper.getLevel().setBlock(door.above(), low.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3);
+        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(hall));
+        colony.registerPlayerBuilding(new Building(BuildingType.TOWN_HALL, colony.getCenter(), CultureType.ROMAN, true));
+        var villager = helper.spawn(ModEntities.COLONY_VILLAGER.get(), hall.east());
+        villager.setNoAi(true);
+        for (int tick = 1; tick < 600; tick++) helper.runAtTickTime(tick, () -> villager.seekShelter(helper.getLevel(), colony));
+        helper.runAtTickTime(200, () -> {
+            var destination = helper.absolutePos(new BlockPos(2, 1, 2));
+            villager.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET,
+                    new net.minecraft.world.entity.ai.memory.WalkTarget(destination, 0.5f, 0));
+            villager.seekShelter(helper.getLevel(), colony);
+            if (villager.getBrain().hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET))
+                helper.fail("Idle walk target remained after the citizen settled inside");
+            // An opened wall invalidates the cached shelter on the next safety check.
+            helper.setBlock(hall.east(3), Blocks.AIR);
+            helper.setBlock(hall.east(3).above(), Blocks.AIR);
+        });
+        helper.runAtTickTime(400, () -> {
+            var destination = helper.absolutePos(new BlockPos(2, 1, 2));
+            villager.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET,
+                    new net.minecraft.world.entity.ai.memory.WalkTarget(destination, 0.5f, 0));
+            villager.seekShelter(helper.getLevel(), colony);
+            if (!villager.getBrain().hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET))
+                helper.fail("Citizen remained locked to an invalid shelter");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "empty")
     public static void rejectsRoofedShelterWithWallOpening(GameTestHelper helper) {
         BlockPos hall = new BlockPos(8, 1, 9);
