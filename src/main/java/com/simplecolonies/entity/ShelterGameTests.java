@@ -46,7 +46,12 @@ public class ShelterGameTests {
                         + "; panic=" + villager.getBrain().hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.IS_PANICKING)
                         + "; hostile=" + villager.getBrain().hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.NEAREST_HOSTILE));
             var state = helper.getLevel().getBlockState(absDoor);
-            if (!state.is(Blocks.OAK_DOOR) || state.getValue(DoorBlock.OPEN)) helper.fail("Hall door is not closed");
+            if (!state.is(Blocks.OAK_DOOR) || state.getValue(DoorBlock.OPEN)) helper.fail("Hall door is not closed: " + state
+                    + "; villager=" + p.toShortString() + "; navigationDone=" + villager.getNavigation().isDone()
+                    + "; walkTarget=" + villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET)
+                    + "; path=" + villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.PATH)
+                    + "; doorsToClose=" + villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.DOORS_TO_CLOSE)
+                    + "; powered=" + helper.getLevel().hasNeighborSignal(absDoor));
         });
     }
     @GameTest(template = "empty", timeoutTicks = 200)
