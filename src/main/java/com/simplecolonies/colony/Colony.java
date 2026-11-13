@@ -47,6 +47,7 @@ public class Colony {
     private ColonyState state = ColonyState.ACTIVE;
     private long lastTickGameTime = 0;
     private long lastSimulatedDay = -1;
+    private boolean deferredBirthsDuringCatchUp;
 
     // For persistence
     private final UUID colonyUuid = UUID.randomUUID();
@@ -120,7 +121,11 @@ public class Colony {
         warehouseManager.scan(level);
 
         long day = Math.floorDiv(level.getDayTime(), 24000L);
-        if (lastSimulatedDay < 0 || day < lastSimulatedDay) lastSimulatedDay = day;
+        if (lastSimulatedDay < 0 || day < lastSimulatedDay) {
+            lastSimulatedDay = day;
+            deferredBirthsDuringCatchUp = false;
+        }
+        deferredBirthsDuringCatchUp = DailyCatchUp.deferBirths(lastSimulatedDay, day, deferredBirthsDuringCatchUp);
         // Process a bounded batch each tick so enormous /time jumps cannot freeze the server.
         // The persisted cursor is advanced only after each individual day has run.
         int dailyBudget = DailyCatchUp.batchSize(lastSimulatedDay, day, 64);
@@ -156,13 +161,14 @@ public class Colony {
                 }
             }
 
-            // Breeding: if sheltered + fed, consume 3 bread per baby and spawn near a House
-            tryBreed(level);
+            // Catch-up simulates food and health, not physical social events.
+            if (!deferredBirthsDuringCatchUp) tryBreed(level);
 
             // Progression: village can self-unlock research if it has surplus
             researchManager.tickAutoProgress(level);
             lastSimulatedDay++;
         }
+        if (lastSimulatedDay >= day) deferredBirthsDuringCatchUp = false;
 
         // Expansion is driven by actual simulation ticks and available supplies, not the calendar.
         if (com.simplecolonies.config.ColonyConfig.ENABLE_NATURAL_EXPANSION.get()) {
@@ -673,6 +679,7 @@ public class Colony {
         tag.putInt("daysWithoutFood", daysWithoutFood);
         tag.putInt("daysSinceExpansion", daysSinceExpansion);
         tag.putLong("lastSimulatedDay", lastSimulatedDay);
+        tag.putBoolean("deferredBirthsDuringCatchUp", deferredBirthsDuringCatchUp);
         tag.putString("state", state.name());
         if (leaderId != null) tag.putUUID("leader", leaderId);
         // Do not persist the display fallback (colony center) as a designated hub.
@@ -705,6 +712,7 @@ public class Colony {
         c.daysWithoutFood = tag.getInt("daysWithoutFood");
         c.daysSinceExpansion = tag.getInt("daysSinceExpansion");
         c.lastSimulatedDay = tag.contains("lastSimulatedDay") ? tag.getLong("lastSimulatedDay") : -1;
+        c.deferredBirthsDuringCatchUp = tag.getBoolean("deferredBirthsDuringCatchUp");
         c.state = ColonyState.valueOf(tag.getString("state"));
         if (tag.hasUUID("leader")) c.leaderId = tag.getUUID("leader");
         if (tag.contains("warehouseCenter")) c.warehouseManager.setWarehouseCenter(BlockPos.of(tag.getLong("warehouseCenter")));

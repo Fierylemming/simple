@@ -20,6 +20,14 @@ class DailyCatchUpTest {
         assertEquals(64, DailyCatchUp.batchSize(Long.MIN_VALUE, Long.MAX_VALUE, 64));
     }
 
+    @Test void physicalBirthsStayDeferredAcrossCatchUpBatches() {
+        assertFalse(DailyCatchUp.deferBirths(10, 11, false));
+        assertTrue(DailyCatchUp.deferBirths(10, 160, false));
+        assertTrue(DailyCatchUp.deferBirths(159, 160, true));
+        assertTrue(DailyCatchUp.deferBirths(Long.MIN_VALUE, Long.MAX_VALUE, false));
+        assertFalse(DailyCatchUp.deferBirths(160, 161, false));
+    }
+
     @Test void unloadedCitizenHealthDaysPersistInOrder() {
         CitizenData citizen = new CitizenData(UUID.randomUUID(), "Test", JobType.FARMER);
         citizen.queueDailyHealth(true);

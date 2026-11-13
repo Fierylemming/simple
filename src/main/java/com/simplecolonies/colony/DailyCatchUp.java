@@ -8,5 +8,10 @@ final class DailyCatchUp {
         long difference = target - cursor;
         return difference < 0 ? limit : (int) Math.min(difference, limit);
     }
+    /** Keep physical births disabled until a multi-day catch-up finishes, even
+     * when that catch-up crosses ticks or a server restart. */
+    static boolean deferBirths(long cursor, long target, boolean alreadyDeferred) {
+        return alreadyDeferred || batchSize(cursor, target, 2) > 1;
+    }
     private DailyCatchUp() {}
 }
