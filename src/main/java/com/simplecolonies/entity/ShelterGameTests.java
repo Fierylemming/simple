@@ -170,6 +170,16 @@ public class ShelterGameTests {
             blocker.discard();
             worker.seekShelter(helper.getLevel(), colony);
             if (helper.getLevel().getBlockState(absoluteDoor).getValue(DoorBlock.OPEN)) helper.fail("Did not close the remembered empty door");
+            // A lingering vanilla memory does not authorize closing someone else's reopening.
+            helper.getLevel().setBlock(absoluteDoor, opened, 2);
+            helper.getLevel().setBlock(absoluteDoor.above(), opened.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3);
+            worker.seekShelter(helper.getLevel(), colony);
+            if (!helper.getLevel().getBlockState(absoluteDoor).getValue(DoorBlock.OPEN)) helper.fail("Reclosed a door reopened while vanilla memory lingered");
+            // Make the powered case a distinct memory event.
+            worker.getBrain().eraseMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.DOORS_TO_CLOSE);
+            worker.seekShelter(helper.getLevel(), colony);
+            worker.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.DOORS_TO_CLOSE,
+                    new java.util.HashSet<>(java.util.Set.of(net.minecraft.core.GlobalPos.of(helper.getLevel().dimension(), absoluteDoor))));
             var powered = opened.setValue(DoorBlock.POWERED, true);
             helper.getLevel().setBlock(absoluteDoor, powered, 2);
             helper.getLevel().setBlock(absoluteDoor.above(), powered.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3);

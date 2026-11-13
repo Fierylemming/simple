@@ -49,6 +49,8 @@ public class ColonyVillager extends Villager {
     // Doors remembered by the vanilla brain while approaching this shelter.
     // Entries expire and never persist across unloads or dimension changes.
     private final java.util.Map<net.minecraft.core.BlockPos, Long> shelterDoors = new java.util.HashMap<>();
+    // A vanilla memory may outlive closure; never treat a later reopening as ours.
+    private final java.util.Set<GlobalPos> observedDoorMemories = new java.util.HashSet<>();
 
     // Needs
     private int hungerTicks = 0; // increments daily if no food, leads to damage
@@ -380,7 +382,10 @@ public class ColonyVillager extends Villager {
 
     void seekShelter(ServerLevel level, Colony colony) {
         // Do not interrupt panic, trading or sleep with shelter navigation.
-        if (isTrading() || isSleeping() || isInDanger()) return;
+        if (isTrading() || isSleeping() || isInDanger()) {
+            shelterDoors.clear();
+            return;
+        }
         rememberAndCloseShelterDoors(level, colony);
         if (level.getGameTime() < nextShelterAttempt) {
             redirectShelteredWander(level, colony);
@@ -476,16 +481,39 @@ public class ColonyVillager extends Villager {
      * nearby players, occupied doorways, panic, or an invalid enclosure. */
     private void rememberAndCloseShelterDoors(ServerLevel level, Colony colony) {
         long now = level.getGameTime();
-        shelterDoors.entrySet().removeIf(e -> e.getValue() < now);
-        if (shelterAnchor == null) return;
-        getBrain().getMemory(MemoryModuleType.DOORS_TO_CLOSE).ifPresent(doors -> {
-            for (var door : doors) {
-                var p = door.pos();
-                if (door.dimension().equals(level.dimension()) && Math.abs(p.getX() - shelterAnchor.getX()) <= 7
-                        && Math.abs(p.getZ() - shelterAnchor.getZ()) <= 7 && Math.abs(p.getY() - shelterAnchor.getY()) <= 4)
-                    shelterDoors.put(p.immutable(), now + 120);
-            }
+        // Drop ownership if the door was closed, replaced, unloaded, or a
+        // player approached it. Never adopt a later reopening while vanilla's
+        // original memory is still present.
+        shelterDoors.entrySet().removeIf(e -> {
+            var p = e.getKey();
+            if (e.getValue() < now || !level.isLoaded(p) || !level.isLoaded(p.above())) return true;
+            var state = level.getBlockState(p);
+            return !(state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock)
+                    || !state.is(net.minecraft.tags.BlockTags.WOODEN_DOORS)
+                    || !state.getValue(net.minecraft.world.level.block.DoorBlock.OPEN)
+                    || !level.getEntitiesOfClass(net.minecraft.world.entity.player.Player.class,
+                            new net.minecraft.world.phys.AABB(p).expandTowards(0, 1, 0).inflate(4)).isEmpty();
         });
+        var doors = getBrain().getMemory(MemoryModuleType.DOORS_TO_CLOSE).orElse(java.util.Set.of());
+        observedDoorMemories.retainAll(doors);
+        if (shelterAnchor == null) {
+            observedDoorMemories.addAll(doors);
+            return;
+        }
+        for (var door : doors) {
+            var p = door.pos();
+            if (!observedDoorMemories.add(door) || !door.dimension().equals(level.dimension())
+                    || Math.abs(p.getX() - shelterAnchor.getX()) > 7
+                    || Math.abs(p.getZ() - shelterAnchor.getZ()) > 7 || Math.abs(p.getY() - shelterAnchor.getY()) > 4
+                    || !level.isLoaded(p) || !level.isLoaded(p.above())) continue;
+            var state = level.getBlockState(p);
+            if (state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock
+                    && state.is(net.minecraft.tags.BlockTags.WOODEN_DOORS)
+                    && state.getValue(net.minecraft.world.level.block.DoorBlock.OPEN)
+                    && level.getEntitiesOfClass(net.minecraft.world.entity.player.Player.class,
+                            new net.minecraft.world.phys.AABB(p).expandTowards(0, 1, 0).inflate(4)).isEmpty())
+                shelterDoors.put(p.immutable(), now + 120);
+        }
         if (shelterDoors.isEmpty() || !shelterInterior.contains(blockPosition())) return;
         boolean registered = colony.getBuildings().stream().anyMatch(b -> b.getPos().equals(shelterAnchor)
                 && b.getState() == com.simplecolonies.building.BuildingState.COMPLETE
