@@ -81,6 +81,36 @@ public class ShelterGameTests {
         bedlessVillagerEntersHallAndDoorCloses(helper);
     }
 
+    @GameTest(template = "empty", timeoutTicks = 1200)
+    public static void bedlessHallDoorRepeatThree(GameTestHelper helper) {
+        bedlessVillagerEntersHallAndDoorCloses(helper);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 1200)
+    public static void bedlessHallDoorRepeatFour(GameTestHelper helper) {
+        bedlessVillagerEntersHallAndDoorCloses(helper);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 1200)
+    public static void bedlessHallDoorRepeatFive(GameTestHelper helper) {
+        bedlessVillagerEntersHallAndDoorCloses(helper);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 1200)
+    public static void bedlessHallDoorRepeatSix(GameTestHelper helper) {
+        bedlessVillagerEntersHallAndDoorCloses(helper);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 1200)
+    public static void bedlessHallDoorRepeatSeven(GameTestHelper helper) {
+        bedlessVillagerEntersHallAndDoorCloses(helper);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 1200)
+    public static void bedlessHallDoorRepeatEight(GameTestHelper helper) {
+        bedlessVillagerEntersHallAndDoorCloses(helper);
+    }
+
     @GameTest(template = "empty", timeoutTicks = 200)
     public static void shelterWalkRedirectsVanillaWanderingOutdoors(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
