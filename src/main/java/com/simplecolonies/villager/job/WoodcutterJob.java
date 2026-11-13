@@ -17,9 +17,26 @@ import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.RotatedPillarBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
-/** Harvest only recognizable, unbuilt oak trees; never use nearby leaves alone as proof. */
+/** Harvest short, recognizable, unbuilt trees; never use nearby leaves alone as proof. */
 public class WoodcutterJob extends AbstractJob {
+    private record Species(net.minecraft.world.level.block.Block log, net.minecraft.world.level.block.Block leaves,
+                           net.minecraft.world.level.block.Block sapling) {}
+    private static final java.util.List<Species> SPECIES = java.util.List.of(
+            new Species(Blocks.OAK_LOG, Blocks.OAK_LEAVES, Blocks.OAK_SAPLING),
+            new Species(Blocks.SPRUCE_LOG, Blocks.SPRUCE_LEAVES, Blocks.SPRUCE_SAPLING),
+            new Species(Blocks.BIRCH_LOG, Blocks.BIRCH_LEAVES, Blocks.BIRCH_SAPLING),
+            new Species(Blocks.JUNGLE_LOG, Blocks.JUNGLE_LEAVES, Blocks.JUNGLE_SAPLING),
+            new Species(Blocks.ACACIA_LOG, Blocks.ACACIA_LEAVES, Blocks.ACACIA_SAPLING),
+            new Species(Blocks.DARK_OAK_LOG, Blocks.DARK_OAK_LEAVES, Blocks.DARK_OAK_SAPLING),
+            new Species(Blocks.MANGROVE_LOG, Blocks.MANGROVE_LEAVES, Blocks.MANGROVE_PROPAGULE),
+            new Species(Blocks.CHERRY_LOG, Blocks.CHERRY_LEAVES, Blocks.CHERRY_SAPLING));
+
+    private static Species species(BlockState state) {
+        return SPECIES.stream().filter(s -> state.is(s.log())).findFirst().orElse(null);
+    }
+
     private BlockPos treeBase;
+    private Species treeSpecies;
     private java.util.List<BlockPos> tree = java.util.List.of();
     private int remaining;
     private boolean restored;
@@ -30,17 +47,21 @@ public class WoodcutterJob extends AbstractJob {
 
     @Override
     protected void doWork(ServerLevel level) {
-        var view = new TreeView(level);
         if (!restored) { readMemory(); restored = true; }
         if (treeBase == null) {
             BlockPos center = villager.blockPosition();
             for (BlockPos mutable : BlockPos.betweenClosed(center.offset(-16, -4, -16), center.offset(16, 8, 16))) {
                 BlockPos base = mutable.immutable();
-                if (!view.loaded(base) || !view.trunk(base) || !view.loaded(base.below()) || !view.soil(base.below())) continue;
-                var found = SafeOakTree.trunk(view, base);
+                if (!level.isLoaded(base)) continue;
+                Species species = species(level.getBlockState(base));
+                if (species == null) continue;
+                var candidate = new TreeView(level, species);
+                if (!candidate.trunk(base) || !candidate.loaded(base.below()) || !candidate.soil(base.below())) continue;
+                var found = SafeOakTree.trunk(candidate, base);
                 // The worker must be able to reach each block from ground level, without scaffolding.
                 if (found.isEmpty() || found.size() > 4) continue;
                 treeBase = base;
+                treeSpecies = species;
                 tree = found;
                 remaining = tree.size();
                 writeMemory();
@@ -48,6 +69,14 @@ public class WoodcutterJob extends AbstractJob {
             }
         }
         if (treeBase == null) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
+        if (!level.isLoaded(treeBase)) { state = JobState.STUCK; ticksUntilNextWork = 100; return; }
+        Species species = species(level.getBlockState(treeBase));
+        if (species == null || (treeSpecies != null && treeSpecies != species)) {
+            clearTree(); state = JobState.STUCK; ticksUntilNextWork = 60; return;
+        }
+        // Old saved partial oak trees did not have a species field.
+        if (treeSpecies == null) treeSpecies = species;
+        var view = new TreeView(level, species);
         // A chunk unload is not a safety violation: retain the partially cut tree
         // and retry without loading chunks. Actual construction in the area aborts it.
         for (int dx = -3; dx <= 3; dx++) for (int dz = -3; dz <= 3; dz++)
@@ -89,10 +118,12 @@ public class WoodcutterJob extends AbstractJob {
         remaining--;
         if (remaining == 0) {
             // No free saplings: replant only from real colony stock, at the tree's original base.
-            if (level.getBlockState(treeBase).isAir() && view.soil(treeBase.below())
-                    && colony.consumeStock(level, "minecraft:oak_sapling", 1)) {
-                if (!level.setBlock(treeBase, Blocks.OAK_SAPLING.defaultBlockState(), 3))
-                    colony.depositToWarehouse("minecraft:oak_sapling", 1);
+            String sapling = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(species.sapling().asItem()).toString();
+            // Dark oak requires four saplings, so don't waste one on an ungrowable singleton.
+            if (species.sapling() != Blocks.DARK_OAK_SAPLING && level.getBlockState(treeBase).isAir()
+                    && view.soil(treeBase.below()) && colony.consumeStock(level, sapling, 1)) {
+                if (!level.setBlock(treeBase, species.sapling().defaultBlockState(), 3))
+                    colony.depositToWarehouse(sapling, 1);
             }
             clearTree();
         } else writeMemory();
@@ -112,13 +143,14 @@ public class WoodcutterJob extends AbstractJob {
     }
 
     private void clearTree() {
-        treeBase = null; tree = java.util.List.of(); remaining = 0; writeMemory();
+        treeBase = null; treeSpecies = null; tree = java.util.List.of(); remaining = 0; writeMemory();
     }
     private void writeMemory() {
         if (!(villager instanceof ColonyVillager cv)) return;
         CompoundTag tag = new CompoundTag();
         if (treeBase != null) {
             tag.putLong("base", treeBase.asLong());
+            if (treeSpecies != null) tag.putString("species", net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(treeSpecies.log()).toString());
             tag.putInt("height", tree.size());
             tag.putInt("remaining", remaining);
         }
@@ -133,21 +165,27 @@ public class WoodcutterJob extends AbstractJob {
         if (!colony.isInside(base)) return;
         var logs = new java.util.ArrayList<BlockPos>();
         for (int y = 0; y < height; y++) logs.add(base.above(y));
+        String savedSpecies = tag.getString("species");
+        if (!savedSpecies.isEmpty()) {
+            treeSpecies = SPECIES.stream().filter(s -> net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(s.log()).toString().equals(savedSpecies)).findFirst().orElse(null);
+            if (treeSpecies == null) return;
+        }
         treeBase = base; tree = java.util.List.copyOf(logs); remaining = count;
     }
 
     private final class TreeView implements SafeOakTree.View {
         private final ServerLevel level;
-        TreeView(ServerLevel level) { this.level = level; }
+        private final Species species;
+        TreeView(ServerLevel level, Species species) { this.level = level; this.species = species; }
         public boolean loaded(BlockPos pos) { return level.isLoaded(pos); }
         public boolean soil(BlockPos pos) { return level.getBlockState(pos).is(BlockTags.DIRT); }
         public boolean trunk(BlockPos pos) {
             BlockState state = level.getBlockState(pos);
-            return state.is(Blocks.OAK_LOG) && state.getValue(RotatedPillarBlock.AXIS) == Direction.Axis.Y;
+            return state.is(species.log()) && state.getValue(RotatedPillarBlock.AXIS) == Direction.Axis.Y;
         }
         public boolean naturalLeaf(BlockPos pos) {
             BlockState state = level.getBlockState(pos);
-            return state.is(Blocks.OAK_LEAVES) && !state.getValue(LeavesBlock.PERSISTENT);
+            return state.is(species.leaves()) && !state.getValue(LeavesBlock.PERSISTENT);
         }
         public boolean clearOrNatural(BlockPos pos, boolean belowBase) {
             BlockState state = level.getBlockState(pos);

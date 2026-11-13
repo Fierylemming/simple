@@ -40,6 +40,34 @@ public class WoodcutterGameTests {
     }
 
     @GameTest(template = "isolated", timeoutTicks = 1400)
+    public static void harvestsAndReplantsShortSpruce(GameTestHelper helper) {
+        harvestSpecies(helper, Blocks.SPRUCE_LOG, Blocks.SPRUCE_LEAVES, Blocks.SPRUCE_SAPLING, "spruce");
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 1400)
+    public static void harvestsAndReplantsShortBirch(GameTestHelper helper) {
+        harvestSpecies(helper, Blocks.BIRCH_LOG, Blocks.BIRCH_LEAVES, Blocks.BIRCH_SAPLING, "birch");
+    }
+
+    private static void harvestSpecies(GameTestHelper helper, net.minecraft.world.level.block.Block log,
+            net.minecraft.world.level.block.Block leaves, net.minecraft.world.level.block.Block sapling, String name) {
+        makeTree(helper);
+        for (int y = 0; y < 4; y++) helper.setBlock(ROOT.above(y), log);
+        for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++)
+            if (x != 0 || z != 0) helper.setBlock(ROOT.offset(x, 3, z), leaves);
+        Colony colony = colony(helper);
+        colony.depositToWarehouse("minecraft:" + name + "_sapling", 1);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(48, 1, 56));
+        var job = new WoodcutterJob(worker, colony);
+        for (int tick = 1; tick < 1400; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.succeedWhen(() -> {
+            if (!helper.getBlockState(ROOT).is(sapling)
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:" + name + "_log") < 4)
+                helper.fail("Did not harvest and replant " + name + ": " + job.getState());
+        });
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 1400)
     public static void resumesPartialTreeAndWearsActualStockAxe(GameTestHelper helper) {
         makeTree(helper);
         Colony colony = colony(helper);
