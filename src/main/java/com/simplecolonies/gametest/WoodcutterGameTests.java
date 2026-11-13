@@ -186,6 +186,8 @@ public class WoodcutterGameTests {
                 CompoundTag saved = new CompoundTag(); worker[0].saveWithoutId(saved);
                 if (saved.getCompound("woodcutterMemory").getLongArray("branchLogs").length != logs.size())
                     helper.fail("Crooked log positions were not saved");
+                // Preview saves made before axes were tracked contained vertical logs only.
+                saved.getCompound("woodcutterMemory").remove("branchAxes");
                 var replacement = ModEntities.COLONY_VILLAGER.get().create(helper.getLevel());
                 if (replacement == null) { helper.fail("Could not reload worker"); return; }
                 worker[0].discard(); replacement.load(saved); helper.getLevel().addFreshEntity(replacement);
@@ -229,17 +231,34 @@ public class WoodcutterGameTests {
     private static void harvestCrookedSpecies(GameTestHelper helper, net.minecraft.world.level.block.Block log,
             net.minecraft.world.level.block.Block leaves, net.minecraft.world.level.block.Block sapling, String name) {
         var logs = makeCrookedTree(helper, log, leaves);
+        boolean sideways = name.equals("cherry");
+        if (sideways) for (var p : java.util.List.of(ROOT.offset(1, 3, 0), ROOT.offset(2, 4, 0)))
+            helper.setBlock(p, log.defaultBlockState().setValue(net.minecraft.world.level.block.RotatedPillarBlock.AXIS,
+                    net.minecraft.core.Direction.Axis.X));
         Colony colony = colony(helper);
         colony.depositToWarehouse("minecraft:stone_axe", 1);
         colony.depositToWarehouse("minecraft:" + name + "_sapling", 1);
-        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56));
-        var job = new WoodcutterJob(worker, colony);
-        for (int tick = 1; tick < 1800; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        ColonyVillager[] worker = {helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56))};
+        WoodcutterJob[] job = {new WoodcutterJob(worker[0], colony)};
+        boolean[] reloaded = {!sideways};
+        for (int tick = 1; tick < 1800; tick++) helper.runAtTickTime(tick, () -> {
+            job[0].tick(helper.getLevel());
+            if (!reloaded[0] && colony.getWarehouseCount(helper.getLevel(), "minecraft:" + name + "_log") == 1) {
+                CompoundTag saved = new CompoundTag(); worker[0].saveWithoutId(saved);
+                int[] axes = saved.getCompound("woodcutterMemory").getIntArray("branchAxes");
+                if (axes.length != logs.size() || java.util.Arrays.stream(axes).filter(a -> a == 1).count() != 2)
+                    helper.fail("Sideways branch axes not saved");
+                var replacement = ModEntities.COLONY_VILLAGER.get().create(helper.getLevel());
+                if (replacement == null) { helper.fail("Could not reload worker"); return; }
+                worker[0].discard(); replacement.load(saved); helper.getLevel().addFreshEntity(replacement);
+                worker[0] = replacement; job[0] = new WoodcutterJob(replacement, colony); reloaded[0] = true;
+            }
+        });
         helper.succeedWhen(() -> {
-            if (!helper.getBlockState(ROOT).is(sapling)
+            if (!reloaded[0] || !helper.getBlockState(ROOT).is(sapling)
                     || colony.getWarehouseCount(helper.getLevel(), "minecraft:" + name + "_log") != logs.size()
-                    || worker.getMainHandItem().getDamageValue() != logs.size())
-                helper.fail("Crooked " + name + " incomplete: " + job.getState());
+                    || worker[0].getMainHandItem().getDamageValue() != logs.size())
+                helper.fail("Crooked " + name + " incomplete: " + job[0].getState());
         });
     }
 

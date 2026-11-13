@@ -38,8 +38,8 @@ public class WoodcutterJob extends AbstractJob {
         return SPECIES.stream().filter(s -> state.is(s.log())).findFirst().orElse(null);
     }
 
-    /** Only rooted single-column species with vertical log states; multi-root
-     * dark oak and mangrove have different growth and replanting rules. */
+    /** Only rooted single-column species; multi-root dark oak and mangrove
+     * have different growth and replanting rules. */
     private static boolean supportsBranched(Species species) {
         return species.log() == Blocks.OAK_LOG || species.log() == Blocks.SPRUCE_LOG
                 || species.log() == Blocks.BIRCH_LOG || species.log() == Blocks.JUNGLE_LOG
@@ -52,6 +52,7 @@ public class WoodcutterJob extends AbstractJob {
     private int remaining;
     private boolean squareTree;
     private boolean branchedTree;
+    private int[] branchAxes = new int[0];
     private boolean restored;
 
     public WoodcutterJob(Villager villager, Colony colony) {
@@ -99,6 +100,7 @@ public class WoodcutterJob extends AbstractJob {
                 tree = found;
                 squareTree = square;
                 branchedTree = branched;
+                branchAxes = branched ? found.stream().mapToInt(candidate::branchAxis).toArray() : new int[0];
                 remaining = tree.size();
                 writeMemory();
                 break;
@@ -126,7 +128,7 @@ public class WoodcutterJob extends AbstractJob {
                     }
                 }
         }
-        boolean safe = branchedTree ? SafeBranchedTree.safePartial(view, treeBase, tree, remaining)
+        boolean safe = branchedTree ? SafeBranchedTree.safePartial(view, treeBase, tree, remaining, branchAxes)
                 : squareTree ? SafeOakTree.safePartialSquare(view, treeBase, tree, remaining)
                 : SafeOakTree.safePartialTrunk(view, treeBase, tree, remaining);
         if (!safe) {
@@ -240,7 +242,7 @@ public class WoodcutterJob extends AbstractJob {
     }
 
     private void clearTree() {
-        treeBase = null; treeSpecies = null; tree = java.util.List.of(); remaining = 0; squareTree = false; branchedTree = false; writeMemory();
+        treeBase = null; treeSpecies = null; tree = java.util.List.of(); remaining = 0; squareTree = false; branchedTree = false; branchAxes = new int[0]; writeMemory();
     }
     private void writeMemory() {
         if (!(villager instanceof ColonyVillager cv)) return;
@@ -248,7 +250,10 @@ public class WoodcutterJob extends AbstractJob {
         if (treeBase != null) {
             tag.putLong("base", treeBase.asLong());
             if (treeSpecies != null) tag.putString("species", net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(treeSpecies.log()).toString());
-            if (branchedTree) tag.putLongArray("branchLogs", tree.stream().mapToLong(BlockPos::asLong).toArray());
+            if (branchedTree) {
+                tag.putLongArray("branchLogs", tree.stream().mapToLong(BlockPos::asLong).toArray());
+                tag.putIntArray("branchAxes", branchAxes);
+            }
             else tag.putInt("height", squareTree ? tree.size() / 4 : tree.size());
             if (squareTree) tag.putBoolean("square", true);
             tag.putInt("remaining", remaining);
@@ -282,6 +287,9 @@ public class WoodcutterJob extends AbstractJob {
         if (square && (treeSpecies == null || (treeSpecies.log() != Blocks.DARK_OAK_LOG
                 && treeSpecies.log() != Blocks.SPRUCE_LOG && treeSpecies.log() != Blocks.JUNGLE_LOG))) return;
         if (branched && (treeSpecies == null || !supportsBranched(treeSpecies))) return;
+        int[] savedAxes = branched && tag.contains("branchAxes") ? tag.getIntArray("branchAxes") : new int[size];
+        if (branched && savedAxes.length != size) return;
+        branchAxes = branched ? savedAxes : new int[0];
         treeBase = base; tree = java.util.List.copyOf(logs); remaining = count; squareTree = square; branchedTree = branched;
     }
 
@@ -294,6 +302,15 @@ public class WoodcutterJob extends AbstractJob {
         public boolean trunk(BlockPos pos) {
             BlockState state = level.getBlockState(pos);
             return state.is(species.log()) && state.getValue(RotatedPillarBlock.AXIS) == Direction.Axis.Y;
+        }
+        public int branchAxis(BlockPos pos) {
+            BlockState state = level.getBlockState(pos);
+            if (!state.is(species.log())) return -1;
+            return switch (state.getValue(RotatedPillarBlock.AXIS)) {
+                case Y -> 0;
+                case X -> 1;
+                case Z -> 2;
+            };
         }
         public boolean naturalLeaf(BlockPos pos) {
             BlockState state = level.getBlockState(pos);

@@ -26,7 +26,7 @@ final class SafeBranchedTree {
             for (int y = -1; y <= TOP; y++) {
                 BlockPos p = base.offset(x, y, z);
                 if (!view.loaded(p)) return List.of();
-                if (view.trunk(p)) {
+                if (view.branchAxis(p) >= 0) {
                     if (Math.abs(x) > LOG_RADIUS || Math.abs(z) > LOG_RADIUS || y < 0 || y > LOG_TOP
                             || (y == 0 && (x != 0 || z != 0)) || view.protectedPosition(p)) return List.of();
                     logs.add(p);
@@ -37,7 +37,8 @@ final class SafeBranchedTree {
                 }
             }
         logs.sort(ORDER);
-        if (!validShape(base, logs) || leaves.size() < 8) return List.of();
+        int[] axes = logs.stream().mapToInt(view::branchAxis).toArray();
+        if (!validShape(base, logs) || !validAxes(logs, axes) || leaves.size() < 8) return List.of();
         var positions = new HashSet<>(logs);
         boolean canopy = false;
         for (BlockPos leaf : leaves) {
@@ -51,8 +52,8 @@ final class SafeBranchedTree {
 
     /** Only the saved original positions can be cut. New logs, construction,
      * unloaded positions and changed roots or protected areas abort the job. */
-    static boolean safePartial(SafeOakTree.View view, BlockPos base, List<BlockPos> logs, int remaining) {
-        if (!validShape(base, logs) || remaining < 1 || remaining > logs.size()
+    static boolean safePartial(SafeOakTree.View view, BlockPos base, List<BlockPos> logs, int remaining, int[] axes) {
+        if (!validShape(base, logs) || !validAxes(logs, axes) || remaining < 1 || remaining > logs.size()
                 || !view.loaded(base.below()) || !view.soil(base.below())) return false;
         Map<BlockPos, Integer> indices = new HashMap<>();
         for (int i = 0; i < logs.size(); i++) indices.put(logs.get(i), i);
@@ -63,9 +64,33 @@ final class SafeBranchedTree {
                 Integer index = indices.get(p);
                 if (index != null) {
                     if (view.protectedPosition(p)) return false;
-                    if (index < remaining ? !view.trunk(p) : !view.clearOrNatural(p, false)) return false;
+                    if (index < remaining ? view.branchAxis(p) != axes[index] : !view.clearOrNatural(p, false)) return false;
                 } else if (!view.clearOrNatural(p, y < 0)) return false;
             }
+        return true;
+    }
+
+    /** Old saved branch plans contained only vertical logs. */
+    static boolean safePartial(SafeOakTree.View view, BlockPos base, List<BlockPos> logs, int remaining) {
+        return safePartial(view, base, logs, remaining, new int[logs.size()]);
+    }
+
+    private static boolean validAxes(List<BlockPos> logs, int[] axes) {
+        if (axes.length != logs.size() || axes.length == 0 || axes[0] != 0) return false;
+        Set<BlockPos> all = new HashSet<>(logs);
+        for (int i = 0; i < axes.length; i++) {
+            int axis = axes[i];
+            if (axis < 0 || axis > 2) return false;
+            if (axis == 0) continue;
+            BlockPos p = logs.get(i);
+            // A sideways branch must connect in its own axis; an isolated
+            // horizontal beam near leaves does not qualify as a tree branch.
+            boolean connected = false;
+            for (int d : new int[]{-1, 1}) for (int y = -1; y <= 1; y++) {
+                if (all.contains(axis == 1 ? p.offset(d, y, 0) : p.offset(0, y, d))) connected = true;
+            }
+            if (!connected) return false;
+        }
         return true;
     }
 

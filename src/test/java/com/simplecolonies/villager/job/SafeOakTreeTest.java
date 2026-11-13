@@ -13,13 +13,15 @@ class SafeOakTreeTest {
     private static final BlockPos ROOT = new BlockPos(0, 64, 0);
     private static final class Fake implements SafeOakTree.View {
         final Map<BlockPos, Block> blocks = new HashMap<>();
+        final Map<BlockPos, Integer> axes = new HashMap<>();
         final Set<BlockPos> unloaded = new HashSet<>(), protectedBlocks = new HashSet<>();
         Block block(BlockPos p) { return blocks.getOrDefault(p, Block.AIR); }
         void put(BlockPos p, Block b) { blocks.put(p, b); }
         public boolean loaded(BlockPos p) { return !unloaded.contains(p); }
         public boolean protectedPosition(BlockPos p) { return protectedBlocks.contains(p); }
         public boolean soil(BlockPos p) { return block(p) == Block.SOIL; }
-        public boolean trunk(BlockPos p) { return block(p) == Block.LOG; }
+        public boolean trunk(BlockPos p) { return block(p) == Block.LOG && axes.getOrDefault(p, 0) == 0; }
+        public int branchAxis(BlockPos p) { return block(p) == Block.LOG ? axes.getOrDefault(p, 0) : -1; }
         public boolean naturalLeaf(BlockPos p) { return block(p) == Block.LEAF; }
         public boolean clearOrNatural(BlockPos p, boolean belowBase) {
             return block(p) == Block.AIR || block(p) == Block.SOIL || block(p) == Block.LEAF;
@@ -157,6 +159,22 @@ class SafeOakTreeTest {
         assertFalse(SafeBranchedTree.safePartial(f, ROOT, logs, 0));
         f.put(ROOT.offset(2, 4, 0), Block.STRUCTURE);
         assertFalse(SafeBranchedTree.safePartial(f, ROOT, logs, logs.size()));
+    }
+
+    @Test void sidewaysBranchesMustConnectAndRetainSavedAxis() {
+        Fake f = crookedTree();
+        f.axes.put(ROOT.offset(1, 3, 0), 1);
+        f.axes.put(ROOT.offset(2, 4, 0), 1);
+        var logs = SafeBranchedTree.find(f, ROOT);
+        assertEquals(6, logs.size());
+        int[] axes = logs.stream().mapToInt(f::branchAxis).toArray();
+        assertTrue(SafeBranchedTree.safePartial(f, ROOT, logs, logs.size(), axes));
+        // Changing a remaining block's axis during a job must abort it.
+        f.axes.put(ROOT.offset(1, 3, 0), 0);
+        assertFalse(SafeBranchedTree.safePartial(f, ROOT, logs, logs.size(), axes));
+        f.axes.put(ROOT.offset(1, 3, 0), 2);
+        assertTrue(SafeBranchedTree.find(f, ROOT).isEmpty()); // no connected Z-axis neighbor
+        assertFalse(SafeBranchedTree.safePartial(f, ROOT, logs, logs.size(), new int[1]));
     }
 
 }

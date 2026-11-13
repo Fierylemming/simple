@@ -11,6 +11,8 @@ final class SafeOakTree {
         boolean protectedPosition(BlockPos pos);
         boolean soil(BlockPos pos);
         boolean trunk(BlockPos pos);
+        /** 0=vertical, 1=X, 2=Z, -1=not this species' log. */
+        default int branchAxis(BlockPos pos) { return trunk(pos) ? 0 : -1; }
         boolean naturalLeaf(BlockPos pos);
         boolean clearOrNatural(BlockPos pos, boolean belowBase);
     }
