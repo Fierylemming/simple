@@ -4,7 +4,7 @@ This is an **unfinished test build**, not the completed overhaul. Back up any ex
 
 ## Get the build
 
-1. Open [CI run 43393132240](https://github.com/Fierylemming/simple/actions/runs/43393132240) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `0d24f6b`, version `0.1.29`. The build and GameTests passed, but the fishing integration has failed intermittently in other runs and still needs in-game verification. Extract the zip.
+1. Open [CI run 43395409928](https://github.com/Fierylemming/simple/actions/runs/43395409928) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `f66adb6`, version `0.1.29`. The build and GameTests passed, but the fishing integration has failed intermittently in other runs and still needs in-game verification. Extract the zip.
 2. In Prism Launcher, create a **Minecraft 1.21.1, NeoForge 21.1.265, Java 21** instance. Place the extracted SimpleColonies jar in that instance's `mods` folder; remove any older SimpleColonies jar first. Do not install it alongside another copy. For a server, install the same version on both client and server.
 3. Start a new world with cheats enabled, in the Overworld. No public overhaul release has been made.
 
@@ -33,3 +33,10 @@ This is an **unfinished test build**, not the completed overhaul. Back up any ex
 New colonies start with a stone pickaxe and axe in colony stock. The forester now requires an axe instead of harvesting by hand. Miners and foresters first use a suitable tool from stock; if none is available, they can walk to a crafting table near a completed hall or house and craft a stone replacement from three cobblestone and two sticks (sticks can be crafted from oak stock). If no table or ingredients are available, they wait rather than create a free tool. A blacksmith can also make replacement stone or iron tools. Stock withdrawal is still remote; a physical trip to collect every ingredient or tool is not implemented. Existing saves do not receive free replacement tools.
 
 Natural stone and player-placed stone are indistinguishable to the mod; do not test settlement creation on a valuable stone structure. Steep, obstructed, unloaded or water-covered plots may still be rejected.
+
+### Housing and daily-life follow-up
+
+- Completed houses assign shared homes up to their capacity, including to miners; assignments persist and the hall remains a fallback shelter. There are no automatically provided beds. Check `/colony status`, reload, and check that assignments remain stable. If a house is removed or no longer complete, occupants can be reassigned; a marker is not proof a player-built house is safe.
+- Births now require nearby, loaded, eligible adults, spare shelter and real surplus food. A multi-day catch-up consumes daily food and applies health but defers births; it does not fast-forward physical jobs, crop growth or child aging. A long time skip can still cause starvation.
+- Compact house variants check their actual footprint rather than requiring an entirely empty seven-by-seven square. An obstacle in the footprint remains protected; builders do not terraform slopes. Farmer replanting uses a harvested seed or a real seed from colony stock. These are preliminary and need testing in real worlds.
+- At night, a citizen reaching an enclosed shelter tries to suppress idle wandering while that position remains safe, without overriding panic, sleep or trading. This is not a guarantee that doors remain closed or everyone stays inside all night.
