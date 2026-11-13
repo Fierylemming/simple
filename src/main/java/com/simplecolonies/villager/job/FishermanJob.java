@@ -21,6 +21,8 @@ public class FishermanJob extends AbstractJob {
     private static final int MIN_SCHOOL = 2;
     private static final double REACH_SQ = 6.25;
     private net.minecraft.world.level.pathfinder.Path jobPath;
+    private String lastSearch = "not searched";
+    public String diagnostic() { return lastSearch; }
     public FishermanJob(Villager villager, Colony colony) { super(villager, colony, JobType.FISHERMAN); }
 
     @Override protected void onTick(ServerLevel level) {
@@ -95,6 +97,7 @@ public class FishermanJob extends AbstractJob {
             state = JobState.GOING_TO_WORK; ticksUntilNextWork = 0; return;
         }
         net.minecraft.world.level.pathfinder.Path partial = null;
+        int standCount = 0, nullPaths = 0, wetPaths = 0, partialPaths = 0, reachablePaths = 0;
         double bestProgress = 0;
         for (var target : candidates) {
             if (villager.distanceToSqr(target) <= REACH_SQ && !villager.isInWater()
@@ -125,6 +128,7 @@ public class FishermanJob extends AbstractJob {
                         || level.getBlockState(p.below()).is(Blocks.MAGMA_BLOCK)) continue;
                 stands.add(p);
             }
+            standCount += stands.size();
             stands.sort(Comparator.comparingDouble(p -> p.distSqr(villager.blockPosition())));
             int attempts = 0;
             for (BlockPos stand : stands) {
@@ -140,13 +144,17 @@ public class FishermanJob extends AbstractJob {
                 } finally {
                     villager.setPathfindingMalus(net.minecraft.world.level.pathfinder.PathType.WATER, oldWaterMalus);
                 }
-                if (path == null || !dryPath(level, path)) continue;
+                if (path == null) { nullPaths++; continue; }
+                if (!dryPath(level, path)) { wetPaths++; continue; }
                 if (path.canReach()) {
+                    reachablePaths++;
+                    lastSearch = "stands=" + standCount + " null=" + nullPaths + " wet=" + wetPaths + " partial=" + partialPaths + " reachable=" + reachablePaths;
                     followJobPath(path);
                     state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
                 }
                 // Villager pathfinding has a finite range. A safe partial path
                 // can approach a distant shore without loading extra chunks.
+                partialPaths++;
                 var end = path.getEndNode();
                 if (end != null && colony.isInside(end.asBlockPos())
                         && villager.blockPosition().distSqr(end.asBlockPos()) >= 4) {
@@ -155,6 +163,8 @@ public class FishermanJob extends AbstractJob {
                 }
             }
         }
+        lastSearch = "candidates=" + candidates.size() + " stands=" + standCount + " null=" + nullPaths
+                + " wet=" + wetPaths + " partial=" + partialPaths + " reachable=" + reachablePaths + " progress=" + bestProgress;
         if (partial != null) {
             followJobPath(partial);
             state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;

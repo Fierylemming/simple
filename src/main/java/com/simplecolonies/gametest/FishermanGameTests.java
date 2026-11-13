@@ -107,6 +107,7 @@ public class FishermanGameTests {
                 }
                 helper.fail("Constructed harbor-to-shore flow incomplete: " + detail + " building=" + harbor.getState()
                         + " builder=" + builderJob.getState() + " fisher=" + (job[0] == null ? "not started" : job[0].getState())
+                        + " search=" + (job[0] == null ? "none" : job[0].diagnostic())
                         + " fisher pos=" + (fisher[0] == null ? "none" : fisher[0].position()) + " alive=" + alive
                         + " fish=" + first.position() + "/" + second.position() + "/" + third.position()
                         + " water=" + first.isInWater() + "/" + second.isInWater() + "/" + third.isInWater()
