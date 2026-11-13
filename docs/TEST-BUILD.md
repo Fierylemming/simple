@@ -30,7 +30,7 @@ This is an **unfinished test build**, not the completed overhaul. Back up any ex
 
 ## Tool replacement
 
-New colonies start with a stone pickaxe and axe in colony stock. The forester now requires an axe instead of harvesting by hand. Miners and foresters first use a suitable tool from stock; if none is available, they can walk to a crafting table near a completed hall or house and craft a stone replacement from three cobblestone and two sticks (sticks can be crafted from oak stock). If no table or ingredients are available, they wait rather than create a free tool. A blacksmith can also make replacement stone or iron tools. Stock withdrawal is still remote; a physical trip to collect every ingredient or tool is not implemented. Existing saves do not receive free replacement tools.
+New colonies start with a stone pickaxe and axe in colony stock. The forester now requires an axe instead of harvesting by hand. Miners and foresters first use a suitable tool from stock; if none is available, they can walk to a crafting table near a completed hall or house and craft a stone replacement from three cobblestone and two sticks (sticks can be crafted from real mixed planks or matching oak, spruce, birch, jungle, acacia, dark oak, mangrove or cherry logs). If no table or ingredients are available, they wait rather than create a free tool. A blacksmith can also make replacement stone or iron tools. Stock withdrawal is still remote; a physical trip to collect every ingredient or tool is not implemented. Existing saves do not receive free replacement tools.
 
 Natural stone and player-placed stone are indistinguishable to the mod; do not test settlement creation on a valuable stone structure. Steep, obstructed, unloaded or water-covered plots may still be rejected.
 
@@ -51,3 +51,7 @@ Natural stone and player-placed stone are indistinguishable to the mod; do not t
 ### Civic growth and starter safety
 
 Version 11 adds a builder-constructed cultural civic hall after level two, subject to housing, materials and safe-site checks. It provides a meeting destination, not trading. Citizens may attempt to meet there late in the day if idle and the hall is enclosed and reachable. Shelter movement uses vanilla brain navigation to support door AI, but full-night safety remains unverified. Starter spawn no longer builds fallback dirt platforms; if no safe location exists, a founder may be missing. Cave space beneath the checked farm foundation is left alone.
+
+### Recent forester work
+
+Foresters can harvest recognizable straight trunks up to ten logs only when they can physically reach each log from the ground or a reachable existing natural slope. They do not build scaffolding, and branched, multi-trunk and inaccessible tall trees remain unsupported. Replacement-tool crafting now accepts the timber species listed above and keeps correctly matched surplus. These changes passed [CI run 43421105592](https://github.com/Fierylemming/simple/actions/runs/43421105592). A subsequent physical birch-axe integration test passed, but its overall [CI run 43421133434](https://github.com/Fierylemming/simple/actions/runs/43421133434) failed an intermittent bedless-hall shelter test; shelter reliability remains unresolved. Neither run is a release.

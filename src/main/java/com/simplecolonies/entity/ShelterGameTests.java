@@ -39,7 +39,12 @@ public class ShelterGameTests {
         helper.succeedWhen(() -> {
             BlockPos p = villager.blockPosition();
             if (Math.abs(p.getX() - colony.getCenter().getX()) > 2 || Math.abs(p.getZ() - colony.getCenter().getZ()) > 2)
-                helper.fail("Villager has not entered hall: " + p.toShortString());
+                helper.fail("Villager has not entered hall: " + p.toShortString()
+                        + "; alive=" + villager.isAlive() + "; sleeping=" + villager.isSleeping()
+                        + "; navigationDone=" + villager.getNavigation().isDone()
+                        + "; walkTarget=" + villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET)
+                        + "; panic=" + villager.getBrain().hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.IS_PANICKING)
+                        + "; hostile=" + villager.getBrain().hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.NEAREST_HOSTILE));
             var state = helper.getLevel().getBlockState(absDoor);
             if (!state.is(Blocks.OAK_DOOR) || state.getValue(DoorBlock.OPEN)) helper.fail("Hall door is not closed");
         });
