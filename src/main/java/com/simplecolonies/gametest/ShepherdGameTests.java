@@ -116,6 +116,99 @@ public class ShepherdGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 1500)
+    public static void walksForWheatAndBreedsActualSheep(GameTestHelper helper) {
+        for (int x = 49; x <= 63; x++) for (int z = 49; z <= 63; z++) helper.setBlock(x, 0, z, Blocks.COBBLESTONE);
+        for (int n = 50; n <= 62; n++) {
+            helper.setBlock(n, 1, 50, Blocks.OAK_FENCE); helper.setBlock(n, 1, 62, Blocks.OAK_FENCE);
+            helper.setBlock(50, 1, n, Blocks.OAK_FENCE); helper.setBlock(62, 1, n, Blocks.OAK_FENCE);
+        }
+        BlockPos pasture = new BlockPos(56, 1, 56), loom = new BlockPos(55, 1, 55), chest = new BlockPos(52, 1, 54);
+        helper.setBlock(pasture, ModBlocks.BUILDING_MARKER.get()); helper.setBlock(loom, Blocks.LOOM); helper.setBlock(chest, Blocks.CHEST);
+        BlockPos center = helper.absolutePos(pasture), absChest = helper.absolutePos(chest);
+        var marker = (BuildingMarkerBlockEntity) helper.getBlockEntity(pasture);
+        marker.setBuildingType(BuildingType.PASTURE); marker.setLinkedBuildingPos(center);
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        colony.registerPlayerBuilding(new Building(BuildingType.PASTURE, center, CultureType.ROMAN, true));
+        var container = (Container) helper.getBlockEntity(chest); container.setItem(0, new ItemStack(Items.WHEAT, 4));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), absChest)) helper.fail("Could not share wheat chest");
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(58, 1, 56));
+        worker.setVillagerData(worker.getVillagerData().setProfession(ColonyProfessions.profession(JobType.SHEPHERD)));
+        worker.refreshBrain(helper.getLevel());
+        worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(loom)));
+        var first = helper.spawn(EntityType.SHEEP, new BlockPos(57, 1, 57)); first.setSheared(true);
+        var second = helper.spawn(EntityType.SHEEP, new BlockPos(59, 1, 57)); second.setSheared(true);
+        var job = new ShepherdJob(worker, colony);
+        boolean[] fed = {false, false};
+        int[] remaining = {4};
+        for (int tick = 1; tick < 1500; tick++) helper.runAtTickTime(tick, () -> {
+            boolean beforeFirst = first.isInLove(), beforeSecond = second.isInLove();
+            job.tick(helper.getLevel());
+            int now = container.getItem(0).getCount();
+            if (now < remaining[0] && worker.distanceToSqr(absChest.getX() + .5, absChest.getY() + .5, absChest.getZ() + .5) > 9)
+                helper.fail("Shepherd collected breeding wheat remotely");
+            remaining[0] = now;
+            if (!beforeFirst && first.isInLove()) {
+                if (worker.distanceToSqr(first) > 6.25 || !worker.hasLineOfSight(first)) helper.fail("Fed sheep from too far away");
+                fed[0] = true;
+            }
+            if (!beforeSecond && second.isInLove()) {
+                if (worker.distanceToSqr(second) > 6.25 || !worker.hasLineOfSight(second)) helper.fail("Fed sheep from too far away");
+                fed[1] = true;
+            }
+        });
+        helper.runAtTickTime(1350, () -> {
+            var flock = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.animal.Sheep.class,
+                    new net.minecraft.world.phys.AABB(center).inflate(6, 3, 6), s -> s.isAlive());
+            if (!fed[0] || !fed[1] || flock.stream().noneMatch(net.minecraft.world.entity.animal.Sheep::isBaby)
+                    || container.getItem(0).getCount() != 2)
+                helper.fail("Sheep breeding incomplete: fed=" + fed[0] + "," + fed[1] + "; flock=" + flock.size()
+                        + "; wheat=" + container.getItem(0).getCount() + "; state=" + job.getState());
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 650)
+    public static void breedingProtectsCustomizedWheatReserveAndFlockCap(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.COBBLESTONE);
+        BlockPos pasture = new BlockPos(8, 1, 8), loom = new BlockPos(7, 1, 7), chest = new BlockPos(5, 1, 8);
+        helper.setBlock(pasture, ModBlocks.BUILDING_MARKER.get()); helper.setBlock(loom, Blocks.LOOM); helper.setBlock(chest, Blocks.CHEST);
+        var center = helper.absolutePos(pasture); var absChest = helper.absolutePos(chest);
+        var marker = (BuildingMarkerBlockEntity) helper.getBlockEntity(pasture);
+        marker.setBuildingType(BuildingType.PASTURE); marker.setLinkedBuildingPos(center);
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        colony.registerPlayerBuilding(new Building(BuildingType.PASTURE, center, CultureType.ROMAN, true));
+        var container = (Container) helper.getBlockEntity(chest);
+        ItemStack special = new ItemStack(Items.WHEAT, 4);
+        special.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal("Keepsake"));
+        container.setItem(0, special);
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), absChest)) helper.fail("Could not share chest");
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(6, 1, 8)); worker.setNoAi(true);
+        worker.setVillagerData(worker.getVillagerData().setProfession(ColonyProfessions.profession(JobType.SHEPHERD)));
+        worker.refreshBrain(helper.getLevel());
+        worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(loom)));
+        var first = helper.spawn(EntityType.SHEEP, new BlockPos(9, 1, 8)); first.setSheared(true); first.setNoAi(true);
+        var second = helper.spawn(EntityType.SHEEP, new BlockPos(10, 1, 8)); second.setSheared(true); second.setNoAi(true);
+        var job = new ShepherdJob(worker, colony);
+        for (int tick = 1; tick < 650; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(120, () -> {
+            if (container.getItem(0).getCount() != 4 || first.isInLove() || second.isInLove()) helper.fail("Consumed customized wheat");
+            container.setItem(0, new ItemStack(Items.WHEAT, 3));
+        });
+        helper.runAtTickTime(260, () -> {
+            if (container.getItem(0).getCount() != 3 || first.isInLove() || second.isInLove()) helper.fail("Consumed the wheat reserve");
+            container.setItem(0, new ItemStack(Items.WHEAT, 4));
+            var named = helper.spawn(EntityType.SHEEP, new BlockPos(9, 1, 9));
+            named.setCustomName(net.minecraft.network.chat.Component.literal("Pet")); named.setSheared(true); named.setNoAi(true);
+            var baby = helper.spawn(EntityType.SHEEP, new BlockPos(10, 1, 9)); baby.setBaby(true); baby.setNoAi(true);
+        });
+        helper.runAtTickTime(500, () -> {
+            if (container.getItem(0).getCount() != 4 || first.isInLove() || second.isInLove())
+                helper.fail("Fed sheep despite named animals and lambs filling the flock cap");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "empty", timeoutTicks = 300)
     public static void refusesStalePastureAndUnsharedTool(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);

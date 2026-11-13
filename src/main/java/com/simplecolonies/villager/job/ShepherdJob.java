@@ -55,6 +55,13 @@ public final class ShepherdJob extends AbstractJob {
                         && marker.getBuildingType() == BuildingType.PASTURE && b.getPos().equals(marker.getLinkedBuildingPos()))
                 .min(java.util.Comparator.comparingDouble(b -> b.getPos().distSqr(villager.blockPosition()))).orElse(null);
         if (pasture == null || storage.isEmpty()) { state = JobState.STUCK; ticksUntilNextWork = 100; return; }
+        var center = pasture.getPos();
+        var sheep = level.getEntitiesOfClass(Sheep.class, new AABB(center).inflate(6, 3, 6),
+                animal -> animal.isAlive() && colony.isInside(animal.blockPosition()));
+        // Breeding already-sheared sheep does not require a pair of shears.
+        if (sheep.stream().noneMatch(a -> !a.hasCustomName() && !a.isBaby() && !a.isSheared())) {
+            breedSheep(level, sheep, storage); return;
+        }
         if (!villager.getMainHandItem().is(Items.SHEARS)) {
             if (!villager.getMainHandItem().isEmpty()) { state = JobState.NEEDS_TOOL; ticksUntilNextWork = 100; return; }
             var inventory = villager.getInventory();
@@ -82,13 +89,11 @@ public final class ShepherdJob extends AbstractJob {
                 if (!villager.getMainHandItem().is(Items.SHEARS)) { state = JobState.NEEDS_TOOL; return; }
             }
         }
-        var center = pasture.getPos();
         var shears = villager.getMainHandItem();
-        var sheep = level.getEntitiesOfClass(Sheep.class, new AABB(center).inflate(6, 3, 6),
-                animal -> animal.isAlive() && !animal.hasCustomName() && colony.isInside(animal.blockPosition())
-                        && animal.isShearable(null, shears, level, animal.blockPosition()));
-        var target = sheep.stream().min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
-        if (target == null) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
+        var target = sheep.stream().filter(animal -> !animal.hasCustomName()
+                        && animal.isShearable(null, shears, level, animal.blockPosition()))
+                .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
+        if (target == null) { breedSheep(level, sheep, storage); return; }
         if (villager.distanceToSqr(target) > 6.25 || !villager.hasLineOfSight(target)) {
             var path = villager.getNavigation().createPath(target, 1);
             if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
@@ -114,6 +119,73 @@ public final class ShepherdJob extends AbstractJob {
         villager.getLookControl().setLookAt(target);
         villager.swing(InteractionHand.MAIN_HAND);
         state = JobState.WORKING; ticksUntilNextWork = 20;
+    }
+
+    /** Feed a small flock only from real, plain wheat in shared storage.
+     * The worker walks to collect each item and to each sheep; vanilla animal
+     * AI, not this job, creates offspring. Named sheep count toward the cap
+     * but are never fed. Keep at least two wheat in storage as a reserve. */
+    private void breedSheep(ServerLevel level, java.util.List<Sheep> flock, java.util.List<BlockPos> storage) {
+        if (flock.size() >= 4) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
+        var adults = flock.stream().filter(a -> !a.hasCustomName() && a.getAge() == 0).toList();
+        var target = adults.stream().filter(a -> !a.isInLove() && a.canFallInLove())
+                .filter(a -> adults.stream().anyMatch(other -> other != a && (other.isInLove() || other.canFallInLove())))
+                .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
+        if (target == null) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
+        boolean partnerWaiting = adults.stream().anyMatch(a -> a != target && a.isInLove());
+        var inventory = villager.getInventory();
+        int carriedSlot = -1;
+        for (int i = 0; i < inventory.getContainerSize(); i++) if (plainWheat(inventory.getItem(i))) {
+            carriedSlot = i; break;
+        }
+        if (carriedSlot < 0) {
+            if (!inventory.canAddItem(new ItemStack(Items.WHEAT))) { state = JobState.STUCK; ticksUntilNextWork = 100; return; }
+            var warehouse = colony.getWarehouseManager();
+            int amount = 0;
+            for (var pos : storage) {
+                var container = warehouse.courierContainer(level, pos);
+                if (container == null) continue;
+                for (int slot = 0; slot < container.getContainerSize(); slot++) {
+                    var stack = container.getItem(slot);
+                    if (plainWheat(stack)) amount += stack.getCount();
+                }
+            }
+            if (amount < (partnerWaiting ? 3 : 4)) { state = JobState.NEEDS_RESOURCE; ticksUntilNextWork = 100; return; }
+            var source = storage.stream().filter(pos -> {
+                var c = warehouse.courierContainer(level, pos);
+                if (c == null) return false;
+                for (int i = 0; i < c.getContainerSize(); i++) if (plainWheat(c.getItem(i))) return true;
+                return false;
+            }).min(java.util.Comparator.comparingDouble(p -> p.distSqr(villager.blockPosition()))).orElse(null);
+            if (source == null) { state = JobState.NEEDS_RESOURCE; ticksUntilNextWork = 100; return; }
+            if (!walkTo(source)) return;
+            var container = warehouse.courierContainer(level, source);
+            if (container == null) { state = JobState.STUCK; return; }
+            for (int i = 0; i < container.getContainerSize(); i++) {
+                if (!plainWheat(container.getItem(i))) continue;
+                var taken = container.removeItem(i, 1);
+                container.setChanged();
+                var remainder = inventory.addItem(taken);
+                if (!remainder.isEmpty()) villager.spawnAtLocation(remainder);
+                state = JobState.WORKING; ticksUntilNextWork = 10; return;
+            }
+            state = JobState.NEEDS_RESOURCE; return;
+        }
+        if (villager.distanceToSqr(target) > 6.25 || !villager.hasLineOfSight(target)) {
+            var path = villager.getNavigation().createPath(target, 1);
+            if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
+            villager.getNavigation().moveTo(path, 0.7); state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
+        }
+        if (!target.isAlive() || target.hasCustomName() || target.getAge() != 0 || target.isInLove() || !target.canFallInLove()) return;
+        ItemStack fed = inventory.removeItem(carriedSlot, 1);
+        if (fed.isEmpty()) return;
+        target.setInLove(null);
+        villager.getLookControl().setLookAt(target); villager.swing(InteractionHand.MAIN_HAND);
+        state = JobState.WORKING; ticksUntilNextWork = 20;
+    }
+
+    private static boolean plainWheat(ItemStack stack) {
+        return stack.is(Items.WHEAT) && ItemStack.isSameItemSameComponents(stack, Items.WHEAT.getDefaultInstance());
     }
 
     private static void merge(ItemStack cargo, ItemStack incoming) {
