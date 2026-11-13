@@ -258,7 +258,13 @@ public class WoodcutterGameTests {
             if (!reloaded[0] || !helper.getBlockState(ROOT).is(sapling)
                     || colony.getWarehouseCount(helper.getLevel(), "minecraft:" + name + "_log") != logs.size()
                     || worker[0].getMainHandItem().getDamageValue() != logs.size())
-                helper.fail("Crooked " + name + " incomplete: " + job[0].getState());
+                helper.fail("Crooked " + name + " incomplete: state=" + job[0].getState()
+                        + "; reloaded=" + reloaded[0] + "; root=" + helper.getBlockState(ROOT)
+                        + "; stock=" + colony.getWarehouseCount(helper.getLevel(), "minecraft:" + name + "_log")
+                        + "; expected=" + logs.size() + "; tool=" + worker[0].getMainHandItem()
+                        + "; damage=" + worker[0].getMainHandItem().getDamageValue()
+                        + "; position=" + worker[0].blockPosition().toShortString()
+                        + "; memory=" + worker[0].getWoodcutterMemory());
         });
     }
 

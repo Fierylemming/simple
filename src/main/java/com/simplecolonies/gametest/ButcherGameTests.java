@@ -156,16 +156,17 @@ public class ButcherGameTests {
         Cow second = helper.spawn(EntityType.COW, new BlockPos(58, 1, 56));
         var job = new ButcherJob(worker, colony);
         boolean[] fed = {false, false};
+        long[] fedAt = {-1, -1};
         for (int tick = 1; tick < 1300; tick++) helper.runAtTickTime(tick, () -> {
             boolean firstBefore = first.isInLove(), secondBefore = second.isInLove();
             job.tick(helper.getLevel());
             if (!firstBefore && first.isInLove()) {
                 if (worker.distanceToSqr(first) > 6.25) helper.fail("Fed cow from too far away");
-                fed[0] = true;
+                fed[0] = true; fedAt[0] = helper.getLevel().getGameTime();
             }
             if (!secondBefore && second.isInLove()) {
                 if (worker.distanceToSqr(second) > 6.25) helper.fail("Fed cow from too far away");
-                fed[1] = true;
+                fed[1] = true; fedAt[1] = helper.getLevel().getGameTime();
             }
         });
         helper.runAtTickTime(1200, () -> {
@@ -173,7 +174,9 @@ public class ButcherGameTests {
             if (!fed[0] || !fed[1] || herd.stream().noneMatch(Cow::isBaby)
                     || !first.isAlive() || !second.isAlive() || colony.getWarehouseCount(helper.getLevel(), "minecraft:wheat") != 2)
                 helper.fail("Breeding incomplete: fed=" + fed[0] + "," + fed[1] + " herd=" + herd.size()
-                        + " wheat=" + colony.getWarehouseCount(helper.getLevel(), "minecraft:wheat") + " state=" + job.getState());
+                        + " wheat=" + colony.getWarehouseCount(helper.getLevel(), "minecraft:wheat") + " state=" + job.getState()
+                        + " fedAt=" + fedAt[0] + "," + fedAt[1] + " love=" + first.isInLove() + "," + second.isInLove()
+                        + " positions=" + first.blockPosition().toShortString() + "," + second.blockPosition().toShortString());
             helper.succeed();
         });
     }
