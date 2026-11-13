@@ -23,6 +23,9 @@ public class Building {
     private int planVersion = 13;
     private HouseTimber houseTimber = HouseTimber.OAK;
     private int houseVariant;
+    // Versioned, resumable tier-two smithy wing. Null for all other plans.
+    private BlockPos upgradeSite;
+    private int upgradePlanVersion;
     private final Map<String, Integer> requiredResources = new HashMap<>();
     private final Queue<BlockPlacement> placements = new ArrayDeque<>();
     private final List<BlockPlacement> completed = new ArrayList<>();
@@ -61,6 +64,12 @@ public class Building {
     public BuildingState getState() { return state; }
     public void setState(BuildingState state) { this.state = state; }
     public int getLevel() { return level; }
+    public boolean isUpgrading() { return upgradeSite != null && state != BuildingState.COMPLETE; }
+    public BlockPos getUpgradeSite() { return upgradeSite; }
+    public boolean canBuildSmithyWing() {
+        return !isPlayerPlaced && type == BuildingType.BLACKSMITH && planVersion >= 7
+                && level == 1 && state == BuildingState.COMPLETE && upgradeSite == null;
+    }
     public int getHouseVariant() { return houseVariant; }
     public static int houseVariantAt(BlockPos pos) { return LevelOneHouses.variant(pos); }
     /** Footprint for newly queued houses; legacy saved plans remain unchanged. */
@@ -79,6 +88,15 @@ public class Building {
         // Preserve the original plans of all in-progress saves. Worksite plans were introduced in v4.
         placements.clear();
         requiredResources.clear();
+        if (upgradeSite != null) {
+            if (upgradePlanVersion != 1) return; // Unknown future plan: never replace it with an old one.
+            var plan = new ArrayList<BlockPlacement>();
+            LevelOneWorksites.generate(BuildingType.BLACKSMITH, upgradeSite, culture, (at, block) ->
+                    plan.add(placement(at, planVersion >= 12 ? houseTimber.replaceOak(block) : block)));
+            plan.add(placement(upgradeSite, net.minecraft.world.level.block.Blocks.SMITHING_TABLE.defaultBlockState()));
+            addPlan(plan, false);
+            return;
+        }
         if (type != BuildingType.HOUSE) {
             if (planVersion >= 4 && LevelOneWorksites.supports(type, planVersion)) {
                 var plan = new ArrayList<BlockPlacement>();
@@ -146,7 +164,49 @@ public class Building {
     }
 
     public boolean hasSupportedPlan() {
-        return !isPlayerPlaced && (type == BuildingType.HOUSE || (planVersion >= 4 && LevelOneWorksites.supports(type, planVersion)));
+        return !isPlayerPlaced && (upgradeSite == null || upgradePlanVersion == 1)
+                && (type == BuildingType.HOUSE || (planVersion >= 4 && LevelOneWorksites.supports(type, planVersion)));
+    }
+
+    /** Preview is deterministic and does not change the building or stock. */
+    public List<BlockPlacement> previewSmithyWing(BlockPos site) {
+        if (!canBuildSmithyWing()) return List.of();
+        var plan = new ArrayList<BlockPlacement>();
+        LevelOneWorksites.generate(BuildingType.BLACKSMITH, site, culture, (at, block) ->
+                plan.add(placement(at, planVersion >= 12 ? houseTimber.replaceOak(block) : block)));
+        plan.add(placement(site, net.minecraft.world.level.block.Blocks.SMITHING_TABLE.defaultBlockState()));
+        // Use the same deterministic ordering as the builder and reload.
+        plan.sort(Comparator.comparingInt(p -> {
+            int y = p.pos.getY() - pos.getY();
+            if (y >= 3) return 1;
+            if (p.state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock) return 3;
+            return 2;
+        }));
+        return List.copyOf(plan);
+    }
+
+    public boolean beginSmithyWing(BlockPos site) {
+        if (!canBuildSmithyWing() || site == null) return false;
+        upgradeSite = site.immutable(); upgradePlanVersion = 1;
+        completed.clear(); loadSchematicPlacements();
+        state = BuildingState.UNDER_CONSTRUCTION;
+        return true;
+    }
+
+    /** Upgrade cancellation preserves the completed parent and all placed blocks. */
+    public boolean cancelUpgrade() {
+        if (!isUpgrading()) return false;
+        upgradeSite = null; upgradePlanVersion = 0;
+        placements.clear(); completed.clear(); requiredResources.clear();
+        state = BuildingState.COMPLETE;
+        return true;
+    }
+
+    /** Only award the tier after the builder has installed every real block. */
+    public void finishConstruction() {
+        if (!placements.isEmpty()) return;
+        if (upgradeSite != null) level = 2;
+        state = BuildingState.COMPLETE;
     }
 
     public void upgradeToNextLevel() {
@@ -210,6 +270,10 @@ public class Building {
         tag.putInt("houseVariant", houseVariant);
         if (planVersion >= 12) tag.putString("houseTimber", houseTimber.id);
         tag.putBoolean("isPlayerPlaced", isPlayerPlaced);
+        if (upgradeSite != null) {
+            tag.putLong("upgradeSite", upgradeSite.asLong());
+            tag.putInt("upgradePlanVersion", upgradePlanVersion);
+        }
         CompoundTag req = new CompoundTag();
         requiredResources.forEach((k,v) -> req.putInt(k, v));
         tag.put("required", req);
@@ -229,11 +293,17 @@ public class Building {
         b.houseVariant = tag.contains("houseVariant") ? Math.floorMod(tag.getInt("houseVariant"), LevelOneHouses.VARIANTS) : LevelOneHouses.variant(pos);
         b.state = BuildingState.valueOf(tag.getString("state"));
         b.level = tag.getInt("level");
+        if (!isPlayer && type == BuildingType.BLACKSMITH && tag.contains("upgradeSite")) {
+            b.upgradeSite = BlockPos.of(tag.getLong("upgradeSite"));
+            b.upgradePlanVersion = tag.getInt("upgradePlanVersion");
+        }
         // Regenerate the deterministic plan and discard exactly the completed prefix.
         if (!isPlayer && b.state != BuildingState.COMPLETE) {
             b.loadSchematicPlacements();
             int done = Math.max(0, tag.getInt("completedPlacements"));
             while (done-- > 0 && b.getNextPlacement() != null) b.markPlaced(b.getNextPlacement());
+        } else if (b.state == BuildingState.COMPLETE) {
+            b.placements.clear(); b.completed.clear(); b.requiredResources.clear();
         }
         return b;
     }

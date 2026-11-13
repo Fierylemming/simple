@@ -23,6 +23,8 @@ public class TownHallMenu extends AbstractContainerMenu {
     public final Colony colony;
     public final BlockPos pos;
     public final Player player;
+    // Freeze button targets when the menu opens. Lists may change while it is open.
+    private final List<Building> buildingTargets;
 
     // Button IDs — keep old + new
     public static final int BTN_TAB_OVERVIEW = 0;
@@ -54,6 +56,7 @@ public class TownHallMenu extends AbstractContainerMenu {
         this.colony = colony;
         this.pos = pos;
         this.player = inv.player;
+        this.buildingTargets = List.copyOf(colony.getBuildings());
     }
 
     public static TownHallMenu fromNetwork(int containerId, Inventory inv, RegistryFriendlyByteBuf buf) {
@@ -162,10 +165,9 @@ public class TownHallMenu extends AbstractContainerMenu {
             if (level == null) return true;
             if (!isLeader) { deny(player); return true; }
             var buildings = colony.getBuildings();
-            if (idx >= 0 && idx < buildings.size()) {
-                Building b = buildings.get(idx);
-                BuildingUpgrade.tryUpgrade(colony, b, level, player);
-            }
+            if (idx >= 0 && idx < buildingTargets.size() && buildings.contains(buildingTargets.get(idx))) {
+                BuildingUpgrade.tryUpgrade(colony, buildingTargets.get(idx), level, player);
+            } else player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cBuilding list changed; reopen the town hall."), true);
             return true;
         }
         return super.clickMenuButton(player, id);

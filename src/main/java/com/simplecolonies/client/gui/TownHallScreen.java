@@ -46,6 +46,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
     private int currentTab = 0;
     private int citizenScroll = 0;
     private int researchScroll = 0;
+    private int buildingScroll = 0;
 
     private final int W = 340;
     private final int H = 285;
@@ -105,6 +106,19 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
                 String[] bt = {"House","Farm","Lumber","Mine","Barracks"};
                 int[] ids2 = {TownHallMenu.BTN_ADD_BUILDING_HOUSE,TownHallMenu.BTN_ADD_BUILDING_FARM,TownHallMenu.BTN_ADD_BUILDING_LUMBER,TownHallMenu.BTN_ADD_BUILDING_MINE,TownHallMenu.BTN_ADD_BUILDING_BARRACKS};
                 for (int i=0;i<bt.length;i++) { final int idx=i; addRenderableWidget(Button.builder(Component.literal(bt[idx]), b->send(ids2[idx])).bounds(btnX+idx*64, btnY, 60, 16).build()); }
+                var buildings = menu.colony.getBuildings();
+                if (buildings.size() > 4) {
+                    addRenderableWidget(Button.builder(Component.literal("▲"), b->{ if(buildingScroll>0){buildingScroll--; rebuild();}}).bounds(x+W-22, y+77, 14, 12).build());
+                    addRenderableWidget(Button.builder(Component.literal("▼"), b->{ if(buildingScroll+4<buildings.size()){buildingScroll++; rebuild();}}).bounds(x+W-22, y+192, 14, 12).build());
+                }
+                for (int i=buildingScroll; i<Math.min(buildingScroll+4, Math.min(100, buildings.size())); i++) {
+                    var building = buildings.get(i);
+                    if (building.canBuildSmithyWing() || (building.isPlayerPlaced && building.getType()==BuildingType.HOUSE && building.getLevel()<5)) {
+                        final int index=i;
+                        addRenderableWidget(Button.builder(Component.literal("Upgrade"), b->send(TownHallMenu.BTN_UPGRADE_BUILDING_BASE+index))
+                                .bounds(x+244, y+78+(i-buildingScroll)*32, 58, 16).build());
+                    }
+                }
             }
             case 3 -> {}
             case 4 -> {
@@ -257,8 +271,9 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
     private void drawBuildings(GuiGraphics g,int x,int y, com.simplecolonies.colony.Colony c){
         g.drawString(font, "Buildings ("+c.getBuildings().size()+") — place Building Marker on your build to register", x,y, C_TEXT,false); y+=10;
         if(c.getBuildings().isEmpty()){ drawHintBox(g,x,y,"None yet. Buttons above queue a site, or place Building Marker and choose House/Farm/Lumber/Mine/Barracks."); return; }
-        for(var b: c.getBuildings()){
-            if(y>topPos+210) break;
+        var buildings = c.getBuildings();
+        for (int i=buildingScroll; i<Math.min(buildingScroll+4, buildings.size()); i++) {
+            var b = buildings.get(i);
             boolean done = b.getState()==com.simplecolonies.building.BuildingState.COMPLETE;
             drawBuildingCard(g,x,y,b,done);
             y+=32;
@@ -272,7 +287,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
         g.drawString(font, b.getType().displayName+" Lv"+b.getLevel()+"  ["+b.getState()+"]", x+24,y+2, done?C_GREEN: C_TEXT,false);
         g.drawString(font, b.getPos().toShortString(), x+24,y+13, C_TEXT_MUTED,false);
         // upgrade hint
-        String up = b.isPlayerPlaced ? (b.getType()==BuildingType.HOUSE ? "Marker: "+menu.colony.houseShelterCapacity(b)+" shelter slots; no beds" : "Player-designated building") : "Generated plan; visual upgrades not implemented";
+        String up = b.isPlayerPlaced ? (b.getType()==BuildingType.HOUSE ? "Marker: "+menu.colony.houseShelterCapacity(b)+" shelter slots; no beds" : "Player-designated building") : (b.getType()==BuildingType.BLACKSMITH ? (b.isUpgrading()?"Smithy wing under construction":b.getLevel()==1?"Lv2: build a second workshop":"Lv2 workshop wing") : "Generated plan; no upgrade yet");
         g.drawString(font, up, x+24,y+22, b.getLevel()>=5?C_GOLD:C_TEXT_MID,false);
     }
     private String BuildingIcon(BuildingType t){ return switch(t){ case HOUSE->"⌂"; case FARM->"⚘"; case LUMBERJACK_HUT->"♠"; case MINE->"⛏"; case WAREHOUSE->"▣"; case BARRACKS->"⚔"; case BLACKSMITH->"⚒"; case BAKERY->"◯"; default->"⬢"; }; }

@@ -112,6 +112,42 @@ public class ConstructionGameTests {
     }
 
     @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void builderCreatesRealSmithyWing(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos relative = new BlockPos(8, 1, 9), origin = helper.absolutePos(relative);
+        helper.setBlock(relative, Blocks.SMITHING_TABLE);
+        Colony colony = new Colony(0, CultureType.ROMAN, origin);
+        colony.addCitizen(new com.simplecolonies.colony.CitizenData(java.util.UUID.randomUUID(), "Builder", com.simplecolonies.villager.job.JobType.BUILDER));
+        Building smithy = new Building(BuildingType.BLACKSMITH, origin, CultureType.ROMAN, com.simplecolonies.building.HouseTimber.SPRUCE);
+        smithy.setState(BuildingState.COMPLETE);
+        colony.registerPlayerBuilding(smithy);
+        colony.depositToWarehouse("minecraft:spruce_log", 300);
+        colony.depositToWarehouse("minecraft:cobblestone", 300);
+        colony.depositToWarehouse("minecraft:coal", 10);
+        var level = helper.getLevel();
+        if (com.simplecolonies.building.BuildingUpgrade.canUpgrade(colony, smithy, level)) helper.fail("No spare smithing table: should not queue");
+        colony.depositToWarehouse("minecraft:smithing_table", 1);
+        helper.setBlock(relative.east(5), Blocks.OBSIDIAN);
+        helper.setBlock(relative.west(5), Blocks.OBSIDIAN);
+        if (com.simplecolonies.building.BuildingUpgrade.canUpgrade(colony, smithy, level)) helper.fail("Blocked plots should not queue");
+        helper.setBlock(relative.east(5), Blocks.AIR);
+        if (!com.simplecolonies.building.BuildingUpgrade.tryUpgrade(colony, smithy, level, null)) helper.fail("Clear, stocked wing should queue");
+        if (smithy.getLevel() != 1 || colony.getWarehouseCount(level, "minecraft:smithing_table") != 1) helper.fail("Queueing prematurely awarded tier or spent stock");
+        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(13, 1, 2));
+        BuilderJob job = new BuilderJob(worker, colony);
+        for (int tick = 1; tick < 2400; tick++) helper.runAtTickTime(tick, () -> job.tick(level));
+        helper.succeedWhen(() -> {
+            if (smithy.getState() != BuildingState.COMPLETE || smithy.getLevel() != 2
+                    || !level.getBlockState(origin).is(Blocks.SMITHING_TABLE)
+                    || !level.getBlockState(origin.east(5)).is(Blocks.SMITHING_TABLE)
+                    || !level.getBlockState(origin.east(6)).is(Blocks.FURNACE)
+                    || colony.getWarehouseCount(level, "minecraft:smithing_table") != 0)
+                helper.fail("Wing incomplete: " + smithy.getState() + " worker=" + job.getState()
+                        + " next=" + (smithy.getNextPlacement() == null ? "none" : smithy.getNextPlacement().pos));
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
     public static void builderHut(GameTestHelper helper) { runBuilder(helper, BuildingType.BUILDER_HUT, Blocks.ANVIL, CultureType.ROMAN, -1); }
 
     @GameTest(template = "empty", timeoutTicks = 2400)

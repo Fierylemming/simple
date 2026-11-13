@@ -708,6 +708,12 @@ public class Colony {
         if (matches.size() != 1) return false;
         Building building = matches.getFirst();
         if (building.isPlayerPlaced || building.getState() == com.simplecolonies.building.BuildingState.COMPLETE) return false;
+        if (building.isUpgrading()) {
+            if (!building.cancelUpgrade()) return false;
+            expansionStatus = "Upgrade cancelled; placed blocks remain";
+            ColonyManager.getInstance().markDirty(this);
+            return true;
+        }
         buildings.remove(building);
         expansionStatus = "Plan cancelled; placed blocks remain";
         ColonyManager.getInstance().markDirty(this);

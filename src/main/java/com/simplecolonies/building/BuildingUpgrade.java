@@ -65,6 +65,7 @@ public class BuildingUpgrade {
     }
 
     public static boolean canUpgrade(Colony colony, Building building, net.minecraft.server.level.ServerLevel level) {
+        if (building.canBuildSmithyWing()) return findSmithyWing(colony, building, level) != null;
         if (!building.isPlayerPlaced || building.getType() != BuildingType.HOUSE) return false;
         // Other marker upgrades currently change no functioning capacity. Never
         // charge for an upgrade that neither builds nor does useful work.
@@ -82,6 +83,14 @@ public class BuildingUpgrade {
             if (player != null) player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cUpgrade unavailable or insufficient materials for " + building.getType().displayName + " to Lv" + (building.getLevel()+1)), true);
             return false;
         }
+        if (building.canBuildSmithyWing()) {
+            var site = findSmithyWing(colony, building, level);
+            if (site == null || !building.beginSmithyWing(site)) return false;
+            com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
+            if (player != null) player.displayClientMessage(net.minecraft.network.chat.Component.literal(
+                    "§aQueued a smithy wing at " + site.toShortString() + "; builder consumes materials as placed."), false);
+            return true;
+        }
         // The marker upgrade changes capacity only: it does not build a larger
         // shell or create beds/workstations. Consume live stock transactionally.
         Map<String, Integer> paid = new HashMap<>();
@@ -98,5 +107,46 @@ public class BuildingUpgrade {
         colony.broadcast(net.minecraft.network.chat.Component.literal("§6Updated marker capacity for " + building.getType().displayName + " at " + building.getPos().toShortString() + " to level " + building.getLevel()));
         com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
         return true;
+    }
+
+    /** A tier-two wing is an independent five-by-five workshop adjacent to the
+     * old one. It adds a real smithing table and furnace without demolishing
+     * the original structure. Only loaded, level, empty terrain is eligible. */
+    private static net.minecraft.core.BlockPos findSmithyWing(Colony colony, Building building,
+            net.minecraft.server.level.ServerLevel level) {
+        if (level == null || !level.dimension().equals(net.minecraft.world.level.Level.OVERWORLD)
+                || !colony.getBuildings().contains(building) || !building.canBuildSmithyWing()
+                || !level.isLoaded(building.getPos()) || !level.getBlockState(building.getPos()).is(net.minecraft.world.level.block.Blocks.SMITHING_TABLE)
+                || colony.getCitizens().stream().noneMatch(c -> !c.isChild && c.job == com.simplecolonies.villager.job.JobType.BUILDER)
+                || colony.getBuildings().stream().anyMatch(b -> b != building && b.hasSupportedPlan() && b.getState() != BuildingState.COMPLETE)) return null;
+        var stock = colony.getWarehouseSnapshot(level);
+        for (var site : java.util.List.of(building.getPos().east(5), building.getPos().west(5))) {
+            if (colony.getBuildings().stream().anyMatch(b -> b != building && b.getPos().distSqr(site) < 144)) continue;
+            if (!clearWing(level, colony, site)) continue;
+            if (ConstructionCrafting.canBuild(stock, building.previewSmithyWing(site))) return site;
+        }
+        return null;
+    }
+
+    private static boolean clearWing(net.minecraft.server.level.ServerLevel level, Colony colony, net.minecraft.core.BlockPos site) {
+        for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
+            var ground = site.offset(x, -1, z);
+            if (!colony.isInside(ground) || !level.isLoaded(ground)) return false;
+            var soil = level.getBlockState(ground);
+            if (!soil.isFaceSturdy(level, ground, net.minecraft.core.Direction.UP)
+                    || !(soil.is(net.minecraft.tags.BlockTags.DIRT) || soil.is(net.minecraft.tags.BlockTags.BASE_STONE_OVERWORLD)
+                        || soil.is(net.minecraft.world.level.block.Blocks.SAND) || soil.is(net.minecraft.world.level.block.Blocks.RED_SAND)
+                        || soil.is(net.minecraft.world.level.block.Blocks.GRAVEL))) return false;
+            for (int y = 0; y <= 3; y++) {
+                var p = site.offset(x, y, z);
+                if (!colony.isInside(p) || !level.isLoaded(p) || !level.getBlockState(p).isAir()
+                        || level.getBlockEntity(p) != null || !level.getFluidState(p).isEmpty()) return false;
+            }
+        }
+        var entrance = site.north(3);
+        return colony.isInside(entrance) && level.isLoaded(entrance) && level.isLoaded(entrance.above())
+                && level.isLoaded(entrance.below()) && level.getBlockState(entrance).isAir()
+                && level.getBlockState(entrance.above()).isAir()
+                && level.getBlockState(entrance.below()).isFaceSturdy(level, entrance.below(), net.minecraft.core.Direction.UP);
     }
 }

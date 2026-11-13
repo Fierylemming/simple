@@ -146,4 +146,44 @@ class WorksitePlanTest {
         assertTrue(b.getRemainingPlacements().stream().anyMatch(p -> p.pos.equals(BlockPos.ZERO.east()) && p.state.is(Blocks.FURNACE)));
     }
 
+    @Test void smithyWingResumesAndOnlyAwardsTierAtCompletion() {
+        var smithy = new Building(BuildingType.BLACKSMITH, BlockPos.ZERO, CultureType.GREEK, HouseTimber.BIRCH);
+        smithy.setState(BuildingState.COMPLETE);
+        var wing = BlockPos.ZERO.east(5);
+        var preview = smithy.previewSmithyWing(wing);
+        assertTrue(preview.stream().anyMatch(p -> p.pos.equals(wing) && p.state.is(Blocks.SMITHING_TABLE)));
+        assertTrue(preview.stream().anyMatch(p -> p.pos.equals(wing.east()) && p.state.is(Blocks.FURNACE)));
+        assertTrue(smithy.beginSmithyWing(wing));
+        assertEquals(1, smithy.getLevel());
+        smithy.finishConstruction();
+        assertEquals(1, smithy.getLevel());
+        for (int i = 0; i < 12; i++) smithy.markPlaced(smithy.getNextPlacement());
+        var loaded = Building.load(smithy.save());
+        assertEquals(smithy.getNextPlacement().pos, loaded.getNextPlacement().pos);
+        assertEquals(smithy.getNextPlacement().state, loaded.getNextPlacement().state);
+        assertEquals(smithy.getRequiredResources(), loaded.getRequiredResources());
+        while (loaded.getNextPlacement() != null) loaded.markPlaced(loaded.getNextPlacement());
+        loaded.finishConstruction();
+        assertEquals(2, loaded.getLevel());
+        assertEquals(BuildingState.COMPLETE, loaded.getState());
+        assertEquals(wing, Building.load(loaded.save()).getUpgradeSite());
+        assertFalse(loaded.canBuildSmithyWing());
+        assertTrue(smithy.cancelUpgrade());
+        assertEquals(BuildingState.COMPLETE, smithy.getState());
+        assertEquals(1, smithy.getLevel());
+        assertNull(smithy.getUpgradeSite());
+    }
+
+    @Test void unknownUpgradePlanCannotBeBuiltOrMisreadAsOriginalSmithy() {
+        var smithy = new Building(BuildingType.BLACKSMITH, BlockPos.ZERO, CultureType.ROMAN);
+        smithy.setState(BuildingState.COMPLETE);
+        assertTrue(smithy.beginSmithyWing(BlockPos.ZERO.east(5)));
+        var save = smithy.save();
+        save.putInt("upgradePlanVersion", 99);
+        var loaded = Building.load(save);
+        assertFalse(loaded.hasSupportedPlan());
+        assertTrue(loaded.getRemainingPlacements().isEmpty());
+        assertEquals(99, loaded.save().getInt("upgradePlanVersion"));
+    }
+
 }

@@ -74,7 +74,7 @@ public class BuilderJob extends AbstractJob {
         for (int i = 0; i < com.simplecolonies.config.ColonyConfig.MAX_BUILDER_BLOCKS_PER_TICK.get(); i++) {
             Building.BlockPlacement next = currentJob.getNextPlacement();
             if (next == null) {
-                currentJob.setState(BuildingState.COMPLETE);
+                currentJob.finishConstruction();
                 // A constructed warehouse may become the courier hub only if the
                 // player explicitly designated its barrel as colony storage.
                 if (currentJob.getType() == com.simplecolonies.building.BuildingType.WAREHOUSE
