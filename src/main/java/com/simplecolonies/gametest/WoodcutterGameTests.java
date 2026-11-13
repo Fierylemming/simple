@@ -140,6 +140,86 @@ public class WoodcutterGameTests {
         });
     }
 
+    private static void makeSquareDarkOak(GameTestHelper helper) {
+        makeTree(helper);
+        for (int x = -1; x <= 2; x++) for (int z = -1; z <= 2; z++) {
+            if (x < 0 || x > 1 || z < 0 || z > 1) helper.setBlock(ROOT.offset(x, 3, z), Blocks.DARK_OAK_LEAVES);
+        }
+        for (int x = 0; x < 2; x++) for (int z = 0; z < 2; z++) for (int y = 0; y < 4; y++)
+            helper.setBlock(ROOT.offset(x, y, z), Blocks.DARK_OAK_LOG);
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 2200)
+    public static void harvestsSquareDarkOakAndReplantsFourRealSaplings(GameTestHelper helper) {
+        makeSquareDarkOak(helper);
+        Colony colony = colony(helper);
+        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        colony.depositToWarehouse("minecraft:dark_oak_sapling", 4);
+        ColonyVillager[] worker = {helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56))};
+        WoodcutterJob[] job = {new WoodcutterJob(worker[0], colony)};
+        boolean[] reloaded = {false};
+        int[] cuts = {0};
+        for (int tick = 1; tick < 2200; tick++) helper.runAtTickTime(tick, () -> {
+            boolean[] before = new boolean[16];
+            for (int y = 0; y < 4; y++) for (int x = 0; x < 2; x++) for (int z = 0; z < 2; z++)
+                before[y * 4 + x * 2 + z] = helper.getBlockState(ROOT.offset(x, y, z)).is(Blocks.DARK_OAK_LOG);
+            job[0].tick(helper.getLevel());
+            for (int y = 0; y < 4; y++) for (int x = 0; x < 2; x++) for (int z = 0; z < 2; z++) {
+                var p = ROOT.offset(x, y, z);
+                if (before[y * 4 + x * 2 + z] && !helper.getBlockState(p).is(Blocks.DARK_OAK_LOG)) {
+                    if (worker[0].getEyePosition().distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(helper.absolutePos(p))) > 20.25)
+                        helper.fail("Square trunk cut out of reach");
+                    cuts[0]++;
+                }
+            }
+            if (!reloaded[0] && cuts[0] >= 2) {
+                CompoundTag saved = new CompoundTag();
+                worker[0].saveWithoutId(saved);
+                if (!saved.getCompound("woodcutterMemory").getBoolean("square")) helper.fail("Square progress was not saved");
+                var replacement = ModEntities.COLONY_VILLAGER.get().create(helper.getLevel());
+                if (replacement == null) { helper.fail("Could not recreate worker"); return; }
+                worker[0].discard();
+                replacement.load(saved);
+                helper.getLevel().addFreshEntity(replacement);
+                worker[0] = replacement;
+                job[0] = new WoodcutterJob(replacement, colony);
+                reloaded[0] = true;
+            }
+        });
+        helper.succeedWhen(() -> {
+            if (!reloaded[0] || cuts[0] != 16 || colony.getWarehouseCount(helper.getLevel(), "minecraft:dark_oak_log") != 16
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:dark_oak_sapling") != 0
+                    || worker[0].getMainHandItem().getDamageValue() != 16)
+                helper.fail("Square tree incomplete: cuts=" + cuts[0] + " job=" + job[0].getState() + " memory=" + worker[0].getWoodcutterMemory());
+            for (int x = 0; x < 2; x++) for (int z = 0; z < 2; z++)
+                if (!helper.getBlockState(ROOT.offset(x, 0, z)).is(Blocks.DARK_OAK_SAPLING)) helper.fail("Missing planted sapling");
+        });
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 800)
+    public static void squareTreeStopsWhenNewConstructionAppears(GameTestHelper helper) {
+        makeSquareDarkOak(helper);
+        Colony colony = colony(helper);
+        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(53, 1, 56));
+        var job = new WoodcutterJob(worker, colony);
+        boolean[] blocked = {false};
+        for (int tick = 1; tick < 800; tick++) helper.runAtTickTime(tick, () -> {
+            job.tick(helper.getLevel());
+            if (!blocked[0] && colony.getWarehouseCount(helper.getLevel(), "minecraft:dark_oak_log") > 0) {
+                helper.setBlock(ROOT.offset(3, 0, 0), Blocks.OAK_PLANKS);
+                blocked[0] = true;
+            }
+        });
+        helper.runAtTickTime(750, () -> {
+            if (!blocked[0] || !helper.getBlockState(ROOT).is(Blocks.DARK_OAK_LOG)
+                    || !helper.getBlockState(ROOT.offset(3, 0, 0)).is(Blocks.OAK_PLANKS)
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:dark_oak_log") != 1)
+                helper.fail("Square-tree safety check did not stop after construction appeared");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 1400)
     public static void harvestsAndReplantsShortSpruce(GameTestHelper helper) {
         harvestSpecies(helper, Blocks.SPRUCE_LOG, Blocks.SPRUCE_LEAVES, Blocks.SPRUCE_SAPLING, "spruce");

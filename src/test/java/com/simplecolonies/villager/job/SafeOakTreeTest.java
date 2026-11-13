@@ -72,6 +72,36 @@ class SafeOakTreeTest {
         f.protectedBlocks.add(ROOT.above(1));
         assertFalse(SafeOakTree.safePartialTrunk(f, ROOT, trunk, 3));
     }
+    private Fake squareTree() {
+        Fake f = new Fake();
+        for (int x = 0; x < 2; x++) for (int z = 0; z < 2; z++) {
+            f.put(ROOT.offset(x, -1, z), Block.SOIL);
+            for (int y = 0; y < 4; y++) f.put(ROOT.offset(x, y, z), Block.LOG);
+        }
+        for (int x = -1; x <= 2; x++) for (int z = -1; z <= 2; z++)
+            if (x < 0 || x > 1 || z < 0 || z > 1) f.put(ROOT.offset(x, 3, z), Block.LEAF);
+        return f;
+    }
+    @Test void rootedSquareTrunkRequiresAnIntactNaturalEnvelope() {
+        Fake f = squareTree();
+        var logs = SafeOakTree.squareTrunk(f, ROOT);
+        assertEquals(16, logs.size());
+        assertEquals(ROOT, logs.getFirst());
+        assertTrue(SafeOakTree.safePartialSquare(f, ROOT, logs, logs.size()));
+        f.put(logs.getLast(), Block.AIR);
+        assertTrue(SafeOakTree.safePartialSquare(f, ROOT, logs, 15));
+        f.put(ROOT.offset(3, 1, 0), Block.STRUCTURE);
+        assertFalse(SafeOakTree.safePartialSquare(f, ROOT, logs, 15));
+        f = squareTree(); f.put(ROOT.offset(2, 2, 0), Block.LOG);
+        assertTrue(SafeOakTree.squareTrunk(f, ROOT).isEmpty());
+        f = squareTree(); f.put(ROOT.offset(1, -1, 0), Block.STRUCTURE);
+        assertTrue(SafeOakTree.squareTrunk(f, ROOT).isEmpty());
+        f = squareTree(); f.protectedBlocks.add(ROOT.offset(1, 3, 1));
+        assertTrue(SafeOakTree.squareTrunk(f, ROOT).isEmpty());
+        f = squareTree(); f.unloaded.add(ROOT.offset(4, 2, 0));
+        assertTrue(SafeOakTree.squareTrunk(f, ROOT).isEmpty());
+    }
+
     @Test void plantingRespectsProtectedAndBuiltAreas() {
         Fake f = new Fake(); f.put(ROOT.below(), Block.SOIL);
         assertTrue(SafeOakTree.safePlantingArea(f, ROOT));
