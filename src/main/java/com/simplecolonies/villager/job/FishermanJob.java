@@ -25,10 +25,18 @@ public class FishermanJob extends AbstractJob {
     public String diagnostic() { return lastSearch; }
     public FishermanJob(Villager villager, Colony colony) { super(villager, colony, JobType.FISHERMAN); }
 
+    private boolean inDanger() {
+        var brain = villager.getBrain();
+        return brain.isActive(net.minecraft.world.entity.schedule.Activity.PANIC)
+                || brain.hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.IS_PANICKING)
+                || brain.hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.NEAREST_HOSTILE)
+                || brain.hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.HURT_BY);
+    }
+
     @Override protected void onTick(ServerLevel level) {
         var brain = villager.getBrain();
         var pathMemory = net.minecraft.world.entity.ai.memory.MemoryModuleType.PATH;
-        boolean panic = brain.hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.IS_PANICKING);
+        boolean panic = inDanger();
         if (jobPath != null && !panic && state == JobState.GOING_TO_WORK
                 && villager.getNavigation().getPath() == jobPath && !jobPath.isDone()) {
             // Villager door AI consults PATH memory, not PathNavigation directly.
@@ -57,7 +65,7 @@ public class FishermanJob extends AbstractJob {
     }
 
     @Override protected void doWork(ServerLevel level) {
-        if (villager.getBrain().hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.IS_PANICKING)) {
+        if (inDanger()) {
             lastSearch = "panicking";
             state = JobState.IDLE; ticksUntilNextWork = 20; return;
         }

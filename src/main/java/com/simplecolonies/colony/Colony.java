@@ -549,7 +549,7 @@ public class Colony {
                 .filter(com.simplecolonies.entity.ColonyVillager.class::isInstance)
                 .map(com.simplecolonies.entity.ColonyVillager.class::cast)
                 .filter(v -> v.isAlive() && v.getColonyId() == id && v.getAge() == 0 && !v.isTrading() && !v.isSleeping()
-                        && !v.getBrain().hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.IS_PANICKING)
+                        && !v.isInDanger()
                         && level.isLoaded(v.blockPosition()) && isInside(v.blockPosition()))
                 .sorted(java.util.Comparator.comparing(v -> v.getUUID())).toList();
         com.simplecolonies.entity.ColonyVillager first = null, second = null;

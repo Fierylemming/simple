@@ -127,6 +127,11 @@ public class ShelterGameTests {
             blocker.discard();
             worker.seekShelter(helper.getLevel(), colony);
             if (helper.getLevel().getBlockState(absoluteDoor).getValue(DoorBlock.OPEN)) helper.fail("Did not close the remembered empty door");
+            var powered = opened.setValue(DoorBlock.POWERED, true);
+            helper.getLevel().setBlock(absoluteDoor, powered, 2);
+            helper.getLevel().setBlock(absoluteDoor.above(), powered.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3);
+            worker.seekShelter(helper.getLevel(), colony);
+            if (!helper.getLevel().getBlockState(absoluteDoor).getValue(DoorBlock.OPEN)) helper.fail("Closed a powered door");
             // A cached interior cannot hold a villager in a newly breached hall.
             helper.setBlock(hall.east(3), Blocks.AIR);
             helper.setBlock(hall.east(3).above(), Blocks.AIR);
@@ -138,9 +143,13 @@ public class ShelterGameTests {
                 helper.fail("Cached shelter overrode a walk after the hall was breached");
             helper.setBlock(hall.east(3), Blocks.COBBLESTONE);
             helper.setBlock(hall.east(3).above(), Blocks.COBBLESTONE);
-            worker.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.IS_PANICKING, true);
-            if (!worker.getBrain().hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.IS_PANICKING))
-                helper.fail("Panic test memory is not registered on this villager brain");
+            var threat = helper.spawn(net.minecraft.world.entity.EntityType.ZOMBIE, new BlockPos(2, 1, 2));
+            worker.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.NEAREST_HOSTILE, threat);
+            if (!worker.getBrain().hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.NEAREST_HOSTILE))
+                helper.fail("Hostile test memory is not registered on this villager brain");
+            worker.getBrain().setActiveActivityIfPossible(net.minecraft.world.entity.schedule.Activity.PANIC);
+            if (!worker.getBrain().isActive(net.minecraft.world.entity.schedule.Activity.PANIC))
+                helper.fail("Could not enter the vanilla panic activity");
             worker.seekShelter(helper.getLevel(), colony);
             walk = worker.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET);
             if (walk.isEmpty() || !walk.get().getTarget().currentBlockPosition().equals(outside))

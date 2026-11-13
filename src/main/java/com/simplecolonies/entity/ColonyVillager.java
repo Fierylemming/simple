@@ -99,6 +99,13 @@ public class ColonyVillager extends Villager {
         return jobInstance == null ? "IDLE" : jobInstance.getState().name();
     }
     public boolean isColonyCitizen() { return colonyId != -1; }
+    /** Villager brains use the PANIC activity, not necessarily IS_PANICKING memory. */
+    public boolean isInDanger() {
+        return getBrain().isActive(net.minecraft.world.entity.schedule.Activity.PANIC)
+                || getBrain().hasMemoryValue(MemoryModuleType.IS_PANICKING)
+                || getBrain().hasMemoryValue(MemoryModuleType.NEAREST_HOSTILE)
+                || getBrain().hasMemoryValue(MemoryModuleType.HURT_BY);
+    }
     public net.minecraft.world.item.ItemStack getCourierCargo() { return courierCargo; }
     public void setCourierCargo(net.minecraft.world.item.ItemStack cargo) { courierCargo = cargo; }
     public net.minecraft.world.item.ItemStack getCourierCargoExtra() { return courierCargoExtra; }
@@ -290,7 +297,7 @@ public class ColonyVillager extends Villager {
             // Non-combat citizens seek shelter at night, even when there are no beds.
             if (sl.isNight() && !job.isCombat && !isTrading()) {
                 seekShelter(sl, colony);
-            } else if (!isBaby() && jobInstance != null && (job.isCombat || updateWorkstation(sl, colony))) {
+            } else if (!isBaby() && jobInstance != null && (job.isCombat || !isInDanger() && updateWorkstation(sl, colony))) {
                 jobInstance.tick(sl);
             }
 
@@ -343,8 +350,7 @@ public class ColonyVillager extends Villager {
     void seekCivicMeeting(ServerLevel level, Colony colony) {
         if (isBaby() || isTrading() || isSleeping() || !getNavigation().isDone()
                 || getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET)
-                || getBrain().hasMemoryValue(MemoryModuleType.IS_PANICKING)
-                || getBrain().hasMemoryValue(MemoryModuleType.NEAREST_HOSTILE)) return;
+                || isInDanger()) return;
         var halls = colony.getBuildings().stream()
                 .filter(b -> b.getType() == com.simplecolonies.building.BuildingType.MARKET
                         && b.getState() == com.simplecolonies.building.BuildingState.COMPLETE
@@ -367,16 +373,14 @@ public class ColonyVillager extends Villager {
     private boolean availableForConversation(ServerLevel level) {
         if (colonyId == -1 || isBaby() || isTrading() || isSleeping() || level.getGameTime() < nextConversationTime
                 || !getNavigation().isDone() || getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET)
-                || getBrain().hasMemoryValue(MemoryModuleType.IS_PANICKING)
-                || getBrain().hasMemoryValue(MemoryModuleType.NEAREST_HOSTILE)) return false;
+                || isInDanger()) return false;
         return jobInstance == null || (jobInstance.getState() != AbstractJob.JobState.WORKING
                 && jobInstance.getState() != AbstractJob.JobState.GOING_TO_WORK);
     }
 
     void seekShelter(ServerLevel level, Colony colony) {
         // Do not interrupt panic, trading or sleep with shelter navigation.
-        if (isTrading() || isSleeping() || getBrain().hasMemoryValue(MemoryModuleType.IS_PANICKING)
-                || getBrain().hasMemoryValue(MemoryModuleType.NEAREST_HOSTILE)) return;
+        if (isTrading() || isSleeping() || isInDanger()) return;
         rememberAndCloseShelterDoors(level, colony);
         if (level.getGameTime() < nextShelterAttempt) {
             redirectShelteredWander(level, colony);
