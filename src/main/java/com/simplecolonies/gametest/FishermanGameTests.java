@@ -92,7 +92,14 @@ public class FishermanGameTests {
                     var claimed = helper.getLevel().getPoiManager().take(
                             fisher[0].getVillagerData().getProfession().heldJobSite(),
                             (type, pos) -> pos.equals(absoluteSite), absoluteSite, 1);
-                    if (claimed.isEmpty()) { helper.fail("Fisherman could not claim the harbor barrel POI"); return; }
+                    if (claimed.isEmpty()) {
+                        helper.fail("Fisherman could not claim harbor POI: type="
+                                + helper.getLevel().getPoiManager().getType(absoluteSite)
+                                + " builderJob=" + builder.getBrain().getMemory(MemoryModuleType.JOB_SITE)
+                                + " builderPotential=" + builder.getBrain().getMemory(MemoryModuleType.POTENTIAL_JOB_SITE)
+                                + " block=" + helper.getLevel().getBlockState(absoluteSite));
+                        return;
+                    }
                     fisher[0].getBrain().setMemory(MemoryModuleType.JOB_SITE,
                             GlobalPos.of(helper.getLevel().dimension(), claimed.get()));
                     job[0] = new FishermanJob(fisher[0], colony);
