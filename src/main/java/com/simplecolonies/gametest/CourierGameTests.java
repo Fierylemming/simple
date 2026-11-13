@@ -27,6 +27,7 @@ public class CourierGameTests {
         Container from = (Container) helper.getBlockEntity(source);
         Container to = (Container) helper.getBlockEntity(hub);
         from.setItem(0, new ItemStack(Items.WHEAT, 16));
+        from.setItem(1, new ItemStack(Items.COAL, 7));
         from.setChanged();
         Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(56, 1, 56)));
         colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(source));
@@ -38,6 +39,8 @@ public class CourierGameTests {
         for (int tick = 1; tick < 1200; tick++) helper.runAtTickTime(tick, () -> {
             job.tick(helper.getLevel());
             if (!villager.getCourierCargo().isEmpty()) {
+                if (!villager.getCourierCargoExtra().isEmpty() || !from.getItem(1).is(Items.COAL)
+                        || from.getItem(1).getCount() != 7) helper.fail("Unresearched courier carried more than one stack");
                 if (!sawCargo[0] && villager.distanceToSqr(helper.absolutePos(source).getX() + 0.5,
                         helper.absolutePos(source).getY() + 0.5, helper.absolutePos(source).getZ() + 0.5) > 9)
                     helper.fail("Courier picked up cargo remotely");
@@ -53,6 +56,7 @@ public class CourierGameTests {
         });
         helper.succeedWhen(() -> {
             if (!sawCargo[0] || !villager.getCourierCargo().isEmpty() || !from.getItem(0).isEmpty()
+                    || !from.getItem(1).is(Items.COAL) || from.getItem(1).getCount() != 7
                     || !to.getItem(0).is(Items.WHEAT) || to.getItem(0).getCount() != 16)
                 helper.fail("Cargo not delivered: " + job.getState() + " at " + villager.blockPosition().toShortString());
         });

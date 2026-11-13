@@ -4,7 +4,7 @@ This is an **unfinished test build**, not the completed overhaul. Back up any ex
 
 ## Get the build
 
-1. Open [CI run 43443381337](https://github.com/Fierylemming/simple/actions/runs/43443381337) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `6ba00ad`, version `0.1.29`. The build and GameTests passed, but the fishing integration has failed intermittently in other runs and still needs in-game verification. Extract the zip.
+1. Open [CI run 43447520959](https://github.com/Fierylemming/simple/actions/runs/43447520959) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `9963fd5`, version `0.1.29`. The build and GameTests passed, but the fishing integration has failed intermittently in other runs and still needs in-game verification. Extract the zip.
 2. In Prism Launcher, create a **Minecraft 1.21.1, NeoForge 21.1.265, Java 21** instance. Place the extracted SimpleColonies jar in that instance's `mods` folder; remove any older SimpleColonies jar first. Do not install it alongside another copy. For a server, install the same version on both client and server.
 3. Start a new world with cheats enabled, in the Overworld. No public overhaul release has been made.
 
@@ -76,7 +76,7 @@ Foresters can now cut a rooted, unbranched two-by-two dark oak, spruce or jungle
 
 A level-three settlement with a completed civic hall, enough housing, a builder, suitable loaded terrain and sufficient materials may queue a compact version-13 library. The builder installs two real bookshelves from stock; bookshelves are not crafted automatically. Completed libraries, including player-designated ones, shorten the automatic-research retry interval from six daily ticks to three after the next attempt. An unfinished plan has no effect. Old unsupported library plans remain unchanged. Automatic research requires twice its full cost in stock, spends only the normal cost and retains the rest; manual research may use the exact cost. Daily research still catches up during time skips.
 
-Tight Housing research costs eight **white wool** and sixteen oak planks after Stone Tools and adds two logical shelter slots per completed house, without adding beds or enlarging its shell. Existing unlocks and assignments persist. The unimplemented warehouse-capacity and schematic-cannon research cannot be purchased or automatically unlocked; old saved unlocks are retained. [CI run 43443381337](https://github.com/Fierylemming/simple/actions/runs/43443381337) passed the build and full GameTests, including library construction, automatic planning, research costs, housing and reload tests. This is still a preview, not the completed overhaul.
+Tight Housing research costs eight **white wool** and sixteen oak planks after Stone Tools and adds two logical shelter slots per completed house, without adding beds or enlarging its shell. Existing unlocks and assignments persist. The unimplemented schematic-cannon research cannot be purchased or automatically unlocked; old saved unlocks are retained. Warehouse Network now grants two-stack courier capacity as described below. [CI run 43443381337](https://github.com/Fierylemming/simple/actions/runs/43443381337) passed the build and full GameTests, including library construction, automatic planning, research costs, housing and reload tests. This is still a preview, not the completed overhaul.
 
 ### Safety follow-up
 
