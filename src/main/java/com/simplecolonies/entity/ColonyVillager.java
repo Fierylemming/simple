@@ -44,6 +44,7 @@ public class ColonyVillager extends Villager {
     private long nextConversationTime;
     // Ephemeral: never persisted; recomputed from a real enclosed shelter each night.
     private BlockPos restingShelterSpot;
+    private long restingShelterSince;
 
     // Needs
     private int hungerTicks = 0; // increments daily if no food, leads to damage
@@ -344,8 +345,11 @@ public class ColonyVillager extends Villager {
                     || (level.getGameTime() % 60 == 0 && (!usableShelterSpot(level, restingShelterSpot)
                     || !ShelterSafety.enclosed(level, restingShelterSpot)))) restingShelterSpot = null;
             else {
-                // Vanilla idle wandering can otherwise walk straight back outside.
-                getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+                // Give vanilla navigation and door-closing behaviour time to finish
+                // before suppressing new idle walks. Interrupting an arrival path
+                // immediately can leave the door open behind the villager.
+                if (level.getGameTime() - restingShelterSince >= 80)
+                    getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
                 return;
             }
         }
@@ -378,7 +382,7 @@ public class ColonyVillager extends Villager {
             for (var target : candidates) {
                 if (blockPosition().equals(target)) {
                     restingShelterSpot = target;
-                    getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+                    restingShelterSince = level.getGameTime();
                     return;
                 }
                 var path = getNavigation().createPath(target, 0);
