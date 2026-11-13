@@ -36,6 +36,24 @@ class ConstructionCraftingTest {
         assertEquals(3, s.count("minecraft:torch"));
         assertEquals(2, s.count("minecraft:oak_planks"));
     }
+    @Test void craftsEachWoodWithoutTurningItIntoAnotherSpecies() {
+        for (HouseTimber wood : HouseTimber.values()) {
+            Stock s = new Stock();
+            String prefix = "minecraft:" + wood.id + "_";
+            s.add(prefix + "log", 3);
+            assertTrue(ConstructionCrafting.take(s, prefix + "door"));
+            assertEquals(1, s.count(prefix + "log"));
+            assertEquals(2, s.count(prefix + "planks"));
+            assertEquals(2, s.count(prefix + "door"));
+            if (wood != HouseTimber.OAK) assertEquals(0, s.count("minecraft:oak_door"));
+        }
+        Stock s = new Stock(); s.add("minecraft:birch_log", 10);
+        assertFalse(ConstructionCrafting.take(s, "minecraft:oak_door"));
+        assertEquals(10, s.count("minecraft:birch_log"));
+        s.add("minecraft:coal", 1);
+        assertTrue(ConstructionCrafting.take(s, "minecraft:torch"));
+        assertEquals(2, s.count("minecraft:birch_planks"));
+    }
     @Test void consumesExistingOutputBeforeCrafting() {
         Stock s = new Stock(); s.add("minecraft:oak_slab", 1);
         assertTrue(ConstructionCrafting.take(s, "minecraft:oak_slab"));

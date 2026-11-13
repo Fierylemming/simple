@@ -20,10 +20,30 @@ class HousePlanVersionTest {
         assertTrue(b.getRequiredResources().containsKey("minecraft:oak_stairs"));
         assertTrue(b.getRequiredResources().containsKey("minecraft:oak_slab"));
         var tag = b.save();
-        assertEquals(11, tag.getInt("planVersion"));
+        assertEquals(12, tag.getInt("planVersion"));
         Building restored = Building.load(tag);
         assertEquals(b.getRequiredResources(), restored.getRequiredResources());
         assertEquals(tag.getInt("houseVariant"), restored.save().getInt("houseVariant"));
+    }
+    @Test void nonOakPlansKeepTimberAndProgressAcrossReload() {
+        for (var wood : HouseTimber.values()) {
+            Building b = new Building(BuildingType.HOUSE, new BlockPos(4, 64, 8), CultureType.GREEK, wood);
+            assertTrue(b.getRequiredResources().containsKey("minecraft:" + wood.id + "_door"));
+            if (wood != HouseTimber.OAK) assertFalse(b.getRequiredResources().containsKey("minecraft:oak_planks"));
+            for (int i = 0; i < 5; i++) b.markPlaced(b.getNextPlacement());
+            Building restored = Building.load(b.save());
+            assertEquals(wood.id, restored.save().getString("houseTimber"));
+            assertEquals(b.getRequiredResources(), restored.getRequiredResources());
+            assertEquals(b.getNextPlacement().pos, restored.getNextPlacement().pos);
+            assertEquals(b.getNextPlacement().state, restored.getNextPlacement().state);
+        }
+    }
+    @Test void versionElevenAlwaysRestoresOriginalOakPlan() {
+        var tag = new Building(BuildingType.HOUSE, BlockPos.ZERO, CultureType.GREEK, HouseTimber.BIRCH).save();
+        tag.putInt("planVersion", 11);
+        Building legacy = Building.load(tag);
+        assertTrue(legacy.getRequiredResources().containsKey("minecraft:oak_door"));
+        assertFalse(legacy.getRequiredResources().containsKey("minecraft:birch_door"));
     }
     @Test void allCultureVariantsHaveDoorsRoofsAndNoBeds() {
         for (CultureType culture : CultureType.values()) for (int variant = 0; variant < 3; variant++) {

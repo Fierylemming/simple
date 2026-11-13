@@ -8,58 +8,67 @@ public final class ConstructionCrafting {
         void add(String id, int amount);
     }
     private record Recipe(int planks, int output) {}
-    private static final String LOG = "minecraft:oak_log", PLANKS = "minecraft:oak_planks";
-    private static Recipe recipe(String id) {
-        return switch (id) {
-            case "minecraft:oak_stairs" -> new Recipe(6, 4);
-            case "minecraft:oak_slab" -> new Recipe(3, 6);
-            case "minecraft:oak_door" -> new Recipe(6, 3);
-            default -> null;
-        };
+    private static final String STICK = "minecraft:stick";
+    private static String woodId(HouseTimber wood, String suffix) { return "minecraft:" + wood.id + "_" + suffix; }
+    private static Recipe recipe(HouseTimber wood, String id) {
+        if (id.equals(woodId(wood, "stairs"))) return new Recipe(6, 4);
+        if (id.equals(woodId(wood, "slab"))) return new Recipe(3, 6);
+        if (id.equals(woodId(wood, "door"))) return new Recipe(6, 3);
+        return null;
     }
 
     /** Consumes one output, crafting whole recipes and retaining surplus. */
     public static boolean take(Stock stock, String id) {
-        if (id == null || id.isEmpty()) return true; // second half of a multiblock
+        if (id == null || id.isEmpty()) return true;
         if (stock.count(id) > 0) return stock.consume(id, 1);
-        if (id.equals(PLANKS)) {
-            if (stock.count(LOG) < 1 || !stock.consume(LOG, 1)) return false;
-            stock.add(PLANKS, 4);
-            return stock.consume(PLANKS, 1);
-        }
         if (id.equals("minecraft:furnace")) {
             if (stock.count("minecraft:cobblestone") < 8 || !stock.consume("minecraft:cobblestone", 8)) return false;
             stock.add(id, 1);
             return stock.consume(id, 1);
         }
         if (id.equals("minecraft:torch")) {
-            int missingPlanks = stock.count("minecraft:stick") > 0 ? 0 : Math.max(0, 2 - stock.count(PLANKS));
-            int neededLogs = (missingPlanks + 3) / 4;
-            if (stock.count("minecraft:coal") < 1 || stock.count(LOG) < neededLogs) return false;
-            if (neededLogs > 0) {
-                if (!stock.consume(LOG, neededLogs)) return false;
-                stock.add(PLANKS, 4 * neededLogs);
+            if (stock.count("minecraft:coal") < 1) return false;
+            if (stock.count(STICK) == 0) {
+                HouseTimber source = null;
+                for (var wood : HouseTimber.all()) {
+                    if (stock.count(woodId(wood, "planks")) >= 2 || stock.count(woodId(wood, "log")) > 0) {
+                        source = wood; break;
+                    }
+                }
+                if (source == null) return false;
+                String planks = woodId(source, "planks");
+                if (stock.count(planks) < 2) {
+                    if (!stock.consume(woodId(source, "log"), 1)) return false;
+                    stock.add(planks, 4);
+                }
+                if (!stock.consume(planks, 2)) return false;
+                stock.add(STICK, 4);
             }
-            if (stock.count("minecraft:stick") == 0) {
-                if (!stock.consume(PLANKS, 2)) return false;
-                stock.add("minecraft:stick", 4);
-            }
-            if (!stock.consume("minecraft:stick", 1) || !stock.consume("minecraft:coal", 1)) return false;
+            if (!stock.consume(STICK, 1) || !stock.consume("minecraft:coal", 1)) return false;
             stock.add(id, 4);
             return stock.consume(id, 1);
         }
-        Recipe recipe = recipe(id);
-        if (recipe == null) return false;
-        int missing = Math.max(0, recipe.planks - stock.count(PLANKS));
-        int logs = (missing + 3) / 4;
-        if (stock.count(LOG) < logs) return false;
-        if (logs > 0) {
-            if (!stock.consume(LOG, logs)) return false;
-            stock.add(PLANKS, logs * 4);
+        for (var wood : HouseTimber.all()) {
+            String planks = woodId(wood, "planks"), log = woodId(wood, "log");
+            if (id.equals(planks)) {
+                if (stock.count(log) < 1 || !stock.consume(log, 1)) return false;
+                stock.add(planks, 4);
+                return stock.consume(planks, 1);
+            }
+            Recipe recipe = recipe(wood, id);
+            if (recipe == null) continue;
+            int missing = Math.max(0, recipe.planks - stock.count(planks));
+            int logs = (missing + 3) / 4;
+            if (stock.count(log) < logs) return false;
+            if (logs > 0) {
+                if (!stock.consume(log, logs)) return false;
+                stock.add(planks, logs * 4);
+            }
+            if (!stock.consume(planks, recipe.planks)) return false;
+            stock.add(id, recipe.output);
+            return stock.consume(id, 1);
         }
-        if (!stock.consume(PLANKS, recipe.planks)) return false;
-        stock.add(id, recipe.output);
-        return stock.consume(id, 1);
+        return false;
     }
     /** Check a whole plan against a copy so expansion never spends stock just to test it. */
     public static boolean canBuild(java.util.Map<String, Integer> stock, java.util.List<Building.BlockPlacement> placements) {

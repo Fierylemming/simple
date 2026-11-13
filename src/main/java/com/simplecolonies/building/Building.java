@@ -20,7 +20,8 @@ public class Building {
     private BuildingState state = BuildingState.BLUEPRINT;
     private int level = 1;
     // Version 1 is the old all-log plan, retained for buildings saved before 0.1.28.
-    private int planVersion = 11;
+    private int planVersion = 12;
+    private HouseTimber houseTimber = HouseTimber.OAK;
     private int houseVariant;
     private final Map<String, Integer> requiredResources = new HashMap<>();
     private final Queue<BlockPlacement> placements = new ArrayDeque<>();
@@ -31,7 +32,16 @@ public class Building {
         this(type, pos, culture, false);
     }
 
+    public Building(BuildingType type, BlockPos pos, CultureType culture, HouseTimber timber) {
+        this(type, pos, culture, false, timber);
+    }
+
     public Building(BuildingType type, BlockPos pos, CultureType culture, boolean isPlayerPlaced) {
+        this(type, pos, culture, isPlayerPlaced, HouseTimber.OAK);
+    }
+
+    private Building(BuildingType type, BlockPos pos, CultureType culture, boolean isPlayerPlaced, HouseTimber timber) {
+        this.houseTimber = timber == null ? HouseTimber.OAK : timber;
         this.type = type;
         this.pos = pos;
         this.culture = culture;
@@ -79,7 +89,8 @@ public class Building {
         }
         if (planVersion >= 5) {
             var plan = new ArrayList<BlockPlacement>();
-            CulturalHousePlans.generate(pos, culture, houseVariant, (at, state) -> plan.add(placement(at, state)));
+            CulturalHousePlans.generate(pos, culture, houseVariant, (at, state) ->
+                    plan.add(placement(at, planVersion >= 12 ? houseTimber.replaceOak(state) : state)));
             addPlan(plan, true);
             return;
         }
@@ -196,6 +207,7 @@ public class Building {
         tag.putInt("level", level);
         tag.putInt("planVersion", planVersion);
         tag.putInt("houseVariant", houseVariant);
+        if (planVersion >= 12 && type == BuildingType.HOUSE) tag.putString("houseTimber", houseTimber.id);
         tag.putBoolean("isPlayerPlaced", isPlayerPlaced);
         CompoundTag req = new CompoundTag();
         requiredResources.forEach((k,v) -> req.putInt(k, v));
@@ -212,6 +224,7 @@ public class Building {
         boolean isPlayer = tag.getBoolean("isPlayerPlaced");
         Building b = new Building(type, pos, culture, isPlayer);
         b.planVersion = tag.contains("planVersion") ? tag.getInt("planVersion") : 1;
+        b.houseTimber = b.planVersion >= 12 ? HouseTimber.byId(tag.getString("houseTimber")) : HouseTimber.OAK;
         b.houseVariant = tag.contains("houseVariant") ? Math.floorMod(tag.getInt("houseVariant"), LevelOneHouses.VARIANTS) : LevelOneHouses.variant(pos);
         b.state = BuildingState.valueOf(tag.getString("state"));
         b.level = tag.getInt("level");

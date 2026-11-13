@@ -76,6 +76,28 @@ public class HousingGrowthGameTests {
     }
 
     @GameTest(template = "isolated", timeoutTicks = 400)
+    public static void queuesHouseFromBirchWithoutSpendingToPlan(GameTestHelper helper) {
+        Colony colony = setup(helper);
+        citizen(colony, JobType.BUILDER);
+        for (int i = 0; i < 3; i++) citizen(colony, JobType.UNEMPLOYED);
+        colony.depositToWarehouse("minecraft:birch_log", 300);
+        colony.depositToWarehouse("minecraft:cobblestone", 300);
+        colony.depositToWarehouse("minecraft:coal", 10);
+        var stock = colony.getWarehouseSnapshot(helper.getLevel());
+        helper.runAtTickTime(200, () -> {
+            colony.tick(helper.getLevel());
+            var house = colony.getBuildings().stream().filter(b -> b.getType() == BuildingType.HOUSE && b.hasSupportedPlan()).findFirst().orElse(null);
+            if (house == null || !house.save().getString("houseTimber").equals("birch")
+                    || !house.getRequiredResources().containsKey("minecraft:birch_door")
+                    || !stock.equals(colony.getWarehouseSnapshot(helper.getLevel())))
+                helper.fail("Non-oak house was not queued without spending stock: " + colony.getExpansionStatus());
+            var restored = Colony.load(colony.save()).getBuildings().stream().filter(b -> b.getType() == BuildingType.HOUSE).findFirst().orElseThrow();
+            if (!restored.getRequiredResources().equals(house.getRequiredResources())) helper.fail("Birch plan changed after reload");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 400)
     public static void grownSettlementQueuesAffordableCivicHall(GameTestHelper helper) {
         Colony original = setup(helper);
         citizen(original, JobType.BUILDER);

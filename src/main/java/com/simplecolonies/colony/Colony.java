@@ -278,9 +278,17 @@ public class Colony {
             // Different footprints have different costs. Check all three before
             // searching, then select a site whose actual variant is affordable.
             boolean[] affordable = new boolean[3];
+            var selectedTimber = new com.simplecolonies.building.HouseTimber[3];
             for (int i = 0; i < 3; i++) {
-                Building sample = new Building(BuildingType.HOUSE, center.east(i), culture);
-                affordable[sample.getHouseVariant()] = com.simplecolonies.building.ConstructionCrafting.canBuild(stock, sample.getRemainingPlacements());
+                for (var timber : com.simplecolonies.building.HouseTimber.values()) {
+                    Building sample = new Building(BuildingType.HOUSE, center.east(i), culture, timber);
+                    int variant = sample.getHouseVariant();
+                    if (com.simplecolonies.building.ConstructionCrafting.canBuild(stock, sample.getRemainingPlacements())) {
+                        affordable[variant] = true;
+                        selectedTimber[variant] = timber;
+                        break;
+                    }
+                }
             }
             if (!affordable[0] && !affordable[1] && !affordable[2]) {
                 housingReason = "Not enough materials for any house";
@@ -288,7 +296,7 @@ public class Colony {
                 BlockPos site = findHouseSite(level, affordable);
                 if (site == null) housingReason = "No safe loaded site for an affordable house";
                 else {
-                    queueExpansion(new Building(BuildingType.HOUSE, site, culture));
+                    queueExpansion(new Building(BuildingType.HOUSE, site, culture, selectedTimber[Building.houseVariantAt(site)]));
                     return;
                 }
             }
