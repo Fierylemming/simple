@@ -101,7 +101,8 @@ public class BuilderJob extends AbstractJob {
                 if (!level.isLoaded(upper)) { state = JobState.STUCK; deferCurrent(level, 200); return; }
                 var above = level.getBlockState(upper);
                 var expected = next.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER);
-                if (!above.equals(expected) && !above.isAir() && !above.canBeReplaced()) {
+                if (!above.equals(expected) && (!above.getFluidState().isEmpty()
+                        || (!above.isAir() && !above.canBeReplaced()))) {
                     currentJob.setState(BuildingState.BLOCKED); state = JobState.STUCK;
                     ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 200); return;
                 }
@@ -114,7 +115,7 @@ public class BuilderJob extends AbstractJob {
                 currentJob.markPlaced(next); // already present, do not charge twice
             } else {
                 // Never demolish somebody's building or a solid obstruction.
-                if (!existing.isAir() && !existing.canBeReplaced()) {
+                if (!existing.getFluidState().isEmpty() || (!existing.isAir() && !existing.canBeReplaced())) {
                     currentJob.setState(BuildingState.BLOCKED);
                     ColonyManager.getInstance().markDirty(colony);
                     state = JobState.STUCK;

@@ -119,6 +119,27 @@ public class ConstructionGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void builderDoesNotReplaceNewFluid(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos origin = helper.absolutePos(new BlockPos(8, 1, 9));
+        Colony colony = new Colony(0, CultureType.ROMAN, origin);
+        colony.depositToWarehouse("minecraft:cobblestone", 200);
+        Building building = new Building(BuildingType.MINE, origin, CultureType.ROMAN);
+        colony.registerPlayerBuilding(building);
+        var next = building.getNextPlacement();
+        // A source introduced after the site was queued must not be overwritten.
+        helper.getLevel().setBlock(next.pos, Blocks.WATER.defaultBlockState(), 2);
+        var villager = helper.spawn(EntityType.VILLAGER, new BlockPos(5, 1, 6));
+        BuilderJob job = new BuilderJob(villager, colony);
+        for (int tick = 1; tick < 200; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.succeedWhen(() -> {
+            if (building.getState() != BuildingState.BLOCKED) helper.fail("Fluid did not block the plan");
+            if (helper.getLevel().getFluidState(next.pos).isEmpty()) helper.fail("Builder overwrote the fluid");
+            if (colony.getWarehouseCount("minecraft:cobblestone") != 200) helper.fail("Blocked placement spent stock");
+        });
+    }
+
     @GameTest(template = "empty", timeoutTicks = 400)
     public static void builderCanWorkOtherPlansWhileOneIsBlocked(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
