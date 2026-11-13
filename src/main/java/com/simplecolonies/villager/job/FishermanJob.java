@@ -39,6 +39,14 @@ public class FishermanJob extends AbstractJob {
         }
     }
 
+    private void clearJobPath() {
+        if (jobPath == null) return;
+        if (villager.getNavigation().getPath() == jobPath) villager.getNavigation().stop();
+        var memory = net.minecraft.world.entity.ai.memory.MemoryModuleType.PATH;
+        if (villager.getBrain().getMemory(memory).orElse(null) == jobPath) villager.getBrain().eraseMemory(memory);
+        jobPath = null;
+    }
+
     private void followJobPath(net.minecraft.world.level.pathfinder.Path path) {
         if (villager.getNavigation().moveTo(path, 0.7)) {
             jobPath = path;
@@ -53,15 +61,15 @@ public class FishermanJob extends AbstractJob {
         var site = villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE);
         if (site.isEmpty() || !site.get().dimension().equals(level.dimension()) || !level.isLoaded(site.get().pos())
                 || !colony.isInside(site.get().pos()) || !level.getBlockState(site.get().pos()).is(Blocks.BARREL)) {
-            state = JobState.STUCK; ticksUntilNextWork = 100; return;
+            clearJobPath(); state = JobState.STUCK; ticksUntilNextWork = 100; return;
         }
         var harbor = colony.getBuildings().stream()
                 .filter(b -> b.getType() == BuildingType.HARBOR && b.getState() == BuildingState.COMPLETE)
                 .filter(b -> level.isLoaded(b.getPos()) && b.getPos().distSqr(site.get().pos()) <= 144)
                 .min(Comparator.comparingDouble(b -> b.getPos().distSqr(site.get().pos()))).orElse(null);
-        if (harbor == null) { state = JobState.STUCK; ticksUntilNextWork = 100; return; }
+        if (harbor == null) { clearJobPath(); state = JobState.STUCK; ticksUntilNextWork = 100; return; }
         if (colony.getWarehouseCount(level, "minecraft:cod") + colony.getWarehouseCount(level, "minecraft:salmon") >= 8) {
-            state = JobState.IDLE; ticksUntilNextWork = 200; return;
+            clearJobPath(); state = JobState.IDLE; ticksUntilNextWork = 200; return;
         }
         var fish = level.getEntitiesOfClass(AbstractFish.class, new AABB(harbor.getPos()).inflate(10, 4, 10),
                 f -> f.isAlive() && f.isInWater() && colony.isInside(f.blockPosition())
@@ -69,6 +77,18 @@ public class FishermanJob extends AbstractJob {
                         && !f.hasCustomName() && !f.fromBucket() && !f.isPersistenceRequired() && !f.requiresCustomPersistence());
         var candidates = fish.stream().filter(f -> fish.stream().filter(other -> other.getType() == f.getType()).count() > MIN_SCHOOL)
                 .sorted(Comparator.comparingDouble(villager::distanceToSqr)).limit(4).toList();
+        // PathNavigation.createPath mutates the active target. Replanning every
+        // work interval can interrupt a valid route before the worker reaches
+        // the door or shore. Let an owned dry path finish unless a fish is
+        // already in reach, the school disappears, or the route becomes unsafe.
+        if (jobPath != null && villager.getNavigation().getPath() == jobPath && !jobPath.isDone()) {
+            boolean catchable = candidates.stream().anyMatch(f -> villager.distanceToSqr(f) <= REACH_SQ
+                    && !villager.isInWater() && villager.hasLineOfSight(f));
+            if (!candidates.isEmpty() && !catchable && dryPath(level, jobPath)) {
+                state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
+            }
+            clearJobPath();
+        }
         // GroundPathNavigation refuses all path requests while airborne. Retry
         // next tick, rather than synchronizing retries with repeated jumps.
         if (!candidates.isEmpty() && !villager.onGround() && !villager.isInLiquid() && !villager.isPassenger()) {

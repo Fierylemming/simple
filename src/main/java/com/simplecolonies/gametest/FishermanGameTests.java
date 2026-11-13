@@ -145,6 +145,36 @@ public class FishermanGameTests {
     }
 
     @GameTest(template = "isolated", timeoutTicks = 300)
+    public static void retainsActiveRouteAndStopsWhenSchoolDisappears(GameTestHelper helper) {
+        Colony colony = setup(helper);
+        colony.registerPlayerBuilding(new Building(BuildingType.HARBOR, colony.getCenter(), CultureType.ROMAN, true));
+        Cod first = wildCod(helper, new BlockPos(58, 0, 56));
+        Cod second = wildCod(helper, new BlockPos(58, 0, 57));
+        Cod third = wildCod(helper, new BlockPos(58, 0, 58));
+        var worker = worker(helper);
+        worker.setNoAi(true);
+        var job = new FishermanJob(worker, colony);
+        net.minecraft.world.level.pathfinder.Path[] original = {null};
+        helper.runAtTickTime(5, () -> {
+            worker.setOnGround(true);
+            job.tick(helper.getLevel());
+            original[0] = worker.getNavigation().getPath();
+            if (original[0] == null) helper.fail("No initial shore route");
+        });
+        for (int tick = 6; tick <= 100; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(55, () -> {
+            if (worker.getNavigation().getPath() != original[0] || original[0].isDone())
+                helper.fail("Worker replaced its unfinished route");
+            first.discard(); second.discard(); third.discard();
+        });
+        helper.runAtTickTime(110, () -> {
+            if (!worker.getNavigation().isDone() || job.getState() != com.simplecolonies.villager.job.AbstractJob.JobState.NEEDS_RESOURCE)
+                helper.fail("Worker continued following a route after the school disappeared");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 300)
     public static void routesAroundWaterToReachShore(GameTestHelper helper) {
         Colony colony = setup(helper);
         colony.registerPlayerBuilding(new Building(BuildingType.HARBOR, colony.getCenter(), CultureType.ROMAN, true));
