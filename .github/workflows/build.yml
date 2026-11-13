@@ -16,6 +16,7 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - name: Build jar
+        id: jar
         run: ./gradlew build --info 2>&1 | tee build.log; test ${PIPESTATUS[0]} -eq 0
       - name: Run construction GameTests
         run: |
@@ -51,6 +52,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: simplecolonies-prism-jar
+          path: build/libs/*.jar
+      # A WIP jar can still be useful for reproducing reported bugs when a
+      # separate integration test fails. Keep the job red and never release it.
+      - name: Upload preview jar with failed checks
+        if: failure() && steps.jar.outcome == 'success' && contains(github.event.head_commit.message, '[no release]')
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-jar-FAILED-CHECKS
           path: build/libs/*.jar
       - name: Get version
         if: success()
