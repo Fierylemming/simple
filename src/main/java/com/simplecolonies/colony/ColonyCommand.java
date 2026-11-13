@@ -392,8 +392,8 @@ public class ColonyCommand {
         }
         try {
             ColonyUpgrade up = ColonyUpgrade.valueOf(uid.toUpperCase());
-            ServerLevel lvl = p != null ? p.serverLevel() : src.getLevel();
-            boolean ok = c.getResearch().tryBuy(up, lvl, p != null ? p : null);
+            ServerLevel lvl = src.getServer().overworld();
+            boolean ok = c.getResearch().tryBuy(up, lvl, p);
             if (ok) src.sendSuccess(() -> Component.literal("Bought " + up.displayName + " — check /colony research for new avail"), true);
             else src.sendFailure(Component.literal("Buy failed — see chat error or /colony warehouse for mats, /colony research for prereqs"));
             return ok ? 1 : 0;
