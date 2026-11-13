@@ -35,7 +35,13 @@ public class ShelterGameTests {
         Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(hall));
         colony.registerPlayerBuilding(new Building(BuildingType.TOWN_HALL, colony.getCenter(), CultureType.ROMAN, true));
         ColonyVillager villager = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 3));
-        for (int tick = 1; tick < 1200; tick++) helper.runAtTickTime(tick, () -> villager.seekShelter(helper.getLevel(), colony));
+        boolean[] sawTrackedDoor = {false};
+        for (int tick = 1; tick < 1200; tick++) helper.runAtTickTime(tick, () -> {
+            villager.seekShelter(helper.getLevel(), colony);
+            var remembered = villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.DOORS_TO_CLOSE);
+            if (remembered.isPresent() && remembered.get().contains(net.minecraft.core.GlobalPos.of(helper.getLevel().dimension(), absDoor)))
+                sawTrackedDoor[0] = true;
+        });
         helper.succeedWhen(() -> {
             BlockPos p = villager.blockPosition();
             if (Math.abs(p.getX() - colony.getCenter().getX()) > 2 || Math.abs(p.getZ() - colony.getCenter().getZ()) > 2)
@@ -49,8 +55,13 @@ public class ShelterGameTests {
             if (!state.is(Blocks.OAK_DOOR) || state.getValue(DoorBlock.OPEN)) helper.fail("Hall door is not closed: " + state
                     + "; villager=" + p.toShortString() + "; navigationDone=" + villager.getNavigation().isDone()
                     + "; walkTarget=" + villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET)
+                            .map(target -> target.getTarget().currentBlockPosition().toShortString())
                     + "; path=" + villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.PATH)
                     + "; doorsToClose=" + villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.DOORS_TO_CLOSE)
+                    + "; sawTrackedDoor=" + sawTrackedDoor[0] + "; center=" + colony.getCenter().toShortString()
+                    + "; door=" + absDoor.toShortString() + "; nearbyLiving="
+                    + helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class,
+                            new net.minecraft.world.phys.AABB(absDoor).inflate(2)).size()
                     + "; powered=" + helper.getLevel().hasNeighborSignal(absDoor));
         });
     }
