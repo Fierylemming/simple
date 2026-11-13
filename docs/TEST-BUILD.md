@@ -4,7 +4,7 @@ This is an **unfinished test build**, not the completed overhaul. Back up any ex
 
 ## Get the build
 
-1. Open [CI run 43455390293](https://github.com/Fierylemming/simple/actions/runs/43455390293) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `f774df3`, version `0.1.29`. The build and GameTests passed, but the fishing integration has failed intermittently in other runs and still needs in-game verification. Extract the zip.
+1. Open [CI run 43482938815](https://github.com/Fierylemming/simple/actions/runs/43482938815) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `9b81459`, version `0.1.29`. The build and GameTests passed, but navigation and animal integration have failed intermittently in other runs and still need in-game verification. Extract the zip.
 2. In Prism Launcher, create a **Minecraft 1.21.1, NeoForge 21.1.265, Java 21** instance. Place the extracted SimpleColonies jar in that instance's `mods` folder; remove any older SimpleColonies jar first. Do not install it alongside another copy. For a server, install the same version on both client and server.
 3. Start a new world with cheats enabled, in the Overworld. No public overhaul release has been made.
 
@@ -17,15 +17,15 @@ This is an **unfinished test build**, not the completed overhaul. Back up any ex
 
 ## Storage and buildings
 
-- To share a chest, barrel or shulker box, **sneak-use the Building Tool** on it within the colony. You need leader status or at least 20 reputation. Repeat to unshare. Each half of a double chest must be shared separately. Only loaded, designated containers in the Overworld are included; moving or replacing one requires a new designation. Existing virtual stock stays separate. Verify that an unshared chest remains untouched.
-- A Building Marker lets a sufficiently trusted player designate a player-built building. Test changing its type and clearing it; clearing should remove that linked designation. **Breaking a marker does not currently unregister it**, and old phantom records are not automatically cleaned up. A warehouse marker sets a courier hub but does not automatically share containers.
+- A newly generated starter hall's own chest is automatically shared and contains its starting supplies. Other chests, barrels and shulker boxes must be shared explicitly: **sneak-use the Building Tool** on one within the colony. You need leader status or at least 20 reputation. Repeat to unshare. Each half of a double chest must be shared separately. Only loaded, designated containers in the Overworld are included; moving or replacing one requires a new designation. Existing virtual stock stays separate. Verify that an unshared chest remains untouched.
+- A Building Marker lets a sufficiently trusted player designate a player-built building. Test changing its type and clearing it; clearing should remove that linked designation. Breaking a marker unregisters only its unique matching player-designated record; old phantom or ambiguous records are not automatically cleaned up. A warehouse marker sets a courier hub but does not automatically share containers.
 - Expansion can build houses and a limited set of worksite shells around claimed workstations. A courier's warehouse shell requires its barrel to be shared first; barracks use a defender's claimed workstation. These plans do not create the workstation for you. Older in-progress/unsupported plan versions retain their prior layouts.
 
 ## Known gaps to watch for
 
 - Fishing-to-shore pathfinding has had intermittent automated failures, despite passing the latest run. Fishing currently gathers excess wild fish by hand, not by rod; unmarked player fish cannot always be distinguished from wild fish. Keep valuable fish away from fishing sites.
 - Tree and mining recognition is heuristic; keep player structures and valuables away from worksites. Shelter is a preliminary enclosure check, not a guarantee against open doors, hostile door breaking or villagers wandering out at night.
-- Other than the courier's carried stacks, several jobs still access shared stock remotely; not all professions, buildings, armor, social behaviors or physical supply chains are complete. Starter structures and natural-world navigation need further in-game validation.
+- Farmers, shepherds and couriers carry some physical items, but many jobs still access shared stock remotely; not all professions, buildings, armor, social behaviors or physical supply chains are complete. Starter structures and natural-world navigation need further in-game validation.
 - Test storage, marker changes, jobs, housing, nighttime shelter, save/reload and dedicated-server behavior. Note the colony ID, coordinates, reproduction steps, screenshots and `logs/latest.log` for any issue. Do not run `/colony reset_citizens` on a world you care about; it can remove citizen records, including unloaded villagers.
 
 ## Tool replacement
@@ -38,14 +38,14 @@ Natural stone and player-placed stone are indistinguishable to the mod; do not t
 
 - Completed houses assign shared homes up to their capacity, including to miners; assignments persist and the hall remains a fallback shelter. There are no automatically provided beds. Check `/colony status`, reload, and check that assignments remain stable. If a house is removed or no longer complete, occupants can be reassigned; a marker is not proof a player-built house is safe.
 - Births now require nearby, loaded, eligible adults, spare shelter and real surplus food. A multi-day catch-up consumes daily food and applies health but defers births; it does not fast-forward physical jobs, crop growth or child aging. A long time skip can still cause starvation.
-- Compact house variants check their actual footprint rather than requiring an entirely empty seven-by-seven square. An obstacle in the footprint remains protected; builders do not terraform slopes. Farmer replanting uses a harvested seed or a real seed from colony stock. These are preliminary and need testing in real worlds.
+- Compact house variants check their actual footprint rather than requiring an entirely empty seven-by-seven square. An obstacle in the footprint remains protected; builders do not terraform slopes. Farmer replanting uses a harvested seed or one physically collected from shared storage. These are preliminary and need testing in real worlds.
 - At night, citizens attempt to reach a safe enclosed home or hall, without interrupting panic, sleep or trading. They may still wander out, and doors may not remain closed. The experimental idle-wander suppression was removed after intermittent door-closure failures.
 
 ### Blocked plans and storage safety
 
 - `/colony status` lists unfinished plans and their exact origin. An operator can use `/colony cancel_building <colony-id> <x> <y> <z>` to forget a unique unfinished generated plan. Completed or player-designated buildings are refused. **The command leaves all blocks and already-spent materials in place**; it does not demolish or refund them. Partly constructed blocks may need manual attention before another site can be chosen. Builders may temporarily work another existing plan while an obstructed plan waits; they retry without automatically removing obstacles.
 - Generic ID-only food and construction stock counts ignore stacks with custom components and do not merge normal items into them. Specialized tool withdrawal can still take an actual damaged or enchanted tool from shared storage, and couriers may move actual customized stacks; shared storage remains an explicit opt-in, not a private chest. Keep irreplaceable items in unshared containers.
-- Only house markers have a capacity-only upgrade; it charges materials but does not build a larger shell, add beds, or install workstations. Other marker upgrades are disabled until they have real effects; generated-building visual upgrades remain unimplemented. Existing saved levels are preserved.
+- Only house markers have a capacity-only upgrade; it charges materials but does not build a larger shell, add beds, or install workstations. Other marker upgrades are disabled until they have real effects; the generated level-two smithy wing is the only physical tier upgrade so far. Existing saved levels are preserved.
 - When the clock jumps forward across even one day boundary, births are deferred for the catch-up, while food/health still advance. Detection begins after the colony has observed the clocks (legacy saves start observing on their next tick), and ordinary physical work is never fast-forwarded.
 
 ### Civic growth and starter safety
@@ -99,3 +99,7 @@ Assign a Shepherd, place and designate a Pasture marker near sheep, put a loom w
 ### Smithy wing preview
 
 For a completed generated level-one smithy, assign a builder, leave a flat clear five-by-five plot directly east or west of the original smithing table, and share sufficient wood, cobblestone, coal and a spare smithing table. As leader, open the town hall Buildings tab, scroll to the smithy and choose Upgrade. Reopen the menu for updated status. The builder should physically construct the adjoining workshop, placing a second smithing table and furnace and reaching level two only when finished. This is the only generated physical tier upgrade so far. An operator can cancel an unfinished wing using `/colony cancel_building <id> <original smithing table position>`; placed blocks and spent items remain. Stock is still accessed remotely, and these instructions are for a work-in-progress preview, not a release.
+
+### Farmer harvest and bread transport
+
+New starter halls put their starting supplies into the generated, automatically shared hall chest; if no safe hall was built, founding supplies remain in legacy virtual stock. Existing saves are not migrated. A farmer carries real harvested drops to a reachable shared container, retaining cargo when storage is full or removed. For bread, it collects plain wheat from shared physical storage, brings it to its claimed composter, and carries the resulting bread to shared storage. It does not use virtual wheat for this recipe. To refill empty farmland, the farmer walks to shared storage for plain seeds and carries them back; a seed from the current harvest may be replanted immediately. Several other jobs still access stock remotely; this is not a complete physical supply chain.
