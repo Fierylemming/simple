@@ -18,6 +18,8 @@ public class CitizenData {
     public int daysEmployed;
     public boolean isSoldier;
     public boolean isChild;
+    // A shared house assignment; null means the citizen may shelter in the hall.
+    public net.minecraft.core.BlockPos home;
     // Each entry is one simulated day; kept for citizens in unloaded chunks.
     private final java.util.List<Byte> pendingHealthDays = new java.util.ArrayList<>();
 
@@ -47,6 +49,7 @@ public class CitizenData {
         tag.putInt("daysEmployed", daysEmployed);
         tag.putBoolean("isSoldier", isSoldier);
         tag.putBoolean("isChild", isChild);
+        if (home != null) tag.putLong("home", home.asLong());
         byte[] days = new byte[pendingHealthDays.size()];
         for (int i = 0; i < days.length; i++) days[i] = pendingHealthDays.get(i);
         tag.putByteArray("pendingHealthDays", days);
@@ -63,6 +66,7 @@ public class CitizenData {
         d.daysEmployed = tag.getInt("daysEmployed");
         d.isSoldier = tag.getBoolean("isSoldier");
         d.isChild = tag.getBoolean("isChild");
+        if (tag.contains("home")) d.home = net.minecraft.core.BlockPos.of(tag.getLong("home"));
         for (byte day : tag.getByteArray("pendingHealthDays")) d.pendingHealthDays.add(day);
         return d;
     }

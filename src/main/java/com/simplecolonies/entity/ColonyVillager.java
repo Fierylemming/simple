@@ -324,12 +324,15 @@ public class ColonyVillager extends Villager {
         }
         // Markers can refer to destroyed, obstructed or inaccessible buildings. Try other
         // completed shelters instead of repeatedly walking toward the nearest marker.
+        var record = colony.getCitizens().stream().filter(c -> c.uuid.equals(getUUID())).findFirst().orElse(null);
+        var home = record == null ? null : record.home;
         var shelters = colony.getBuildings().stream()
                 .filter(b -> b.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
                 .filter(b -> b.getType() == com.simplecolonies.building.BuildingType.TOWN_HALL
                         || b.getType() == com.simplecolonies.building.BuildingType.HOUSE)
                 .filter(b -> level.isLoaded(b.getPos()))
-                .sorted(java.util.Comparator.comparingDouble(b -> b.getPos().distSqr(blockPosition())))
+                .sorted(java.util.Comparator.<com.simplecolonies.building.Building>comparingInt(b -> b.getPos().equals(home) ? 0 : 1)
+                        .thenComparingDouble(b -> b.getPos().distSqr(blockPosition())))
                 .toList();
         for (var shelter : shelters) {
             int y = shelter.isPlayerPlaced ? shelter.getPos().getY() : shelter.constructionWalkY();

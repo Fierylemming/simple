@@ -113,6 +113,9 @@ public class Colony {
 
         if (state == ColonyState.ABANDONED || state == ColonyState.DESTROYED) return;
 
+        // Assign homes from completed houses only; never discard an existing
+        // assignment merely because a citizen or its chunk is unloaded.
+        reconcileHomes();
         // Scan warehouse chests periodically
         warehouseManager.scan(level);
 
@@ -224,6 +227,36 @@ public class Colony {
         return buildings.stream().filter(b -> b.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
                 .mapToInt(b -> b.getType() == BuildingType.TOWN_HALL ? 4
                         : b.getType() == BuildingType.HOUSE ? b.getHousingCapacity() : 0).sum();
+    }
+
+    /** Keep existing valid home assignments, then fill remaining shared house
+     * capacity deterministically. The hall remains a fallback shelter, not a home. */
+    public void reconcileHomes() {
+        var spaces = new TreeMap<BlockPos, Integer>(Comparator.comparingInt(BlockPos::getX)
+                .thenComparingInt(BlockPos::getY).thenComparingInt(BlockPos::getZ));
+        for (Building building : buildings) {
+            if (building.getType() == BuildingType.HOUSE && building.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
+                spaces.putIfAbsent(building.getPos(), Math.max(0, building.getHousingCapacity()));
+        }
+        var ordered = citizens.values().stream().sorted(Comparator.comparing(c -> c.uuid)).toList();
+        boolean changed = false;
+        for (CitizenData citizen : ordered) {
+            if (citizen.home == null) continue;
+            int free = spaces.getOrDefault(citizen.home, 0);
+            if (free > 0) spaces.put(citizen.home, free - 1);
+            else { citizen.home = null; changed = true; }
+        }
+        for (CitizenData citizen : ordered) {
+            if (citizen.home != null) continue;
+            for (var entry : spaces.entrySet()) {
+                if (entry.getValue() == 0) continue;
+                citizen.home = entry.getKey();
+                entry.setValue(entry.getValue() - 1);
+                changed = true;
+                break;
+            }
+        }
+        if (changed) ColonyManager.getInstance().markDirty(this);
     }
 
     private String expansionStatus = "Not checked yet";

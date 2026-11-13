@@ -259,7 +259,8 @@ public class ColonyCommand {
                     && citizen.job != com.simplecolonies.villager.job.JobType.MINER) continue;
             var entity = level.getEntity(citizen.uuid);
             String status = entity instanceof com.simplecolonies.entity.ColonyVillager cv ? cv.getWorkStatus() : "NOT LOADED OR MISSING";
-            src.sendSuccess(() -> Component.literal(citizen.job.displayName + " " + citizen.name + ": " + status), false);
+            src.sendSuccess(() -> Component.literal(citizen.job.displayName + " " + citizen.name + ": " + status
+                    + "; home " + (citizen.home == null ? "unassigned (hall shelter)" : citizen.home.toShortString())), false);
         }
         boolean unfinished = false;
         for (var building : colony.getBuildings()) {
