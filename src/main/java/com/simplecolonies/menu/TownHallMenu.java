@@ -82,7 +82,8 @@ public class TownHallMenu extends AbstractContainerMenu {
                 int donated = 0;
                 for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
                     ItemStack st = player.getInventory().getItem(i);
-                    if (st.is(net.minecraft.world.item.Items.BREAD) && st.getCount() > 0) {
+                    if (st.is(net.minecraft.world.item.Items.BREAD) && st.getCount() > 0
+                            && ItemStack.isSameItemSameComponents(st, net.minecraft.world.item.Items.BREAD.getDefaultInstance())) {
                         int take = Math.min(st.getCount(), 5 - donated);
                         st.shrink(take);
                         colony.depositToWarehouse("minecraft:bread", take);
@@ -137,22 +138,8 @@ public class TownHallMenu extends AbstractContainerMenu {
             }
             case BTN_CREATE_SCHEMATIC -> {
                 if (!isLeader) { deny(player); return true; }
-                if (level == null) return true;
-                boolean hasCreate = com.simplecolonies.integration.CreateSchematicIntegration.isCreateLoaded();
-                var building = com.simplecolonies.integration.CreateSchematicIntegration.tryCreateSchematicTask(colony, level, colony.getCenter().offset(16,0,16));
-                if (building != null) {
-                    try {
-                        var f = Colony.class.getDeclaredField("buildings");
-                        f.setAccessible(true);
-                        var list = (java.util.List<Building>) f.get(colony);
-                        list.add(building);
-                        com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
-                        player.displayClientMessage(net.minecraft.network.chat.Component.literal("§aQueued Create schematic build at " + building.getPos().toShortString()), false);
-                    } catch (Exception e) { player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cFailed: " + e.getMessage()), true); }
-                } else {
-                    player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cNo Create schematic found in warehouse chests. Put a Create schematic item in a village chest."), true);
-                    com.simplecolonies.integration.CreateSchematicIntegration.notifyPlayer(player, hasCreate);
-                }
+                player.displayClientMessage(net.minecraft.network.chat.Component.literal(
+                        "§eCreate schematic construction is not implemented; no items were consumed."), true);
                 return true;
             }
         }

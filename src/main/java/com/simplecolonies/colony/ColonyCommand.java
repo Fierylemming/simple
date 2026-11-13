@@ -79,7 +79,7 @@ public class ColonyCommand {
                             return sendWarehouse(ctx.getSource(), colony.get(), p);
                         }))
                 )
-                .then(Commands.literal("give")
+                .then(Commands.literal("give").requires(src -> src.hasPermission(2))
                         .then(Commands.argument("item", StringArgumentType.string())
                                 .then(Commands.argument("count", IntegerArgumentType.integer(1, 10000))
                                         .executes(ctx -> {
@@ -105,7 +105,7 @@ public class ColonyCommand {
                                             return 1;
                                         }))
                         )))
-                .then(Commands.literal("unlock")
+                .then(Commands.literal("unlock").requires(src -> src.hasPermission(2))
                         .then(Commands.argument("upgradeId", StringArgumentType.string())
                                 .executes(ctx -> {
                                     ServerPlayer p = ctx.getSource().getPlayerOrException();
@@ -140,7 +140,7 @@ public class ColonyCommand {
                                     return tryBuy(ctx.getSource(), colony.get(), uid, p);
                                 }))
                         ))
-                .then(Commands.literal("tickprogress")
+                .then(Commands.literal("tickprogress").requires(src -> src.hasPermission(2))
                         .executes(ctx -> {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
                             var colony = ColonyManager.getInstance().getColonyAt(p.blockPosition());
@@ -212,7 +212,7 @@ public class ColonyCommand {
                                                     + ". Existing blocks and spent materials remain; no blocks were removed."), true);
                                             return 1;
                                         }))))
-                .then(Commands.literal("spawn")
+                .then(Commands.literal("spawn").requires(src -> src.hasPermission(2))
                         .then(Commands.argument("culture", StringArgumentType.string()).executes(ctx -> {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
                             String cultStr = StringArgumentType.getString(ctx, "culture");
@@ -235,7 +235,7 @@ public class ColonyCommand {
                                 .executes(ctx -> repair(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "id"), false))
                                 .then(Commands.literal("reset_citizens")
                                         .executes(ctx -> repair(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "id"), true)))))
-                .then(Commands.literal("tp").then(Commands.argument("id", IntegerArgumentType.integer()).executes(ctx -> {
+                .then(Commands.literal("tp").requires(src -> src.hasPermission(2)).then(Commands.argument("id", IntegerArgumentType.integer()).executes(ctx -> {
                     int id = IntegerArgumentType.getInteger(ctx, "id");
                     var colony = ColonyManager.getInstance().getColony(id);
                     if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("No colony #" + id)); return 0; }
@@ -381,7 +381,15 @@ public class ColonyCommand {
         }
     }
 
-    private static int tryBuy(CommandSourceStack src, Colony c, String uid, ServerPlayer p) {
+    static int tryBuy(CommandSourceStack src, Colony c, String uid, ServerPlayer p) {
+        if (!src.hasPermission(2) && (p == null || !c.isLeader(p))) {
+            src.sendFailure(Component.literal("Only the colony leader or an operator may spend colony stock on research."));
+            return 0;
+        }
+        if (p != null && !p.serverLevel().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) {
+            src.sendFailure(Component.literal("Colony research can only be purchased from the Overworld."));
+            return 0;
+        }
         try {
             ColonyUpgrade up = ColonyUpgrade.valueOf(uid.toUpperCase());
             ServerLevel lvl = p != null ? p.serverLevel() : src.getLevel();
