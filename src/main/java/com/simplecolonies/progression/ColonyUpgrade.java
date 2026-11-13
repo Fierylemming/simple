@@ -27,7 +27,7 @@ import java.util.Set;
  *  - TOOL_IRON [16 raw_iron,8 coal,8 planks] → 1.6× — needs Miner (raw iron) + Blacksmith (to smelt) so prereq both
  *  - UNLOCK_COURIER [8 leather,16 planks,8 string] → needs Builder + Butcher (leather), bulk logistics
  *  - UNLOCK_LEATHERWORKER [12 leather] → leather armor, prereq Butcher
- *  - WAREHOUSE_CAPACITY [8 chest,32 planks] → courier +50%, prereq Courier
+ *  - WAREHOUSE_CAPACITY [8 chest,32 planks] → courier carries two stacks, prereq Courier
  *  - UNLOCK_SOLDIER [64 cobble,4 iron_ingot] → needs Builder + Iron tools (iron ingots via Blacksmith)
  *
  * Tier 3 — Diamond/Advanced (needs diamonds via Miner at iron tier, emeralds via trading, redstone via iron pick):
@@ -104,7 +104,7 @@ public enum ColonyUpgrade {
             Map.of("minecraft:leather", 12),
             Set.of(UNLOCK_BUTCHER), UpgradeCategory.PROFESSION,
             "Needs Butcher leather, no iron"),
-    WAREHOUSE_CAPACITY("Warehouse Network", "Unavailable: courier capacity upgrade is not implemented", 2,
+    WAREHOUSE_CAPACITY("Warehouse Network", "Couriers carry two real stacks per trip", 2,
             Map.of("minecraft:chest", 8, "minecraft:oak_planks", 32),
             Set.of(UNLOCK_COURIER), UpgradeCategory.BUFF,
             "After courier, just wood"),

@@ -8,7 +8,7 @@ import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 
-/** A courier carries one real stack from a local storage container to a designated hub. */
+/** Carries real stacks from a local shared container to a designated hub. */
 public class CourierJob extends AbstractJob {
     private BlockPos source;
     private BlockPos hub;
@@ -26,14 +26,17 @@ public class CourierJob extends AbstractJob {
                     .min(java.util.Comparator.comparingDouble(p -> p.distSqr(center))).orElse(null);
         }
         if (hub == null) { state = JobState.WAITING_FOR_CHEST; ticksUntilNextWork = 100; return; }
-        if (!worker().getCourierCargo().isEmpty()) {
+        if (!worker().getCourierCargo().isEmpty() || !worker().getCourierCargoExtra().isEmpty()) {
             if (!walkTo(hub)) return;
             Container destination = warehouse.courierContainer(level, hub);
             if (destination == null) { hub = null; state = JobState.STUCK; return; }
             insert(destination, worker().getCourierCargo());
+            insert(destination, worker().getCourierCargoExtra());
             if (worker().getCourierCargo().isEmpty()) worker().setCourierCargo(ItemStack.EMPTY);
+            if (worker().getCourierCargoExtra().isEmpty()) worker().setCourierCargoExtra(ItemStack.EMPTY);
             villager.swing(InteractionHand.MAIN_HAND);
-            state = worker().getCourierCargo().isEmpty() ? JobState.WORKING : JobState.WAITING_FOR_CHEST;
+            state = worker().getCourierCargo().isEmpty() && worker().getCourierCargoExtra().isEmpty()
+                    ? JobState.WORKING : JobState.WAITING_FOR_CHEST;
             ticksUntilNextWork = 40;
             return;
         }
@@ -50,6 +53,16 @@ public class CourierJob extends AbstractJob {
             ItemStack stack = from.getItem(slot);
             if (stack.isEmpty()) continue;
             worker().setCourierCargo(from.removeItem(slot, stack.getCount()));
+            // Researched couriers can carry one additional actual stack. Do not
+            // discard a second saved stack even if an old unlock was later removed.
+            if (colony.getResearch().isUnlocked(com.simplecolonies.progression.ColonyUpgrade.WAREHOUSE_CAPACITY)) {
+                for (int second = 0; second < from.getContainerSize(); second++) {
+                    ItemStack next = from.getItem(second);
+                    if (next.isEmpty()) continue;
+                    worker().setCourierCargoExtra(from.removeItem(second, next.getCount()));
+                    break;
+                }
+            }
             from.setChanged();
             villager.swing(InteractionHand.MAIN_HAND);
             source = null;

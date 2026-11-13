@@ -48,7 +48,7 @@ public class ResearchGameTests {
     }
 
     @GameTest(template = "empty")
-    public static void unsupportedResearchCannotChargeButOldUnlocksPersist(GameTestHelper helper) {
+    public static void courierResearchCostsStockButUnsupportedSchematicCannotCharge(GameTestHelper helper) {
         Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
         var tag = colony.getResearch().save();
         var unlocked = new net.minecraft.nbt.ListTag();
@@ -60,12 +60,15 @@ public class ResearchGameTests {
         colony.depositToWarehouse("minecraft:oak_planks", 40);
         colony.depositToWarehouse("minecraft:iron_block", 2);
         colony.depositToWarehouse("minecraft:redstone", 8);
+        if (!colony.getResearch().tryBuy(ColonyUpgrade.WAREHOUSE_CAPACITY, helper.getLevel(), null)
+                || colony.getWarehouseCount(helper.getLevel(), "minecraft:chest") != 0
+                || colony.getWarehouseCount(helper.getLevel(), "minecraft:oak_planks") != 8)
+            helper.fail("Courier research did not charge real stock");
         var before = colony.getWarehouseSnapshot(helper.getLevel());
-        if (colony.getResearch().tryBuy(ColonyUpgrade.WAREHOUSE_CAPACITY, helper.getLevel(), null)
-                || colony.getResearch().tryBuy(ColonyUpgrade.SCHEMATIC_CANNON, helper.getLevel(), null))
-            helper.fail("Paid for unsupported research");
+        if (colony.getResearch().tryBuy(ColonyUpgrade.SCHEMATIC_CANNON, helper.getLevel(), null))
+            helper.fail("Paid for unsupported schematic research");
         colony.getResearch().tickAutoProgress(helper.getLevel());
-        if (!before.equals(colony.getWarehouseSnapshot(helper.getLevel())) || colony.getResearch().isUnlocked(ColonyUpgrade.WAREHOUSE_CAPACITY)
+        if (!before.equals(colony.getWarehouseSnapshot(helper.getLevel()))
                 || colony.getResearch().isUnlocked(ColonyUpgrade.SCHEMATIC_CANNON)) helper.fail("Auto research paid for unsupported research");
         unlocked.add(net.minecraft.nbt.StringTag.valueOf("WAREHOUSE_CAPACITY"));
         unlocked.add(net.minecraft.nbt.StringTag.valueOf("SCHEMATIC_CANNON"));

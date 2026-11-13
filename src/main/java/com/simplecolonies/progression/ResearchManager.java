@@ -79,7 +79,7 @@ public class ResearchManager {
 
     public boolean canUnlock(ColonyUpgrade upgrade) {
         // Preserve old saved unlocks but never charge for unsupported effects.
-        if (upgrade == ColonyUpgrade.WAREHOUSE_CAPACITY || upgrade == ColonyUpgrade.SCHEMATIC_CANNON) return false;
+        if (upgrade == ColonyUpgrade.SCHEMATIC_CANNON) return false;
         if (isUnlocked(upgrade)) return false;
         for (var pre : upgrade.prerequisites) if (!isUnlocked(pre)) return false;
         return true;

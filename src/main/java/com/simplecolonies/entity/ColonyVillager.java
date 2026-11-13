@@ -38,6 +38,7 @@ public class ColonyVillager extends Villager {
     private boolean suppressVanillaBrainReset;
     // The courier carries this actual stack across chunk unloads and restarts.
     private net.minecraft.world.item.ItemStack courierCargo = net.minecraft.world.item.ItemStack.EMPTY;
+    private net.minecraft.world.item.ItemStack courierCargoExtra = net.minecraft.world.item.ItemStack.EMPTY;
     private CompoundTag minerMemory = new CompoundTag();
     private CompoundTag woodcutterMemory = new CompoundTag();
     private long nextConversationTime;
@@ -94,6 +95,15 @@ public class ColonyVillager extends Villager {
     public boolean isColonyCitizen() { return colonyId != -1; }
     public net.minecraft.world.item.ItemStack getCourierCargo() { return courierCargo; }
     public void setCourierCargo(net.minecraft.world.item.ItemStack cargo) { courierCargo = cargo; }
+    public net.minecraft.world.item.ItemStack getCourierCargoExtra() { return courierCargoExtra; }
+    public void setCourierCargoExtra(net.minecraft.world.item.ItemStack cargo) { courierCargoExtra = cargo; }
+
+    private void dropCourierCargo() {
+        if (!courierCargo.isEmpty()) spawnAtLocation(courierCargo);
+        if (!courierCargoExtra.isEmpty()) spawnAtLocation(courierCargoExtra);
+        courierCargo = net.minecraft.world.item.ItemStack.EMPTY;
+        courierCargoExtra = net.minecraft.world.item.ItemStack.EMPTY;
+    }
     public CompoundTag getMinerMemory() { return minerMemory.copy(); }
     public void setMinerMemory(CompoundTag memory) { minerMemory = memory.copy(); }
     public CompoundTag getWoodcutterMemory() { return woodcutterMemory.copy(); }
@@ -129,10 +139,7 @@ public class ColonyVillager extends Villager {
                 var remainder = getInventory().addItem(held);
                 setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, remainder);
             }
-            if (!courierCargo.isEmpty()) {
-                spawnAtLocation(courierCargo);
-                courierCargo = net.minecraft.world.item.ItemStack.EMPTY;
-            }
+            dropCourierCargo();
             if (getTradingPlayer() instanceof ServerPlayer player) player.closeContainer();
             setTradingPlayer(null);
             clearWorkMemories();
@@ -496,6 +503,7 @@ public class ColonyVillager extends Villager {
         tag.putInt("hungerTicks", hungerTicks);
         tag.putInt("daysAlive", daysAlive);
         if (!courierCargo.isEmpty()) tag.put("courierCargo", courierCargo.save(registryAccess()));
+        if (!courierCargoExtra.isEmpty()) tag.put("courierCargoExtra", courierCargoExtra.save(registryAccess()));
         if (!minerMemory.isEmpty()) tag.put("minerMemory", minerMemory.copy());
         if (!woodcutterMemory.isEmpty()) tag.put("woodcutterMemory", woodcutterMemory.copy());
     }
@@ -512,15 +520,15 @@ public class ColonyVillager extends Villager {
         courierCargo = tag.contains("courierCargo")
                 ? net.minecraft.world.item.ItemStack.parseOptional(registryAccess(), tag.getCompound("courierCargo"))
                 : net.minecraft.world.item.ItemStack.EMPTY;
+        courierCargoExtra = tag.contains("courierCargoExtra")
+                ? net.minecraft.world.item.ItemStack.parseOptional(registryAccess(), tag.getCompound("courierCargoExtra"))
+                : net.minecraft.world.item.ItemStack.EMPTY;
     }
 
     @Override
     public void die(net.minecraft.world.damagesource.DamageSource source) {
         if (!level().isClientSide) {
-            if (!courierCargo.isEmpty()) {
-                spawnAtLocation(courierCargo);
-                courierCargo = net.minecraft.world.item.ItemStack.EMPTY;
-            }
+            dropCourierCargo();
             ColonyManager.getInstance().getColony(colonyId).ifPresent(c -> c.removeCitizen(getUUID()));
         }
         super.die(source);
