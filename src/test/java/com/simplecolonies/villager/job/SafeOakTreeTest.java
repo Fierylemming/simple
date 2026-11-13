@@ -111,4 +111,52 @@ class SafeOakTreeTest {
         f.protectedBlocks.add(ROOT);
         assertFalse(SafeOakTree.safePlantingArea(f, ROOT));
     }
+    private Fake crookedTree() {
+        Fake f = new Fake(); f.put(ROOT.below(), Block.SOIL);
+        for (int y = 0; y < 3; y++) f.put(ROOT.above(y), Block.LOG);
+        f.put(ROOT.offset(1, 3, 0), Block.LOG);
+        f.put(ROOT.offset(2, 4, 0), Block.LOG);
+        f.put(ROOT.offset(2, 5, 0), Block.LOG);
+        for (int x = 1; x <= 3; x++) for (int z = -1; z <= 1; z++)
+            if (x != 2 || z != 0) f.put(ROOT.offset(x, 5, z), Block.LEAF);
+        return f;
+    }
+
+    @Test void crookedTreeRequiresBoundedConnectedRootedLogsAndCanopy() {
+        Fake f = crookedTree();
+        var logs = SafeBranchedTree.find(f, ROOT);
+        assertEquals(6, logs.size());
+        assertEquals(ROOT, logs.getFirst());
+        assertTrue(SafeBranchedTree.safePartial(f, ROOT, logs, 6));
+        f.put(logs.getLast(), Block.AIR);
+        assertTrue(SafeBranchedTree.safePartial(f, ROOT, logs, 5));
+        f.put(ROOT.offset(4, 0, 0), Block.STRUCTURE);
+        assertFalse(SafeBranchedTree.safePartial(f, ROOT, logs, 5));
+        f = crookedTree(); f.put(ROOT.offset(4, 4, 0), Block.LOG);
+        assertTrue(SafeBranchedTree.find(f, ROOT).isEmpty());
+        f = crookedTree(); f.put(ROOT.offset(-2, 2, 0), Block.LOG);
+        assertTrue(SafeBranchedTree.find(f, ROOT).isEmpty()); // disconnected log
+        f = crookedTree(); f.put(ROOT.offset(1, 0, 0), Block.LOG);
+        assertTrue(SafeBranchedTree.find(f, ROOT).isEmpty()); // second root
+        f = crookedTree(); f.unloaded.add(ROOT.offset(5, 11, 5));
+        assertTrue(SafeBranchedTree.find(f, ROOT).isEmpty());
+        assertFalse(SafeBranchedTree.areaLoaded(f, ROOT));
+        f = crookedTree(); f.protectedBlocks.add(ROOT.offset(1, 3, 0));
+        assertTrue(SafeBranchedTree.find(f, ROOT).isEmpty());
+        f = crookedTree(); f.put(ROOT.offset(3, 5, 0), Block.PERSISTENT_LEAF);
+        assertTrue(SafeBranchedTree.find(f, ROOT).isEmpty());
+    }
+
+    @Test void crookedSavedPositionsCannotSkipBoundariesOrDuplicateLogs() {
+        Fake f = crookedTree();
+        var logs = SafeBranchedTree.find(f, ROOT);
+        var duplicate = new java.util.ArrayList<>(logs); duplicate.set(3, duplicate.get(2));
+        assertFalse(SafeBranchedTree.safePartial(f, ROOT, duplicate, duplicate.size()));
+        var outOfRange = new java.util.ArrayList<>(logs); outOfRange.set(3, ROOT.offset(10, 3, 0));
+        assertFalse(SafeBranchedTree.safePartial(f, ROOT, outOfRange, outOfRange.size()));
+        assertFalse(SafeBranchedTree.safePartial(f, ROOT, logs, 0));
+        f.put(ROOT.offset(2, 4, 0), Block.STRUCTURE);
+        assertFalse(SafeBranchedTree.safePartial(f, ROOT, logs, logs.size()));
+    }
+
 }

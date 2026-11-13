@@ -140,6 +140,85 @@ public class WoodcutterGameTests {
         });
     }
 
+
+    private static java.util.List<BlockPos> makeCrookedAcacia(GameTestHelper helper) {
+        makeTree(helper);
+        for (int x = 50; x <= 62; x++) for (int z = 50; z <= 62; z++) for (int y = 5; y <= 13; y++) {
+            BlockPos p = helper.absolutePos(new BlockPos(x, y, z));
+            if (helper.getLevel().getBlockState(p).is(Blocks.BARRIER)) helper.getLevel().setBlock(p, Blocks.AIR.defaultBlockState(), 3);
+        }
+        for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++)
+            if (x != 0 || z != 0) helper.setBlock(ROOT.offset(x, 3, z), Blocks.AIR);
+        var logs = java.util.List.of(ROOT, ROOT.above(), ROOT.above(2), ROOT.offset(1, 3, 0),
+                ROOT.offset(2, 4, 0), ROOT.offset(2, 5, 0));
+        helper.setBlock(ROOT.above(3), Blocks.AIR);
+        for (var p : logs) helper.setBlock(p, Blocks.ACACIA_LOG);
+        for (int x = 1; x <= 3; x++) for (int z = -1; z <= 1; z++)
+            if (x != 2 || z != 0) helper.setBlock(ROOT.offset(x, 5, z), Blocks.ACACIA_LEAVES);
+        return logs;
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 2000)
+    public static void harvestsReachableCrookedAcaciaAfterReload(GameTestHelper helper) {
+        var logs = makeCrookedAcacia(helper);
+        Colony colony = colony(helper);
+        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        colony.depositToWarehouse("minecraft:acacia_sapling", 1);
+        ColonyVillager[] worker = {helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56))};
+        WoodcutterJob[] job = {new WoodcutterJob(worker[0], colony)};
+        boolean[] reloaded = {false};
+        int[] cuts = {0};
+        for (int tick = 1; tick < 2000; tick++) helper.runAtTickTime(tick, () -> {
+            boolean[] before = new boolean[logs.size()];
+            for (int j = 0; j < logs.size(); j++) before[j] = helper.getBlockState(logs.get(j)).is(Blocks.ACACIA_LOG);
+            job[0].tick(helper.getLevel());
+            for (int j = 0; j < logs.size(); j++) if (before[j] && !helper.getBlockState(logs.get(j)).is(Blocks.ACACIA_LOG)) {
+                if (worker[0].getEyePosition().distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(helper.absolutePos(logs.get(j)))) > 20.25)
+                    helper.fail("Cut crooked branch beyond tool reach");
+                cuts[0]++;
+            }
+            if (!reloaded[0] && cuts[0] == 1) {
+                CompoundTag saved = new CompoundTag(); worker[0].saveWithoutId(saved);
+                if (saved.getCompound("woodcutterMemory").getLongArray("branchLogs").length != logs.size())
+                    helper.fail("Crooked log positions were not saved");
+                var replacement = ModEntities.COLONY_VILLAGER.get().create(helper.getLevel());
+                if (replacement == null) { helper.fail("Could not reload worker"); return; }
+                worker[0].discard(); replacement.load(saved); helper.getLevel().addFreshEntity(replacement);
+                worker[0] = replacement; job[0] = new WoodcutterJob(replacement, colony); reloaded[0] = true;
+            }
+        });
+        helper.succeedWhen(() -> {
+            if (!reloaded[0] || cuts[0] != logs.size() || !helper.getBlockState(ROOT).is(Blocks.ACACIA_SAPLING)
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:acacia_log") != logs.size()
+                    || worker[0].getMainHandItem().getDamageValue() != logs.size())
+                helper.fail("Crooked acacia incomplete: cuts=" + cuts[0] + " state=" + job[0].getState()
+                        + " memory=" + worker[0].getWoodcutterMemory());
+        });
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 900)
+    public static void crookedAcaciaStopsIfConstructionAppears(GameTestHelper helper) {
+        makeCrookedAcacia(helper);
+        Colony colony = colony(helper);
+        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56));
+        var job = new WoodcutterJob(worker, colony);
+        boolean[] blocked = {false};
+        for (int tick = 1; tick < 900; tick++) helper.runAtTickTime(tick, () -> {
+            job.tick(helper.getLevel());
+            if (!blocked[0] && colony.getWarehouseCount(helper.getLevel(), "minecraft:acacia_log") == 1) {
+                helper.setBlock(ROOT.offset(-4, 0, 0), Blocks.OAK_PLANKS); blocked[0] = true;
+            }
+        });
+        helper.runAtTickTime(850, () -> {
+            if (!blocked[0] || colony.getWarehouseCount(helper.getLevel(), "minecraft:acacia_log") != 1
+                    || !helper.getBlockState(ROOT).is(Blocks.ACACIA_LOG)
+                    || !helper.getBlockState(ROOT.offset(-4, 0, 0)).is(Blocks.OAK_PLANKS))
+                helper.fail("Crooked-tree safety did not stop on new construction");
+            helper.succeed();
+        });
+    }
+
     private static void makeSquareDarkOak(GameTestHelper helper) {
         makeTree(helper);
         for (int x = -1; x <= 2; x++) for (int z = -1; z <= 2; z++) {

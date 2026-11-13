@@ -43,6 +43,7 @@ public class WoodcutterJob extends AbstractJob {
     private java.util.List<BlockPos> tree = java.util.List.of();
     private int remaining;
     private boolean squareTree;
+    private boolean branchedTree;
     private boolean restored;
 
     public WoodcutterJob(Villager villager, Colony colony) {
@@ -68,12 +69,17 @@ public class WoodcutterJob extends AbstractJob {
                     found = SafeOakTree.squareTrunk(candidate, base);
                     square = !found.isEmpty();
                 }
-                if (found.isEmpty() || (!square && found.size() > MAX_REACHABLE_TRUNK)) continue;
+                boolean branched = false;
+                if (found.isEmpty() && species.log() == Blocks.ACACIA_LOG) {
+                    found = SafeBranchedTree.find(candidate, base);
+                    branched = !found.isEmpty();
+                }
+                if (found.isEmpty() || (!square && !branched && found.size() > MAX_REACHABLE_TRUNK)) continue;
                 // A square tree is accepted only if every top log is reachable
                 // from an existing natural stand; never start an unreachable trunk.
                 boolean accessible = true;
-                int firstTop = square ? found.size() - 4 : found.size() - 1;
-                if (square || found.size() > MAX_GROUND_TRUNK) {
+                int firstTop = branched ? 0 : square ? found.size() - 4 : found.size() - 1;
+                if (branched || square || found.size() > MAX_GROUND_TRUNK) {
                     for (int i = firstTop; i < found.size(); i++) {
                         BlockPos top = found.get(i);
                         if (!inToolReach(top) && findTallApproach(level, base, top) == null) { accessible = false; break; }
@@ -84,6 +90,7 @@ public class WoodcutterJob extends AbstractJob {
                 treeSpecies = species;
                 tree = found;
                 squareTree = square;
+                branchedTree = branched;
                 remaining = tree.size();
                 writeMemory();
                 break;
@@ -101,13 +108,18 @@ public class WoodcutterJob extends AbstractJob {
         // A chunk unload is not a safety violation: retain the partially cut tree
         // and retry without loading chunks. Actual construction in the area aborts it.
         int height = squareTree ? tree.size() / 4 : tree.size();
-        for (int dx = -3; dx <= (squareTree ? 4 : 3); dx++) for (int dz = -3; dz <= (squareTree ? 4 : 3); dz++)
-            for (int dy = -1; dy <= height + 2; dy++) {
-                if (!view.loaded(treeBase.offset(dx, dy, dz))) {
-                    state = JobState.STUCK; ticksUntilNextWork = 100; return;
+        if (branchedTree) {
+            if (!SafeBranchedTree.areaLoaded(view, treeBase)) { state = JobState.STUCK; ticksUntilNextWork = 100; return; }
+        } else {
+            for (int dx = -3; dx <= (squareTree ? 4 : 3); dx++) for (int dz = -3; dz <= (squareTree ? 4 : 3); dz++)
+                for (int dy = -1; dy <= height + 2; dy++) {
+                    if (!view.loaded(treeBase.offset(dx, dy, dz))) {
+                        state = JobState.STUCK; ticksUntilNextWork = 100; return;
+                    }
                 }
-            }
-        boolean safe = squareTree ? SafeOakTree.safePartialSquare(view, treeBase, tree, remaining)
+        }
+        boolean safe = branchedTree ? SafeBranchedTree.safePartial(view, treeBase, tree, remaining)
+                : squareTree ? SafeOakTree.safePartialSquare(view, treeBase, tree, remaining)
                 : SafeOakTree.safePartialTrunk(view, treeBase, tree, remaining);
         if (!safe) {
             clearTree(); state = JobState.STUCK; ticksUntilNextWork = 60; return;
@@ -117,7 +129,7 @@ public class WoodcutterJob extends AbstractJob {
         if (!equipAxeIfAvailable(level)) { craftStoneReplacement(level, "axe"); return; }
         BlockPos log = tree.get(remaining - 1);
         if (!inToolReach(log)) {
-            if (squareTree || tree.size() > MAX_GROUND_TRUNK) {
+            if (branchedTree || squareTree || tree.size() > MAX_GROUND_TRUNK) {
                 var approach = findTallApproach(level, treeBase, log);
                 if (approach == null) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
                 villager.getNavigation().moveTo(approach, 0.7);
@@ -220,7 +232,7 @@ public class WoodcutterJob extends AbstractJob {
     }
 
     private void clearTree() {
-        treeBase = null; treeSpecies = null; tree = java.util.List.of(); remaining = 0; squareTree = false; writeMemory();
+        treeBase = null; treeSpecies = null; tree = java.util.List.of(); remaining = 0; squareTree = false; branchedTree = false; writeMemory();
     }
     private void writeMemory() {
         if (!(villager instanceof ColonyVillager cv)) return;
@@ -228,7 +240,8 @@ public class WoodcutterJob extends AbstractJob {
         if (treeBase != null) {
             tag.putLong("base", treeBase.asLong());
             if (treeSpecies != null) tag.putString("species", net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(treeSpecies.log()).toString());
-            tag.putInt("height", squareTree ? tree.size() / 4 : tree.size());
+            if (branchedTree) tag.putLongArray("branchLogs", tree.stream().mapToLong(BlockPos::asLong).toArray());
+            else tag.putInt("height", squareTree ? tree.size() / 4 : tree.size());
             if (squareTree) tag.putBoolean("square", true);
             tag.putInt("remaining", remaining);
         }
@@ -238,14 +251,18 @@ public class WoodcutterJob extends AbstractJob {
         if (!(villager instanceof ColonyVillager cv)) return;
         CompoundTag tag = cv.getWoodcutterMemory();
         int height = tag.getInt("height"), count = tag.getInt("remaining");
-        boolean square = tag.getBoolean("square");
-        int size = square ? height * 4 : height;
-        if (!tag.contains("base") || height < 3 || height > (square ? 6 : MAX_REACHABLE_TRUNK)
+        boolean square = tag.getBoolean("square"), branched = tag.contains("branchLogs");
+        long[] savedLogs = branched ? tag.getLongArray("branchLogs") : new long[0];
+        int size = branched ? savedLogs.length : square ? height * 4 : height;
+        if (!tag.contains("base") || (branched && (square || size < 3 || size > 32))
+                || (!branched && (height < 3 || height > (square ? 6 : MAX_REACHABLE_TRUNK)))
                 || count < 1 || count > size) return;
         BlockPos base = BlockPos.of(tag.getLong("base"));
         if (!colony.isInside(base)) return;
         var logs = new java.util.ArrayList<BlockPos>();
-        for (int y = 0; y < height; y++) {
+        if (branched) {
+            for (long value : savedLogs) logs.add(BlockPos.of(value));
+        } else for (int y = 0; y < height; y++) {
             if (square) for (int x = 0; x < 2; x++) for (int z = 0; z < 2; z++) logs.add(base.offset(x, y, z));
             else logs.add(base.above(y));
         }
@@ -256,7 +273,8 @@ public class WoodcutterJob extends AbstractJob {
         }
         if (square && (treeSpecies == null || (treeSpecies.log() != Blocks.DARK_OAK_LOG
                 && treeSpecies.log() != Blocks.SPRUCE_LOG && treeSpecies.log() != Blocks.JUNGLE_LOG))) return;
-        treeBase = base; tree = java.util.List.copyOf(logs); remaining = count; squareTree = square;
+        if (branched && (treeSpecies == null || treeSpecies.log() != Blocks.ACACIA_LOG)) return;
+        treeBase = base; tree = java.util.List.copyOf(logs); remaining = count; squareTree = square; branchedTree = branched;
     }
 
     private final class TreeView implements SafeOakTree.View {
