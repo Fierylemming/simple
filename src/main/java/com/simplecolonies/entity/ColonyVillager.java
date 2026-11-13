@@ -7,6 +7,7 @@ import com.simplecolonies.menu.VillagerInteractionMenu;
 import com.simplecolonies.villager.job.*;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.core.GlobalPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.VillagerData;
 import com.simplecolonies.villager.ColonyProfessions;
