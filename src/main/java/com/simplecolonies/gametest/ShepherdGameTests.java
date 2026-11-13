@@ -81,6 +81,41 @@ public class ShepherdGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 1200)
+    public static void walksToSharedChestForShears(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos pasture = new BlockPos(7, 1, 8), loom = new BlockPos(6, 1, 7), chest = new BlockPos(13, 1, 8);
+        helper.setBlock(pasture, ModBlocks.BUILDING_MARKER.get()); helper.setBlock(loom, Blocks.LOOM); helper.setBlock(chest, Blocks.CHEST);
+        BlockPos center = helper.absolutePos(pasture), absChest = helper.absolutePos(chest);
+        var marker = (BuildingMarkerBlockEntity) helper.getBlockEntity(pasture);
+        marker.setBuildingType(BuildingType.PASTURE); marker.setLinkedBuildingPos(center);
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        colony.registerPlayerBuilding(new Building(BuildingType.PASTURE, center, CultureType.ROMAN, true));
+        var container = (Container) helper.getBlockEntity(chest);
+        ItemStack shears = new ItemStack(Items.SHEARS); shears.setDamageValue(12); container.setItem(0, shears);
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), absChest)) helper.fail("Could not share chest");
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(4, 1, 8));
+        worker.setVillagerData(worker.getVillagerData().setProfession(ColonyProfessions.profession(JobType.SHEPHERD)));
+        worker.refreshBrain(helper.getLevel());
+        worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(loom)));
+        var sheep = helper.spawn(EntityType.SHEEP, new BlockPos(8, 1, 8)); sheep.setNoAi(true);
+        var job = new ShepherdJob(worker, colony);
+        boolean[] tookShears = {false};
+        for (int tick = 1; tick < 1200; tick++) helper.runAtTickTime(tick, () -> {
+            job.tick(helper.getLevel());
+            if (!tookShears[0] && worker.getMainHandItem().is(Items.SHEARS)) {
+                if (worker.distanceToSqr(absChest.getX() + .5, absChest.getY() + .5, absChest.getZ() + .5) > 9
+                        || worker.getMainHandItem().getDamageValue() != 12 || !container.getItem(0).isEmpty())
+                    helper.fail("Shears were duplicated, altered, or collected remotely");
+                tookShears[0] = true;
+            }
+        });
+        helper.succeedWhen(() -> {
+            if (!tookShears[0] || !sheep.isSheared() || worker.getMainHandItem().getDamageValue() != 13)
+                helper.fail("Shepherd did not fetch and use the shears: " + job.getState());
+        });
+    }
+
     @GameTest(template = "empty", timeoutTicks = 300)
     public static void refusesStalePastureAndUnsharedTool(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);

@@ -18,6 +18,28 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder("simplecolonies")
 @PrefixGameTestTemplate(false)
 public class CourierGameTests {
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void courierRetainsNestedShulkerWhenHubRejectsIt(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos hub = new BlockPos(8, 1, 8), abs = helper.absolutePos(hub);
+        helper.setBlock(hub, Blocks.SHULKER_BOX);
+        Colony colony = new Colony(0, CultureType.ROMAN, abs);
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), abs)) helper.fail("Could not share hub");
+        colony.setWarehouseCenter(abs);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(7, 1, 8));
+        worker.setCourierCargo(new ItemStack(Items.WHITE_SHULKER_BOX));
+        var job = new CourierJob(worker, colony);
+        for (int tick = 1; tick < 200; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(150, () -> {
+            if (!worker.getCourierCargo().is(Items.WHITE_SHULKER_BOX) || worker.getCourierCargo().getCount() != 1)
+                helper.fail("Courier lost a shulker that its destination rejected");
+            var box = (Container) helper.getBlockEntity(hub);
+            for (int slot = 0; slot < box.getContainerSize(); slot++)
+                if (!box.getItem(slot).isEmpty()) helper.fail("Courier nested a shulker box");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 1200)
     public static void courierWalksAndCarriesRealPersistentStack(GameTestHelper helper) {
         for (int x = 45; x <= 67; x++) for (int z = 50; z <= 62; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
