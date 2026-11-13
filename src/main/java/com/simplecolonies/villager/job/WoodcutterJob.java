@@ -88,6 +88,9 @@ public class WoodcutterJob extends AbstractJob {
         if (!SafeOakTree.safePartialTrunk(view, treeBase, tree, remaining)) {
             clearTree(); state = JobState.STUCK; ticksUntilNextWork = 60; return;
         }
+        // Resolve a missing axe before approaching the tree; otherwise the worker
+        // alternates between walking to the tree and back to the crafting table.
+        if (!equipAxeIfAvailable(level)) { craftStoneReplacement(level, "axe"); return; }
         BlockPos log = tree.get(remaining - 1);
         if (villager.distanceToSqr(log.getX() + 0.5, log.getY() + 0.5, log.getZ() + 0.5) > 20.25) {
             net.minecraft.world.level.pathfinder.Path path = null;
@@ -106,7 +109,6 @@ public class WoodcutterJob extends AbstractJob {
             villager.getNavigation().moveTo(path, 0.7);
             state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
         }
-        if (!equipAxeIfAvailable(level)) { craftStoneReplacement(level, "axe"); return; }
         var block = level.getBlockState(log);
         var drops = net.minecraft.world.level.block.Block.getDrops(block, level, log, null, villager, villager.getMainHandItem());
         if (!level.destroyBlock(log, false)) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
