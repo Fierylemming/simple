@@ -69,6 +69,77 @@ public class WoodcutterGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 2200)
+    public static void harvestsTallerStraightTreeFromNaturalSlope(GameTestHelper helper) {
+        makeTree(helper);
+        for (int x = 50; x <= 62; x++) for (int z = 50; z <= 62; z++) for (int y = 5; y <= 15; y++) {
+            BlockPos p = helper.absolutePos(new BlockPos(x, y, z));
+            if (helper.getLevel().getBlockState(p).is(Blocks.BARRIER)) helper.getLevel().setBlock(p, Blocks.AIR.defaultBlockState(), 3);
+        }
+        for (int y = 0; y < 8; y++) helper.setBlock(ROOT.above(y), Blocks.BIRCH_LOG);
+        // Remove the short oak canopy left by makeTree, then create a birch crown.
+        for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++) if (x != 0 || z != 0) {
+            helper.setBlock(ROOT.offset(x, 3, z), Blocks.AIR);
+            helper.setBlock(ROOT.offset(x, 7, z), Blocks.BIRCH_LEAVES);
+        }
+        // Two natural dirt steps place a worker close enough to the upper log.
+        for (int z = -1; z <= 1; z++) {
+            helper.setBlock(ROOT.offset(-2, 0, z), Blocks.DIRT);
+            helper.setBlock(ROOT.offset(-1, 0, z), Blocks.DIRT);
+            helper.setBlock(ROOT.offset(-1, 1, z), Blocks.DIRT);
+        }
+        Colony colony = colony(helper);
+        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        colony.depositToWarehouse("minecraft:birch_sapling", 1);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(49, 1, 56));
+        var job = new WoodcutterJob(worker, colony);
+        int[] cuts = {0};
+        for (int tick = 1; tick < 2200; tick++) helper.runAtTickTime(tick, () -> {
+            boolean[] before = new boolean[8];
+            for (int y = 0; y < 8; y++) before[y] = helper.getBlockState(ROOT.above(y)).is(Blocks.BIRCH_LOG);
+            job.tick(helper.getLevel());
+            for (int y = 0; y < 8; y++) if (before[y] && !helper.getBlockState(ROOT.above(y)).is(Blocks.BIRCH_LOG)) {
+                var target = net.minecraft.world.phys.Vec3.atCenterOf(helper.absolutePos(ROOT.above(y)));
+                if (worker.getEyePosition().distanceToSqr(target) > 20.25) helper.fail("Worker cut out of reach");
+                cuts[0]++;
+            }
+        });
+        helper.succeedWhen(() -> {
+            if (cuts[0] != 8 || !helper.getBlockState(ROOT).is(Blocks.BIRCH_SAPLING)
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:birch_log") != 8
+                    || worker.getMainHandItem().getDamageValue() != 8)
+                helper.fail("Tall reachable tree incomplete: cuts=" + cuts[0] + " state=" + job.getState()
+                        + " position=" + worker.blockPosition().toShortString());
+            if (!helper.getBlockState(ROOT.offset(-1, 1, 0)).is(Blocks.DIRT)) helper.fail("Worker changed the natural slope");
+        });
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 500)
+    public static void leavesTallTreeAloneWithoutReachableElevatedStand(GameTestHelper helper) {
+        makeTree(helper);
+        for (int x = 50; x <= 62; x++) for (int z = 50; z <= 62; z++) for (int y = 5; y <= 15; y++) {
+            BlockPos p = helper.absolutePos(new BlockPos(x, y, z));
+            if (helper.getLevel().getBlockState(p).is(Blocks.BARRIER)) helper.getLevel().setBlock(p, Blocks.AIR.defaultBlockState(), 3);
+        }
+        for (int y = 0; y < 8; y++) helper.setBlock(ROOT.above(y), Blocks.BIRCH_LOG);
+        for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++) if (x != 0 || z != 0) {
+            helper.setBlock(ROOT.offset(x, 3, z), Blocks.AIR);
+            helper.setBlock(ROOT.offset(x, 7, z), Blocks.BIRCH_LEAVES);
+        }
+        Colony colony = colony(helper);
+        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56));
+        var job = new WoodcutterJob(worker, colony);
+        for (int tick = 1; tick < 500; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(400, () -> {
+            for (int y = 0; y < 8; y++) if (!helper.getBlockState(ROOT.above(y)).is(Blocks.BIRCH_LOG))
+                helper.fail("Cut an unreachable tall tree");
+            if (colony.getWarehouseCount(helper.getLevel(), "minecraft:birch_log") != 0)
+                helper.fail("Unreachable tree created logs");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 1400)
     public static void harvestsAndReplantsShortSpruce(GameTestHelper helper) {
         harvestSpecies(helper, Blocks.SPRUCE_LOG, Blocks.SPRUCE_LEAVES, Blocks.SPRUCE_SAPLING, "spruce");

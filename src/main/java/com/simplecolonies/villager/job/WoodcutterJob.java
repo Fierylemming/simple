@@ -20,6 +20,7 @@ import net.minecraft.world.level.block.state.BlockState;
 /** Harvest reachable, recognizable, unbuilt trees; never use nearby leaves alone as proof. */
 public class WoodcutterJob extends AbstractJob {
     private static final int MAX_GROUND_TRUNK = 6;
+    private static final int MAX_REACHABLE_TRUNK = 10;
     private static final double TOOL_REACH_SQ = 20.25;
     private record Species(net.minecraft.world.level.block.Block log, net.minecraft.world.level.block.Block leaves,
                            net.minecraft.world.level.block.Block sapling) {}
@@ -60,9 +61,13 @@ public class WoodcutterJob extends AbstractJob {
                 var candidate = new TreeView(level, species);
                 if (!candidate.trunk(base) || !candidate.loaded(base.below()) || !candidate.soil(base.below())) continue;
                 var found = SafeOakTree.trunk(candidate, base);
-                // Only trees whose upper logs can plausibly be reached from the
-                // ground; tall/branched trunks still require a safe climbing plan.
-                if (found.isEmpty() || found.size() > MAX_GROUND_TRUNK) continue;
+                // Tall straight trees are considered only when existing natural
+                // terrain provides a reachable stance for the top log. Never
+                // build scaffolds or start leaving an inaccessible floating trunk.
+                if (found.isEmpty() || found.size() > MAX_REACHABLE_TRUNK) continue;
+                BlockPos top = found.getLast();
+                if (found.size() > MAX_GROUND_TRUNK && !inToolReach(top)
+                        && findTallApproach(level, base, top) == null) continue;
                 treeBase = base;
                 treeSpecies = species;
                 tree = found;
@@ -95,7 +100,13 @@ public class WoodcutterJob extends AbstractJob {
         // alternates between walking to the tree and back to the crafting table.
         if (!equipAxeIfAvailable(level)) { craftStoneReplacement(level, "axe"); return; }
         BlockPos log = tree.get(remaining - 1);
-        if (villager.getEyePosition().distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(log)) > TOOL_REACH_SQ) {
+        if (!inToolReach(log)) {
+            if (tree.size() > MAX_GROUND_TRUNK) {
+                var approach = findTallApproach(level, treeBase, log);
+                if (approach == null) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
+                villager.getNavigation().moveTo(approach, 0.7);
+                state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
+            }
             net.minecraft.world.level.pathfinder.Path path = null;
             var candidates = new java.util.ArrayList<BlockPos>();
             for (Direction d : Direction.Plane.HORIZONTAL) candidates.add(treeBase.relative(d));
@@ -136,6 +147,37 @@ public class WoodcutterJob extends AbstractJob {
         ticksUntilNextWork = 30;
     }
 
+    private boolean inToolReach(BlockPos log) {
+        return villager.getEyePosition().distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(log)) <= TOOL_REACH_SQ;
+    }
+
+    /** Only use loaded, dry, solid existing terrain that can put the worker's
+     * eyes within real tool reach. This does not alter the hillside. */
+    private net.minecraft.world.level.pathfinder.Path findTallApproach(ServerLevel level, BlockPos base, BlockPos log) {
+        var candidates = new java.util.ArrayList<BlockPos>();
+        for (int dx = -3; dx <= 3; dx++) for (int dz = -3; dz <= 3; dz++) for (int dy = -2; dy <= 5; dy++) {
+            if (dx == 0 && dz == 0) continue;
+            BlockPos stand = base.offset(dx, dy, dz);
+            if (!colony.isInside(stand) || !level.isLoaded(stand) || !level.isLoaded(stand.above()) || !level.isLoaded(stand.below())) continue;
+            var floor = level.getBlockState(stand.below());
+            if (!(floor.is(BlockTags.DIRT) || floor.is(BlockTags.BASE_STONE_OVERWORLD))
+                    || !floor.isFaceSturdy(level, stand.below(), Direction.UP)
+                    || !level.getBlockState(stand).getCollisionShape(level, stand).isEmpty()
+                    || !level.getBlockState(stand.above()).getCollisionShape(level, stand.above()).isEmpty()
+                    || !level.getFluidState(stand).isEmpty() || !level.getFluidState(stand.above()).isEmpty()) continue;
+            double x = stand.getX() + 0.5 - (log.getX() + 0.5);
+            double y = stand.getY() + villager.getEyeHeight() - (log.getY() + 0.5);
+            double z = stand.getZ() + 0.5 - (log.getZ() + 0.5);
+            if (x * x + y * y + z * z <= TOOL_REACH_SQ) candidates.add(stand);
+        }
+        candidates.sort(java.util.Comparator.comparingDouble(p -> villager.distanceToSqr(p.getX() + 0.5, p.getY(), p.getZ() + 0.5)));
+        for (BlockPos stand : candidates) {
+            var path = villager.getNavigation().createPath(stand, 0);
+            if (path != null && path.canReach()) return path;
+        }
+        return null;
+    }
+
     /** Never harvest bare-handed; a missing axe must be supplied or crafted. */
     private boolean equipAxeIfAvailable(ServerLevel level) {
         if (villager.getMainHandItem().getItem() instanceof AxeItem) return true;
@@ -166,7 +208,7 @@ public class WoodcutterJob extends AbstractJob {
         if (!(villager instanceof ColonyVillager cv)) return;
         CompoundTag tag = cv.getWoodcutterMemory();
         int height = tag.getInt("height"), count = tag.getInt("remaining");
-        if (!tag.contains("base") || height < 3 || height > MAX_GROUND_TRUNK || count < 1 || count > height) return;
+        if (!tag.contains("base") || height < 3 || height > MAX_REACHABLE_TRUNK || count < 1 || count > height) return;
         BlockPos base = BlockPos.of(tag.getLong("base"));
         if (!colony.isInside(base)) return;
         var logs = new java.util.ArrayList<BlockPos>();
