@@ -10,7 +10,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.AbstractFish;
-import net.minecraft.world.entity.npc.Villager;
+import com.simplecolonies.entity.ColonyVillager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -23,7 +23,11 @@ public class FishermanJob extends AbstractJob {
     private net.minecraft.world.level.pathfinder.Path jobPath;
     private String lastSearch = "not searched";
     public String diagnostic() { return lastSearch; }
-    public FishermanJob(Villager villager, Colony colony) { super(villager, colony, JobType.FISHERMAN); }
+    private final PhysicalJobCargo cargo;
+    public FishermanJob(ColonyVillager villager, Colony colony) {
+        super(villager, colony, JobType.FISHERMAN);
+        cargo = new PhysicalJobCargo(villager, colony);
+    }
 
     private boolean inDanger() {
         var brain = villager.getBrain();
@@ -68,6 +72,20 @@ public class FishermanJob extends AbstractJob {
         if (inDanger()) {
             lastSearch = "panicking";
             state = JobState.IDLE; ticksUntilNextWork = 20; return;
+        }
+        // Deliver a real catch even if the harbor or claimed barrel disappeared.
+        var delivery = cargo.deliver(level);
+        if (delivery != PhysicalJobCargo.Delivery.NONE) {
+            if (delivery == PhysicalJobCargo.Delivery.MOVING) {
+                jobPath = villager.getNavigation().getPath();
+                if (jobPath != null) villager.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.PATH, jobPath);
+                state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10;
+            } else {
+                clearJobPath();
+                state = delivery == PhysicalJobCargo.Delivery.DELIVERED ? JobState.WORKING : JobState.WAITING_FOR_CHEST;
+                ticksUntilNextWork = delivery == PhysicalJobCargo.Delivery.DELIVERED ? 40 : 100;
+            }
+            return;
         }
         var site = villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE);
         if (site.isEmpty() || !site.get().dimension().equals(level.dimension()) || !level.isLoaded(site.get().pos())
@@ -121,9 +139,9 @@ public class FishermanJob extends AbstractJob {
                     ItemStack stack = drop.getItem();
                     if (!(stack.is(Items.COD) || stack.is(Items.SALMON)) || stack.isEmpty()
                             || !ItemStack.isSameItemSameComponents(stack, stack.getItem().getDefaultInstance())) continue;
-                    depositToColony(level, net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(), stack.getCount());
-                    drop.discard();
+                    cargo.collect(drop);
                 }
+                if (cargo.hasCargo()) clearJobPath();
                 state = JobState.WORKING; ticksUntilNextWork = 100; return;
             }
             // Navigate to a dry, solid shore close enough to reach this fish. Never

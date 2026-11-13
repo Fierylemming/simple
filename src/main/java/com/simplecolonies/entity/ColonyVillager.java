@@ -327,7 +327,7 @@ public class ColonyVillager extends Villager {
                 boolean mayWork = job.isCombat
                         ? homeDimension || (jobInstance instanceof SoldierJob soldier && soldier.hasValidCommander(sl))
                         : homeDimension && !isInDanger()
-                            && (((job == JobType.SHEPHERD || job == JobType.FARMER || job == JobType.BUTCHER) && (!courierCargo.isEmpty() || !courierCargoExtra.isEmpty()))
+                            && (((job == JobType.SHEPHERD || job == JobType.FARMER || job == JobType.BUTCHER || job == JobType.FISHERMAN) && (!courierCargo.isEmpty() || !courierCargoExtra.isEmpty()))
                                 || updateWorkstation(sl, colony));
                 if (mayWork) jobInstance.tick(sl);
             }

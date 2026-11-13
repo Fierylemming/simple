@@ -35,7 +35,9 @@ public class FishermanGameTests {
             helper.setBlock(x, 0, z, Blocks.WATER);
         }
         helper.setBlock(SITE, Blocks.BARREL);
-        return new Colony(0, CultureType.ROMAN, helper.absolutePos(SITE));
+        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(SITE));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(SITE))) helper.fail("Could not share harbor barrel");
+        return colony;
     }
 
     // GameTestHelper.spawn marks mobs persistent; natural fish are not persistent.
@@ -50,8 +52,8 @@ public class FishermanGameTests {
         return fish;
     }
 
-    private static net.minecraft.world.entity.npc.Villager worker(GameTestHelper helper) {
-        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(50, 1, 56));
+    private static com.simplecolonies.entity.ColonyVillager worker(GameTestHelper helper) {
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56));
         worker.setVillagerData(worker.getVillagerData().setProfession(ColonyProfessions.profession(JobType.FISHERMAN)));
         worker.refreshBrain(helper.getLevel());
         worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(SITE)));
@@ -76,7 +78,7 @@ public class FishermanGameTests {
         builder.refreshBrain(helper.getLevel());
         var builderJob = new com.simplecolonies.villager.job.BuilderJob(builder, colony);
         FishermanJob[] job = {null};
-        net.minecraft.world.entity.npc.Villager[] fisher = {null};
+        com.simplecolonies.entity.ColonyVillager[] fisher = {null};
         for (int tick = 1; tick < 3600; tick++) helper.runAtTickTime(tick, () -> {
             if (harbor.getState() != com.simplecolonies.building.BuildingState.COMPLETE) {
                 builderJob.tick(helper.getLevel());
@@ -96,7 +98,7 @@ public class FishermanGameTests {
                     // The builder's part of this integration fixture is over.
                     // Do not leave a frozen body permanently blocking the door.
                     builder.discard();
-                    fisher[0] = helper.spawn(EntityType.VILLAGER, SITE.east());
+                    fisher[0] = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), SITE.east());
                     fisher[0].setVillagerData(fisher[0].getVillagerData().setProfession(ColonyProfessions.profession(JobType.FISHERMAN)));
                     fisher[0].refreshBrain(helper.getLevel());
                     // Give the vanilla test villager an actual POI ticket, as
@@ -214,7 +216,7 @@ public class FishermanGameTests {
         wildCod(helper, new BlockPos(58, 0, 56));
         wildCod(helper, new BlockPos(58, 0, 57));
         wildCod(helper, new BlockPos(58, 0, 58));
-        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(64, 1, 57));
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(64, 1, 57));
         worker.setNoAi(true);
         worker.setVillagerData(worker.getVillagerData().setProfession(ColonyProfessions.profession(JobType.FISHERMAN)));
         worker.refreshBrain(helper.getLevel());
@@ -264,7 +266,8 @@ public class FishermanGameTests {
             }
         });
         helper.runAtTickTime(300, () -> {
-            if (colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") == 0) {
+            if (colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") == 0
+                    && !worker.getCourierCargo().is(Items.COD) && !worker.getCourierCargoExtra().is(Items.COD)) {
                 var stand = helper.absolutePos(new BlockPos(57, 1, 56));
                 var path = worker.getNavigation().createPath(stand, 0);
                 helper.fail("No catch: state=" + job.getState() + " worker=" + worker.position()
@@ -344,4 +347,49 @@ public class FishermanGameTests {
             helper.succeed();
         });
     }
+    @GameTest(template = "isolated", timeoutTicks = 2000)
+    public static void carriesCatchAfterHarborRemoved(GameTestHelper helper) {
+        Colony colony = setup(helper);
+        colony.registerPlayerBuilding(new Building(BuildingType.HARBOR, colony.getCenter(), CultureType.ROMAN, true));
+        if (!colony.getWarehouseManager().unregisterStorage(helper.getLevel(), helper.absolutePos(SITE))) helper.fail("Could not unshare barrel");
+        wildCod(helper, new BlockPos(58, 0, 56));
+        wildCod(helper, new BlockPos(58, 0, 57));
+        wildCod(helper, new BlockPos(58, 0, 58));
+        var worker = worker(helper);
+        var job = new FishermanJob(worker, colony);
+        BlockPos chest = new BlockPos(45, 1, 56), absChest = helper.absolutePos(chest);
+        boolean[] observed = {false}, ready = {false}, delivered = {false};
+        for (int tick = 1; tick < 2000; tick++) helper.runAtTickTime(tick, () -> {
+            job.tick(helper.getLevel());
+            if (!observed[0] && !worker.getCourierCargo().isEmpty()) {
+                var tag = new net.minecraft.nbt.CompoundTag(); worker.addAdditionalSaveData(tag);
+                var saved = ItemStack.parseOptional(helper.getLevel().registryAccess(), tag.getCompound("courierCargo"));
+                if (!saved.is(Items.COD) || saved.getCount() != worker.getCourierCargo().getCount()
+                        || colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") != 0)
+                    helper.fail("Catch was not persisted in physical cargo");
+                observed[0] = true;
+            }
+            if (ready[0] && !delivered[0]) {
+                var c = (net.minecraft.world.Container) helper.getBlockEntity(chest);
+                if (c.countItem(Items.COD) > 0) {
+                    if (worker.distanceToSqr(absChest.getX()+.5, absChest.getY()+.5, absChest.getZ()+.5) > 9)
+                        helper.fail("Catch was deposited remotely");
+                    delivered[0] = true;
+                }
+            }
+        });
+        helper.runAtTickTime(600, () -> {
+            if (!observed[0] || worker.getCourierCargo().isEmpty()) helper.fail("Catch was not retained while storage was unavailable: " + job.getState());
+            helper.setBlock(SITE, Blocks.AIR);
+            worker.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
+            helper.setBlock(chest, Blocks.CHEST);
+            if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), absChest)) helper.fail("Could not share destination");
+            ready[0] = true;
+        });
+        helper.succeedWhen(() -> {
+            if (!ready[0] || !delivered[0] || !worker.getCourierCargo().isEmpty())
+                helper.fail("Catch is not yet delivered: " + job.getState() + " " + job.diagnostic());
+        });
+    }
+
 }
