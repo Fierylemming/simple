@@ -81,8 +81,16 @@ public class FishermanGameTests {
                     fisher[0] = helper.spawn(EntityType.VILLAGER, SITE.east());
                     fisher[0].setVillagerData(fisher[0].getVillagerData().setProfession(ColonyProfessions.profession(JobType.FISHERMAN)));
                     fisher[0].refreshBrain(helper.getLevel());
+                    // Give the vanilla test villager an actual POI ticket, as
+                    // ColonyVillager.updateWorkstation does in gameplay. A bare
+                    // JOB_SITE memory can be invalidated by vanilla AI at random.
+                    var absoluteSite = helper.absolutePos(SITE);
+                    var claimed = helper.getLevel().getPoiManager().take(
+                            fisher[0].getVillagerData().getProfession().heldJobSite(),
+                            (type, pos) -> pos.equals(absoluteSite), absoluteSite, 1);
+                    if (claimed.isEmpty()) { helper.fail("Fisherman could not claim the harbor barrel POI"); return; }
                     fisher[0].getBrain().setMemory(MemoryModuleType.JOB_SITE,
-                            GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(SITE)));
+                            GlobalPos.of(helper.getLevel().dimension(), claimed.get()));
                     job[0] = new FishermanJob(fisher[0], colony);
                 }
                 job[0].tick(helper.getLevel());
