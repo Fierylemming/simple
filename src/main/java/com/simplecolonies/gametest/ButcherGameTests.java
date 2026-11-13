@@ -71,6 +71,53 @@ public class ButcherGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 300)
+    public static void butcherCannotAttackThroughSolidWall(GameTestHelper helper) {
+        for (int x = 48; x <= 64; x++) for (int z = 48; z <= 64; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        for (int z = 50; z <= 62; z++) for (int y = 1; y <= 3; y++) helper.setBlock(57, y, z, Blocks.COBBLESTONE);
+        BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
+        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(56, 1, 56));
+        worker.setNoAi(true);
+        var cows = new java.util.ArrayList<Cow>();
+        for (int z = 55; z <= 57; z++) {
+            var cow = helper.spawn(EntityType.COW, new BlockPos(58, 1, z));
+            cow.setNoAi(true); cows.add(cow);
+        }
+        var job = new ButcherJob(worker, colony);
+        for (int tick = 1; tick < 300; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(250, () -> {
+            for (var cow : cows) if (!cow.isAlive() || cow.getHealth() != cow.getMaxHealth())
+                helper.fail("Butcher attacked livestock through a wall");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 300)
+    public static void butcherLeavesLivestockOutsideColonyAlone(GameTestHelper helper) {
+        for (int x = 60; x <= 74; x++) for (int z = 50; z <= 62; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos center = helper.absolutePos(new BlockPos(18, 1, 56));
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, helper.absolutePos(new BlockPos(66, 1, 56)), CultureType.ROMAN, true));
+        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(65, 1, 56));
+        worker.setNoAi(true);
+        var cows = new java.util.ArrayList<Cow>();
+        for (int z = 55; z <= 57; z++) {
+            var cow = helper.spawn(EntityType.COW, new BlockPos(67, 1, z));
+            cow.setNoAi(true);
+            if (colony.isInside(cow.blockPosition())) helper.fail("Fixture cow inside colony");
+            cows.add(cow);
+        }
+        var job = new ButcherJob(worker, colony);
+        for (int tick = 1; tick < 300; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(250, () -> {
+            for (var cow : cows) if (!cow.isAlive() || cow.getHealth() != cow.getMaxHealth())
+                helper.fail("Butcher attacked livestock outside colony");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 1300)
     public static void feedsPairToProduceRealCalf(GameTestHelper helper) {
         for (int x = 40; x <= 72; x++) for (int z = 40; z <= 72; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);

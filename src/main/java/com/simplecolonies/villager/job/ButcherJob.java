@@ -25,13 +25,14 @@ public class ButcherJob extends AbstractJob {
         if (hut == null) { state = JobState.STUCK; ticksUntilNextWork = 100; return; }
         BlockPos center = hut.getPos();
         var animals = level.getEntitiesOfClass(Animal.class, new AABB(center).inflate(8, 4, 8),
-                a -> a.isAlive() && !a.isBaby() && !a.hasCustomName() && (a instanceof Cow || a instanceof Pig));
+                a -> a.isAlive() && colony.isInside(a.blockPosition()) && !a.isBaby() && !a.hasCustomName()
+                        && (a instanceof Cow || a instanceof Pig));
         // Never slaughter the last two eligible adults of either species.
         Animal target = animals.stream().filter(a -> !a.isInLove())
                 .filter(a -> animals.stream().filter(other -> other.getType() == a.getType()).count() > 2)
                 .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
         if (target == null) { breedLivestock(level, center); return; }
-        if (villager.distanceToSqr(target) > 6.25) {
+        if (villager.distanceToSqr(target) > 6.25 || !villager.hasLineOfSight(target)) {
             var path = villager.getNavigation().createPath(target, 1);
             if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
             villager.getNavigation().moveTo(path, 0.7);
@@ -64,7 +65,7 @@ public class ButcherJob extends AbstractJob {
     /** Feed an eligible pair with real stock; vanilla animal AI creates the offspring. */
     private void breedLivestock(ServerLevel level, BlockPos center) {
         var all = level.getEntitiesOfClass(Animal.class, new AABB(center).inflate(8, 4, 8),
-                a -> a.isAlive() && (a instanceof Cow || a instanceof Pig));
+                a -> a.isAlive() && colony.isInside(a.blockPosition()) && (a instanceof Cow || a instanceof Pig));
         for (Class<? extends Animal> species : java.util.List.of(Cow.class, Pig.class)) {
             var herd = all.stream().filter(a -> a.getClass() == species).toList();
             if (herd.size() >= 4) continue; // Includes calves, piglets and named animals.
@@ -82,7 +83,7 @@ public class ButcherJob extends AbstractJob {
                 if (colony.getWarehouseCount(level, item) >= (partnerWaiting ? 3 : 4)) { food = item; break; }
             }
             if (food == null) continue;
-            if (villager.distanceToSqr(candidate) > 6.25) {
+            if (villager.distanceToSqr(candidate) > 6.25 || !villager.hasLineOfSight(candidate)) {
                 var path = villager.getNavigation().createPath(candidate, 1);
                 if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
                 villager.getNavigation().moveTo(path, 0.7);
