@@ -25,7 +25,7 @@ This is an **unfinished test build**, not the completed overhaul. Back up any ex
 
 - Fishing-to-shore pathfinding has had intermittent automated failures, despite passing the latest run. Fishing currently gathers excess wild fish by hand, not by rod; unmarked player fish cannot always be distinguished from wild fish. Keep valuable fish away from fishing sites.
 - Tree and mining recognition is heuristic; keep player structures and valuables away from worksites. Shelter is a preliminary enclosure check, not a guarantee against open doors, hostile door breaking or villagers wandering out at night.
-- Other than the courier's carried stack, several jobs still access shared stock remotely; not all professions, buildings, armor, social behaviors or physical supply chains are complete. Starter structures and natural-world navigation need further in-game validation.
+- Other than the courier's carried stacks, several jobs still access shared stock remotely; not all professions, buildings, armor, social behaviors or physical supply chains are complete. Starter structures and natural-world navigation need further in-game validation.
 - Test storage, marker changes, jobs, housing, nighttime shelter, save/reload and dedicated-server behavior. Note the colony ID, coordinates, reproduction steps, screenshots and `logs/latest.log` for any issue. Do not run `/colony reset_citizens` on a world you care about; it can remove citizen records, including unloaded villagers.
 
 ## Tool replacement
@@ -81,3 +81,7 @@ Tight Housing research costs eight **white wool** and sixteen oak planks after S
 ### Safety follow-up
 
 The unimplemented Create schematic action now refuses without consuming an item or queuing a fake house, including for older saves with its research already unlocked. Donating food ignores customized bread rather than converting it to generic stock. Administrative spawn, grant, force-unlock, progress and teleport commands are operator-only, and research purchases require the leader or an operator. This does not provide complete player-property protection or implement schematic building.
+
+### Courier capacity research
+
+Warehouse Network research now lets a courier collect up to two real stacks from a shared source during each trip. Cargo keeps item components and is saved with the villager; if the hub is full, the courier retains the undelivered items. A job change or death drops both stacks. Existing saved unlocks retain their effect; new purchases require their prerequisites and real stock. Other jobs still use shared stock remotely, so this does not complete physical supply chains.

@@ -66,7 +66,7 @@ jobs:
         id: version
         run: echo "version=$(grep '^mod_version=' gradle.properties | cut -d'=' -f2 | tr -d '\r\n ')" >> $GITHUB_OUTPUT
       - name: Create Release
-        if: success() && !contains(github.event.head_commit.message, '[no release]')
+        if: success() && github.event_name == 'push' && contains(github.event.head_commit.message, '[release]')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: prism-${{ github.sha }}
