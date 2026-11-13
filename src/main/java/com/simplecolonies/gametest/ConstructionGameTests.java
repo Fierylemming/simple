@@ -65,6 +65,29 @@ public class ConstructionGameTests {
     public static void houseMesopotamian2(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.MESOPOTAMIAN, 2); }
 
     @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void builderConstructsBirchHouseFromRealStock(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos origin = helper.absolutePos(new BlockPos(8, 1, 9));
+        Colony colony = new Colony(0, CultureType.GREEK, origin);
+        colony.depositToWarehouse("minecraft:birch_log", 300);
+        colony.depositToWarehouse("minecraft:cobblestone", 300);
+        colony.depositToWarehouse("minecraft:coal", 10);
+        Building house = new Building(BuildingType.HOUSE, origin, CultureType.GREEK, com.simplecolonies.building.HouseTimber.BIRCH);
+        colony.registerPlayerBuilding(house);
+        BlockPos door = house.getRemainingPlacements().stream().filter(p -> p.state.is(Blocks.BIRCH_DOOR)).findFirst().orElseThrow().pos;
+        var villager = helper.spawn(EntityType.VILLAGER, new BlockPos(8, 1, 2));
+        BuilderJob job = new BuilderJob(villager, colony);
+        for (int tick = 1; tick < 2400; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.succeedWhen(() -> {
+            if (house.getState() != BuildingState.COMPLETE || !helper.getLevel().getBlockState(door).is(Blocks.BIRCH_DOOR)
+                    || !helper.getLevel().getBlockState(door.above()).is(Blocks.BIRCH_DOOR)
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:birch_log") >= 300
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:oak_log") != 0)
+                helper.fail("Birch house incomplete: " + house.getState() + " worker=" + job.getState());
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
     public static void builderHut(GameTestHelper helper) { runBuilder(helper, BuildingType.BUILDER_HUT, Blocks.ANVIL, CultureType.ROMAN, -1); }
 
     @GameTest(template = "empty", timeoutTicks = 2400)
