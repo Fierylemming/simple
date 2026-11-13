@@ -86,6 +86,9 @@ public class ConstructionGameTests {
     public static void leatherShop(GameTestHelper helper) { runBuilder(helper, BuildingType.LEATHER_SHOP, Blocks.CAULDRON, CultureType.ROMAN, -1); }
 
     @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void civicMeetingHall(GameTestHelper helper) { runBuilder(helper, BuildingType.MARKET, null, CultureType.ROMAN, -1); }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
     public static void warehouse(GameTestHelper helper) { runBuilder(helper, BuildingType.WAREHOUSE, Blocks.BARREL, CultureType.ROMAN, -1); }
 
     @GameTest(template = "empty", timeoutTicks = 2400)

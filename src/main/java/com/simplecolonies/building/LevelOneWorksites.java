@@ -1,5 +1,6 @@
 package com.simplecolonies.building;
 
+import com.simplecolonies.culture.CultureType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.Blocks;
@@ -10,16 +11,17 @@ import java.util.function.BiConsumer;
 
 /** Compact early workshops built around an existing workstation, not over it. */
 final class LevelOneWorksites {
-    static boolean supports(BuildingType type) { return supports(type, 10); }
+    static boolean supports(BuildingType type) { return supports(type, 11); }
     static boolean supports(BuildingType type, int version) {
         return type == BuildingType.LUMBERJACK_HUT || type == BuildingType.MINE || type == BuildingType.BUILDER_HUT
                 || (version >= 7 && (type == BuildingType.BLACKSMITH || type == BuildingType.BUTCHER_HUT))
                 || (version >= 8 && type == BuildingType.HARBOR)
                 || (version >= 9 && (type == BuildingType.BAKERY || type == BuildingType.LEATHER_SHOP))
-                || (version >= 10 && (type == BuildingType.WAREHOUSE || type == BuildingType.BARRACKS));
+                || (version >= 10 && (type == BuildingType.WAREHOUSE || type == BuildingType.BARRACKS))
+                || (version >= 11 && type == BuildingType.MARKET);
     }
 
-    static void generate(BuildingType type, BlockPos station, BiConsumer<BlockPos, BlockState> add) {
+    static void generate(BuildingType type, BlockPos station, CultureType culture, BiConsumer<BlockPos, BlockState> add) {
         if (!supports(type)) throw new IllegalArgumentException("No worksite plan for " + type);
         // The center is the pre-existing POI. Do not replace it or the ground floor.
         for (int y = 0; y <= 2; y++) for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
@@ -43,6 +45,9 @@ final class LevelOneWorksites {
                         : y == 0 ? Blocks.COBBLESTONE.defaultBlockState() : Blocks.OAK_LOG.defaultBlockState();
                 case BARRACKS -> y != 1 ? Blocks.COBBLESTONE.defaultBlockState()
                         : corner ? Blocks.OAK_LOG.defaultBlockState() : Blocks.OAK_PLANKS.defaultBlockState();
+                // A compact civic hall. All palettes use currently obtainable
+                // materials; cultural differences are deliberately modest.
+                case MARKET -> marketWall(culture, x, y, z, corner);
                 default -> throw new IllegalStateException();
             };
             add.accept(station.offset(x, y, z), wall);
@@ -57,6 +62,17 @@ final class LevelOneWorksites {
                     : Blocks.OAK_PLANKS.defaultBlockState();
             add.accept(station.offset(x, 3, z), roof);
         }
+    }
+    private static BlockState marketWall(CultureType culture, int x, int y, int z, boolean corner) {
+        boolean stone = switch (culture) {
+            case ROMAN -> y == 0 || y == 2;
+            case GREEK -> !corner && y != 1;
+            case EGYPTIAN -> !corner || y == 0;
+            case PERSIAN -> y == 0 || (y == 2 && ((x + z) & 1) == 0);
+            case MESOPOTAMIAN -> y == 0 || (y == 1 && Math.abs(x) == 2);
+        };
+        return stone ? Blocks.COBBLESTONE.defaultBlockState()
+                : corner ? Blocks.OAK_LOG.defaultBlockState() : Blocks.OAK_PLANKS.defaultBlockState();
     }
     private LevelOneWorksites() {}
 }

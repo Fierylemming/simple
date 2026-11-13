@@ -341,7 +341,17 @@ public class Colony {
                 }
             }
         }
-        expansionStatus = housingReason + "; no affordable, clear claimed worksite";
+        // Once a settlement has grown, add a modest civic meeting hall if no
+        // market has already been designated. It is a real builder plan, not a
+        // claim that trading or higher-tier upgrades are implemented.
+        if (this.level >= 2 && buildings.stream().noneMatch(b -> b.getType() == BuildingType.MARKET)) {
+            Building sample = new Building(BuildingType.MARKET, center, culture);
+            if (com.simplecolonies.building.ConstructionCrafting.canBuild(stock, sample.getRemainingPlacements())) {
+                BlockPos site = findCivicSite(level);
+                if (site != null) { queueExpansion(new Building(BuildingType.MARKET, site, culture)); return; }
+            }
+        }
+        expansionStatus = housingReason + "; no affordable, clear claimed worksite or civic site";
     }
 
     private void queueExpansion(Building blueprint) {
@@ -350,6 +360,18 @@ public class Colony {
         ColonyManager.getInstance().markDirty(this);
         broadcast(Component.literal("§aColony #" + id + " is expanding: " + blueprint.getType().displayName
                 + " at " + blueprint.getPos().toShortString()));
+    }
+
+    private BlockPos findCivicSite(ServerLevel level) {
+        for (var offset : StarterSiteSearch.offsets(radius - 4, 2)) {
+            if ((long) offset.x() * offset.x() + (long) offset.z() * offset.z() < 144) continue;
+            BlockPos column = center.offset(offset.x(), 0, offset.z());
+            if (!level.isLoaded(column)) continue;
+            BlockPos site = new BlockPos(column.getX(), level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                    column.getX(), column.getZ()), column.getZ());
+            if (isClearWorksite(level, site, false)) return site;
+        }
+        return null;
     }
 
     /** Validate an unchanged five-by-five plot, optionally allowing the central workstation. */
