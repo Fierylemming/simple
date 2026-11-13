@@ -62,6 +62,15 @@ public class StarterColonyGameTests {
             helper.fail("Starter colony is missing a founder or miner");
         if (colony.getWarehouseCount(helper.getLevel(), "minecraft:stone_pickaxe") != 1)
             helper.fail("Starter miner pickaxe missing");
+        BlockPos chest = colony.getCenter().offset(2, 0, 2);
+        if (!colony.getWarehouseManager().isRegisteredStorage(helper.getLevel(), chest)
+                || !(helper.getLevel().getBlockEntity(chest) instanceof net.minecraft.world.Container inventory)
+                || inventory.countItem(net.minecraft.world.item.Items.STONE_PICKAXE) != 1
+                || inventory.countItem(net.minecraft.world.item.Items.STONE_AXE) != 1
+                || inventory.countItem(net.minecraft.world.item.Items.BREAD) != 16
+                || colony.getWarehouseCount("minecraft:stone_pickaxe") != 0
+                || colony.getWarehouseCount("minecraft:bread") != 0)
+            helper.fail("Founding supplies are not in the automatically shared hall chest, or were duplicated");
         helper.succeed();
     }
 }

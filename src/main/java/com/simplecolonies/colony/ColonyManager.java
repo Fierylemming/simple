@@ -102,10 +102,31 @@ public class ColonyManager {
                 placeInitialTownHall(level, colony);
                 placeStarterStructures(level, colony, false);
             } else placePlannedStarters(level, colony, plan);
+            transferNewStarterSupplies(level, colony);
             spawnInitialVillagers(level, colony);
             placeTownHallIfNeeded(level, colony);
         }
         return colony;
+    }
+
+    /** New starter halls own their freshly created chest. Move the founding
+     * supplies into it once, rather than duplicating them in the virtual ledger.
+     * Existing colonies are never migrated implicitly, and a missing/unsafe hall
+     * keeps the legacy stock as a fallback instead of claiming player storage. */
+    private void transferNewStarterSupplies(ServerLevel level, Colony colony) {
+        BlockPos hall = colony.getCenter();
+        if (colony.getBuildings().stream().noneMatch(b -> b.getType() == com.simplecolonies.building.BuildingType.TOWN_HALL
+                && b.getPos().equals(hall))) return;
+        BlockPos chest = hall.offset(2, 0, 2);
+        if (!level.isLoaded(chest) || !level.getBlockState(chest).is(Blocks.CHEST)) return;
+        var storage = colony.getWarehouseManager();
+        if (!storage.registerStorage(level, chest)) return;
+        // Transfer only amounts actually accepted. A full or changed container
+        // cannot lose any founding items; no other container is touched.
+        for (var entry : colony.getWarehouseSnapshot(null).entrySet()) {
+            int deposited = storage.deposit(level, chest, entry.getKey(), entry.getValue());
+            if (deposited > 0) colony.depositToWarehouse(entry.getKey(), -deposited);
+        }
     }
 
     private void spawnInitialVillagers(ServerLevel level, Colony colony) {
