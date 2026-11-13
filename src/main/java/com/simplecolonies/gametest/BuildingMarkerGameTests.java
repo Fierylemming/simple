@@ -17,6 +17,36 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder("simplecolonies")
 @PrefixGameTestTemplate(false)
 public class BuildingMarkerGameTests {
+    @SuppressWarnings("unchecked")
+    @GameTest(template = "empty")
+    public static void breakingLinkedMarkerRemovesOnlyItsRecord(GameTestHelper helper) {
+        // Register a fixture colony without invoking natural world generation.
+        var manager = com.simplecolonies.colony.ColonyManager.getInstance();
+        java.util.Map<Integer, Colony> colonies;
+        try {
+            var field = com.simplecolonies.colony.ColonyManager.class.getDeclaredField("colonies");
+            field.setAccessible(true);
+            colonies = (java.util.Map<Integer, Colony>) field.get(manager);
+        } catch (ReflectiveOperationException e) { helper.fail("Cannot install test colony: " + e); return; }
+        BlockPos pos = new BlockPos(8, 1, 8), absolute = helper.absolutePos(pos);
+        int id = -1200000000;
+        if (colonies.containsKey(id)) { helper.fail("Fixture colony id already in use"); return; }
+        var colony = new Colony(id, CultureType.ROMAN, absolute);
+        colonies.put(id, colony);
+        try {
+            helper.setBlock(pos, ModBlocks.BUILDING_MARKER.get());
+            var marker = (BuildingMarkerBlockEntity) helper.getBlockEntity(pos);
+            if (!colony.updateMarkerBuilding(absolute, false, BuildingType.WAREHOUSE)) helper.fail("Could not designate warehouse");
+            marker.setBuildingType(BuildingType.WAREHOUSE); marker.setLinkedBuildingPos(absolute);
+            if (!absolute.equals(colony.getWarehouseManager().getConfiguredWarehouseCenter())) helper.fail("Hub not set");
+            helper.setBlock(pos, net.minecraft.world.level.block.Blocks.AIR);
+            if (!colony.getBuildings().isEmpty() || colony.getWarehouseManager().getConfiguredWarehouseCenter() != null)
+                helper.fail("Breaking the linked marker left a phantom building or hub");
+            if (!Colony.load(colony.save()).getBuildings().isEmpty()) helper.fail("Removed marker record returned after reload");
+        } finally { colonies.remove(id); }
+        helper.succeed();
+    }
+
     @GameTest(template = "empty")
     public static void markerChangesAndClearsColonyBuilding(GameTestHelper helper) {
         BlockPos relative = new BlockPos(8, 1, 8), absolute = helper.absolutePos(relative);
