@@ -75,6 +75,31 @@ public class HousingGrowthGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 400)
+    public static void grownSettlementQueuesAffordableCivicHall(GameTestHelper helper) {
+        Colony original = setup(helper);
+        citizen(original, JobType.BUILDER);
+        var tag = original.save();
+        tag.putInt("level", 2);
+        tag.putInt("radius", 64);
+        Colony colony = Colony.load(tag);
+        colony.depositToWarehouse("minecraft:oak_log", 200);
+        colony.depositToWarehouse("minecraft:cobblestone", 200);
+        colony.depositToWarehouse("minecraft:coal", 10);
+        var before = colony.getWarehouseSnapshot(helper.getLevel());
+        helper.runAtTickTime(200, () -> {
+            colony.tick(helper.getLevel());
+            var market = colony.getBuildings().stream().filter(b -> b.getType() == BuildingType.MARKET).findFirst().orElse(null);
+            if (market == null || !market.hasSupportedPlan() || market.getState() != BuildingState.BLUEPRINT)
+                helper.fail("Grown settlement did not queue a civic hall: " + colony.getExpansionStatus());
+            if (!before.equals(colony.getWarehouseSnapshot(helper.getLevel()))) helper.fail("Planning spent building materials");
+            var restored = Colony.load(colony.save()).getBuildings().stream().filter(b -> b.getType() == BuildingType.MARKET).findFirst().orElse(null);
+            if (restored == null || !restored.hasSupportedPlan() || !restored.getPos().equals(market.getPos()))
+                helper.fail("Civic plan did not survive reload");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 300)
     public static void compactHouseLeavesOutsideFootprintUntouched(GameTestHelper helper) {
         Colony colony = setup(helper);

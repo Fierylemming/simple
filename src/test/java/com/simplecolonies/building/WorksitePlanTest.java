@@ -20,7 +20,7 @@ class WorksitePlanTest {
         var fingerprints = new java.util.HashSet<Map<BlockPos, net.minecraft.world.level.block.state.BlockState>>();
         for (var type : types) {
             Map<BlockPos, net.minecraft.world.level.block.state.BlockState> placements = new HashMap<>();
-            LevelOneWorksites.generate(type, BlockPos.ZERO, (pos, state) -> assertNull(placements.put(pos, state)));
+            LevelOneWorksites.generate(type, BlockPos.ZERO, CultureType.ROMAN, (pos, state) -> assertNull(placements.put(pos, state)));
             assertFalse(placements.containsKey(BlockPos.ZERO));
             assertTrue(placements.values().stream().anyMatch(s -> s.is(Blocks.OAK_DOOR)));
             assertTrue(placements.values().stream().anyMatch(s -> s.is(Blocks.TORCH)));
@@ -83,6 +83,28 @@ class WorksitePlanTest {
             }
         }
     }
+    @Test void marketsAreVersionedCulturalAndResumeWithoutChangingOlderPlaceholders() {
+        var fingerprints = new java.util.HashSet<Map<BlockPos, net.minecraft.world.level.block.state.BlockState>>();
+        for (var culture : CultureType.values()) {
+            var building = new Building(BuildingType.MARKET, BlockPos.ZERO, culture);
+            assertTrue(building.hasSupportedPlan());
+            Map<BlockPos, net.minecraft.world.level.block.state.BlockState> plan = new HashMap<>();
+            building.getRemainingPlacements().forEach(p -> assertNull(plan.put(p.pos, p.state)));
+            assertTrue(fingerprints.add(plan), "Each culture should have a distinct meeting hall");
+            for (int i = 0; i < 9; i++) building.markPlaced(building.getNextPlacement());
+            var reloaded = Building.load(building.save());
+            assertEquals(building.getNextPlacement().pos, reloaded.getNextPlacement().pos);
+            assertEquals(building.getRequiredResources(), reloaded.getRequiredResources());
+        }
+        for (int version = 1; version <= 10; version++) {
+            var tag = new Building(BuildingType.MARKET, BlockPos.ZERO, CultureType.ROMAN).save();
+            tag.putInt("planVersion", version);
+            var legacy = Building.load(tag);
+            assertFalse(legacy.hasSupportedPlan());
+            assertTrue(legacy.getRemainingPlacements().isEmpty());
+        }
+    }
+
     @Test void smithPlanIncludesUsableAdjacentFurnace() {
         var b = new Building(BuildingType.BLACKSMITH, BlockPos.ZERO, CultureType.ROMAN);
         assertTrue(b.getRemainingPlacements().stream().anyMatch(p -> p.pos.equals(BlockPos.ZERO.east()) && p.state.is(Blocks.FURNACE)));
