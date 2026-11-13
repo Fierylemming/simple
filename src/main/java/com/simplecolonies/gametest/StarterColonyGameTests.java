@@ -58,6 +58,8 @@ public class StarterColonyGameTests {
             helper.fail("Town hall block or shelter roof missing");
         if (!helper.getBlockState(anchor).is(Blocks.OBSIDIAN)) helper.fail("Spawn overwrote an existing block");
         if (!helper.getLevel().getBlockState(cave).isAir()) helper.fail("Farm filled an unvalidated cave below its foundation");
+        if (colony.citizenCount() != 4 || colony.getCitizens().stream().noneMatch(c -> c.job == com.simplecolonies.villager.job.JobType.MINER))
+            helper.fail("Starter colony is missing a founder or miner");
         if (colony.getWarehouseCount(helper.getLevel(), "minecraft:stone_pickaxe") != 1)
             helper.fail("Starter miner pickaxe missing");
         helper.succeed();
