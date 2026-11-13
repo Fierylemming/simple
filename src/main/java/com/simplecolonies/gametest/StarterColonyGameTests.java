@@ -40,6 +40,11 @@ public class StarterColonyGameTests {
         var manager = ColonyManager.getInstance();
         var plan = manager.findNaturalStarterPlan(helper.getLevel(), helper.absolutePos(anchor));
         if (plan == null) { helper.fail("No starter plan on safe flat land"); return; }
+        // A cave beneath the validated three-block foundation must not be
+        // filled by the old farm routine's unvalidated deep pillars.
+        BlockPos cave = plan.farm().offset(1, -4, 1);
+        for (int y = -2; y >= -5; y--)
+            helper.getLevel().setBlock(plan.farm().offset(1, y, 1), Blocks.AIR.defaultBlockState(), 3);
         var colony = manager.createNaturalColony(helper.getLevel(), CultureType.ROMAN, plan);
         if (colony == null) { helper.fail("Could not create planned colony"); return; }
         if (colony.getBuildings().stream().noneMatch(b -> b.getType() == BuildingType.TOWN_HALL && b.getPos().equals(plan.house()))
@@ -52,6 +57,7 @@ public class StarterColonyGameTests {
                 || !helper.getLevel().getBlockState(colony.getCenter().north(3)).is(Blocks.OAK_DOOR))
             helper.fail("Town hall block or shelter roof missing");
         if (!helper.getBlockState(anchor).is(Blocks.OBSIDIAN)) helper.fail("Spawn overwrote an existing block");
+        if (!helper.getLevel().getBlockState(cave).isAir()) helper.fail("Farm filled an unvalidated cave below its foundation");
         if (colony.getWarehouseCount(helper.getLevel(), "minecraft:stone_pickaxe") != 1)
             helper.fail("Starter miner pickaxe missing");
         helper.succeed();
