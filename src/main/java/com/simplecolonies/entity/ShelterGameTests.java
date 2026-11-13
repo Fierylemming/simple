@@ -114,6 +114,22 @@ public class ShelterGameTests {
             walk = worker.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET);
             if (walk.isEmpty() || walk.get().getTarget().currentBlockPosition().distSqr(colony.getCenter()) > 2)
                 helper.fail("Outdoor wander was accepted during the shelter search cooldown");
+            // A cached interior cannot hold a villager in a newly breached hall.
+            helper.setBlock(hall.east(3), Blocks.AIR);
+            helper.setBlock(hall.east(3).above(), Blocks.AIR);
+            worker.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET,
+                    new net.minecraft.world.entity.ai.memory.WalkTarget(outside, 0.7f, 0));
+            worker.seekShelter(helper.getLevel(), colony);
+            walk = worker.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET);
+            if (walk.isEmpty() || !walk.get().getTarget().currentBlockPosition().equals(outside))
+                helper.fail("Cached shelter overrode a walk after the hall was breached");
+            helper.setBlock(hall.east(3), Blocks.COBBLESTONE);
+            helper.setBlock(hall.east(3).above(), Blocks.COBBLESTONE);
+            worker.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.IS_PANICKING, true);
+            worker.seekShelter(helper.getLevel(), colony);
+            walk = worker.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET);
+            if (walk.isEmpty() || !walk.get().getTarget().currentBlockPosition().equals(outside))
+                helper.fail("Shelter redirected a panicking villager");
             helper.succeed();
         });
     }
