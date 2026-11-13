@@ -389,14 +389,17 @@ public class ColonyVillager extends Villager {
                 if (usableShelterSpot(level, pos) && ShelterSafety.enclosed(level, pos)) candidates.add(pos);
             }
             candidates.sort(java.util.Comparator.comparingDouble(p -> p.distSqr(blockPosition())));
+            // Do not replace a still-valid shelter walk every 60 ticks. Let the
+            // vanilla brain own its PATH so its door behavior can open and close.
+            var existing = getBrain().getMemory(MemoryModuleType.WALK_TARGET);
+            if (existing.isPresent() && candidates.contains(existing.get().getTarget().currentBlockPosition())
+                    && !getNavigation().isDone()) return;
             for (var target : candidates) {
-                if (blockPosition().equals(target)) {
-                    getNavigation().stop();
-                    return;
-                }
+                if (blockPosition().equals(target)) return;
                 var path = getNavigation().createPath(target, 0);
                 if (path != null && path.canReach()) {
-                    getNavigation().moveTo(path, 0.7);
+                    getBrain().setMemory(MemoryModuleType.WALK_TARGET,
+                            new net.minecraft.world.entity.ai.memory.WalkTarget(target, 0.7f, 0));
                     return;
                 }
             }

@@ -93,7 +93,9 @@ public class FishermanGameTests {
                     if (hasBarrel) helper.getLevel().getPoiManager().release(absoluteSite);
                     builder.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
                     builder.getBrain().eraseMemory(MemoryModuleType.POTENTIAL_JOB_SITE);
-                    builder.setNoAi(true);
+                    // The builder's part of this integration fixture is over.
+                    // Do not leave a frozen body permanently blocking the door.
+                    builder.discard();
                     fisher[0] = helper.spawn(EntityType.VILLAGER, SITE.east());
                     fisher[0].setVillagerData(fisher[0].getVillagerData().setProfession(ColonyProfessions.profession(JobType.FISHERMAN)));
                     fisher[0].refreshBrain(helper.getLevel());
