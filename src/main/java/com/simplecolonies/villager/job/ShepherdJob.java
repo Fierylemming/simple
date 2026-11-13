@@ -136,18 +136,24 @@ public final class ShepherdJob extends AbstractJob {
                         && (other.isInLove() || other.canFallInLove())))
                 .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
         if (target == null) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
-        boolean partnerWaiting = adults.stream().anyMatch(a -> a != target && a.isInLove());
+        boolean partnerWaiting = adults.stream().anyMatch(a -> a != target && a.distanceToSqr(target) <= 36 && a.isInLove());
+        // Old saves may have shepherd wheat in vanilla inventory. Move only the
+        // actual plain wheat needed for this pair into the persistent work slot.
+        var supplies = worker().getWorkSupplies();
+        if (!supplies.isEmpty() && !plainWheat(supplies)) { state = JobState.STUCK; ticksUntilNextWork = 100; return; }
+        int needed = partnerWaiting ? 1 : 2;
         var inventory = villager.getInventory();
-        int carriedSlot = -1, carried = 0;
-        for (int i = 0; i < inventory.getContainerSize(); i++) if (plainWheat(inventory.getItem(i))) {
-            if (carriedSlot < 0) carriedSlot = i;
-            carried += inventory.getItem(i).getCount();
+        for (int i = 0; i < inventory.getContainerSize() && (supplies.isEmpty() || supplies.getCount() < needed); i++) {
+            if (!plainWheat(inventory.getItem(i))) continue;
+            int carried = supplies.isEmpty() ? 0 : supplies.getCount();
+            var moved = inventory.removeItem(i, needed - carried);
+            if (supplies.isEmpty()) { worker().setWorkSupplies(moved); supplies = worker().getWorkSupplies(); }
+            else supplies.grow(moved.getCount());
         }
+        int carried = supplies.isEmpty() ? 0 : supplies.getCount();
         // Secure food for both parents before feeding either, otherwise a
         // long trip back to storage can let the first parent's love expire.
-        int needed = partnerWaiting ? 1 : 2;
         if (carried < needed) {
-            if (!inventory.canAddItem(new ItemStack(Items.WHEAT))) { state = JobState.STUCK; ticksUntilNextWork = 100; return; }
             var warehouse = colony.getWarehouseManager();
             int amount = 0;
             for (var pos : storage) {
@@ -173,8 +179,8 @@ public final class ShepherdJob extends AbstractJob {
                 if (!plainWheat(container.getItem(i))) continue;
                 var taken = container.removeItem(i, 1);
                 container.setChanged();
-                var remainder = inventory.addItem(taken);
-                if (!remainder.isEmpty()) villager.spawnAtLocation(remainder);
+                if (supplies.isEmpty()) worker().setWorkSupplies(taken);
+                else supplies.grow(taken.getCount());
                 state = JobState.WORKING; ticksUntilNextWork = 10; return;
             }
             state = JobState.NEEDS_RESOURCE; return;
@@ -185,8 +191,8 @@ public final class ShepherdJob extends AbstractJob {
             villager.getNavigation().moveTo(path, 0.7); state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
         }
         if (!target.isAlive() || target.hasCustomName() || target.getAge() != 0 || target.isInLove() || !target.canFallInLove()) return;
-        ItemStack fed = inventory.removeItem(carriedSlot, 1);
-        if (fed.isEmpty()) return;
+        supplies.shrink(1);
+        if (supplies.isEmpty()) worker().setWorkSupplies(ItemStack.EMPTY);
         target.setInLove(null);
         villager.getLookControl().setLookAt(target); villager.swing(InteractionHand.MAIN_HAND);
         // Approach the second parent promptly, while the first is still in love.

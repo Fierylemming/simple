@@ -262,18 +262,18 @@ public class ShepherdGameTests {
         var job = new ShepherdJob(worker, colony);
         for (int tick = 1; tick < 400; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
         helper.runAtTickTime(6, () -> {
-            if (container.getItem(0).getCount() != 3 || worker.getInventory().countItem(Items.WHEAT) != 1)
+            if (container.getItem(0).getCount() != 3 || worker.getWorkSupplies().getCount() != 1)
                 helper.fail("Did not carry one real wheat from shared storage");
             CompoundTag saved = new CompoundTag(); worker.addAdditionalSaveData(saved);
             var restored = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(2, 1, 2));
             restored.readAdditionalSaveData(saved);
-            if (restored.getInventory().countItem(Items.WHEAT) != 1) helper.fail("Carried wheat was not saved");
+            if (restored.getWorkSupplies().getCount() != 1) helper.fail("Carried wheat was not saved");
             restored.discard();
             helper.setBlock(pasture, Blocks.AIR);
         });
         helper.runAtTickTime(300, () -> {
             if (first.isInLove() || second.isInLove() || container.getItem(0).getCount() != 3
-                    || worker.getInventory().countItem(Items.WHEAT) != 1)
+                    || worker.getWorkSupplies().getCount() != 1)
                 helper.fail("Removed pasture continued feeding or lost the carried item");
             helper.succeed();
         });
