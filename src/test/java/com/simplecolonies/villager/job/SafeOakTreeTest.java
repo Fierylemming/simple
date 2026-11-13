@@ -177,4 +177,21 @@ class SafeOakTreeTest {
         assertFalse(SafeBranchedTree.safePartial(f, ROOT, logs, logs.size(), new int[1]));
     }
 
+    @Test void zAxisBranchesAreRecognizedAndRevalidated() {
+        Fake original = crookedTree();
+        Fake rotated = new Fake();
+        for (var entry : original.blocks.entrySet()) {
+            BlockPos p = entry.getKey();
+            rotated.put(ROOT.offset(-(p.getZ() - ROOT.getZ()), p.getY() - ROOT.getY(), p.getX() - ROOT.getX()), entry.getValue());
+        }
+        rotated.axes.put(ROOT.offset(0, 3, 1), 2);
+        rotated.axes.put(ROOT.offset(0, 4, 2), 2);
+        var logs = SafeBranchedTree.find(rotated, ROOT);
+        assertEquals(6, logs.size());
+        int[] axes = logs.stream().mapToInt(rotated::branchAxis).toArray();
+        assertTrue(SafeBranchedTree.safePartial(rotated, ROOT, logs, logs.size(), axes));
+        rotated.axes.put(ROOT.offset(0, 4, 2), 1);
+        assertFalse(SafeBranchedTree.safePartial(rotated, ROOT, logs, logs.size(), axes));
+    }
+
 }
