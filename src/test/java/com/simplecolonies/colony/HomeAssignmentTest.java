@@ -22,6 +22,7 @@ class HomeAssignmentTest {
         colony.registerPlayerBuilding(new Building(BuildingType.HOUSE, first, CultureType.ROMAN, true));
         for (int i = 1; i <= 5; i++) colony.addCitizen(new CitizenData(new UUID(0, i), "Citizen " + i, JobType.MINER));
         colony.reconcileHomes();
+        assertEquals(8, colony.getShelterCapacity()); // bedless hall + completed house
         assertEquals(4, colony.getCitizens().stream().filter(c -> first.equals(c.home)).count());
         assertEquals(1, colony.getCitizens().stream().filter(c -> c.home == null).count());
         colony.registerPlayerBuilding(new Building(BuildingType.HOUSE, second, CultureType.ROMAN, true));
@@ -47,6 +48,7 @@ class HomeAssignmentTest {
         colony.addCitizen(citizen);
         colony.registerPlayerBuilding(new Building(BuildingType.HOUSE, new BlockPos(15, 0, 0), CultureType.ROMAN));
         colony.reconcileHomes();
+        assertEquals(0, colony.getShelterCapacity()); // unfinished house is not shelter
         assertNull(citizen.home);
     }
 }

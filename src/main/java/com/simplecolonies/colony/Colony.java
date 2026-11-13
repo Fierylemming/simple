@@ -237,6 +237,8 @@ public class Colony {
     private void consumeFood(int amount) { consumeFood(null, amount); }
 
     // A starter town hall provides shelter for its four founders, without inventing beds.
+    public int getShelterCapacity() { return shelterCapacity(); }
+
     private int shelterCapacity() {
         return buildings.stream().filter(b -> b.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
                 .mapToInt(b -> b.getType() == BuildingType.TOWN_HALL ? 4

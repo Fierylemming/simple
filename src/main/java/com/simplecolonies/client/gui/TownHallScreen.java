@@ -181,8 +181,8 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
         return switch(currentTab){
             case 0->"Tip: Shift-use the Building Tool on containers to share colony storage.";
             case 1->"Shift+right-click villager to reassign job (if researched).";
-            case 2->"Upgrades: +workers & culture mats (wood→stone→quartz).";
-            case 3->"Warehouse: farmers deposit, couriers move 9 stacks/trip.";
+            case 2->"Completed shelters count as capacity; beds are separate.";
+            case 3->"Only explicitly shared storage is available to workers.";
             case 4->"Peace/War: rally soldiers with Command Staff.";
             case 5->"Research auto-buys when warehouse has surplus mats.";
             default->"";
@@ -198,7 +198,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
 
         // top stats cards row
         drawStatCard(g,x,y, 76, "Pop", c.citizenCount()+"/"+com.simplecolonies.config.ColonyConfig.MAX_CITIZENS_PER_COLONY.get(), popPct(c), C_BLUE);
-        drawStatCard(g,x+80,y, 76, "Housing", housing(c)+" beds", housingPct(c), C_GREEN);
+        drawStatCard(g,x+80,y, 76, "Housing", housing(c)+" slots", housingPct(c), C_GREEN);
         drawStatCard(g,x+160,y, 76, "Food/day", needFood(c)+" need", foodPct(c), needFood(c)>bread(c)?C_RED:C_GREEN);
         drawStatCard(g,x+240,y, 76, "Rep", c.getReputation(menu.player)+"/100", c.getReputation(menu.player)/100f, C_GOLD);
         y+=28;
@@ -225,8 +225,8 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
     // ── Citizens ──
     private void drawCitizens(GuiGraphics g,int x,int y, com.simplecolonies.colony.Colony c, com.simplecolonies.progression.ResearchManager r){
         var list = menu.getCitizensSorted();
-        if(list.isEmpty()){ drawHintBox(g,x,y,"No citizens yet. Build House (4 beds each) + keep Food >0. Villagers spawn when housed & fed."); return; }
-        g.drawString(font, "Citizens — 1 per building, upgrades add slots", x,y, C_TEXT,false); y+=10;
+        if(list.isEmpty()){ drawHintBox(g,x,y,"No citizens yet. Births need nearby adults, shelter and food; beds are separate."); return; }
+        g.drawString(font, "Citizens — assignments and jobs", x,y, C_TEXT,false); y+=10;
         g.drawString(font, list.size()+" villagers  •  showing "+(citizenScroll+1)+"-"+Math.min(citizenScroll+4,list.size()), x,y, C_TEXT_MUTED,false); y+=8;
         for(int i=0;i<Math.min(4, list.size()-citizenScroll);i++){
             CitizenData cd = list.get(citizenScroll+i);
@@ -270,10 +270,10 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
         g.fill(x,y,x+w,y+28, done?C_GREEN_BG:0xFFF7F0DE); g.fill(x,y,x+w,y+1, done?C_GREEN:C_GOLD); g.fill(x,y+27,x+w,y+28, C_DIV); g.fill(x,y,x+2,y+28, done?C_GREEN:C_GOLD);
         // icon
         g.fill(x+4,y+4, x+20,y+20, C_PARCH_SHADOW); g.drawString(font, BuildingIcon(b.getType()), x+7,y+6, C_TEXT,false);
-        g.drawString(font, b.getType().displayName+" Lv"+b.getLevel()+"  "+b.getWorkerSlots()+" workers  "+b.getSize()+"×"+b.getSize()+"  ["+b.getState()+"]", x+24,y+2, done?C_GREEN: C_TEXT,false);
+        g.drawString(font, b.getType().displayName+" Lv"+b.getLevel()+"  ["+b.getState()+"]", x+24,y+2, done?C_GREEN: C_TEXT,false);
         g.drawString(font, b.getPos().toShortString()+"  "+mats, x+24,y+13, C_TEXT_MUTED,false);
         // upgrade hint
-        String up = b.getLevel()>=5?"★ MAX":"↑ Upgrade — next: +"+ (b.getWorkerSlots()+1)+" workers";
+        String up = b.isPlayerPlaced ? (b.getType()==BuildingType.HOUSE ? "Marker: "+b.getHousingCapacity()+" shelter slots; no beds" : "Player-designated building") : "Generated plan; visual upgrades not implemented";
         g.drawString(font, up, x+24,y+22, b.getLevel()>=5?C_GOLD:C_TEXT_MID,false);
     }
     private String BuildingIcon(BuildingType t){ return switch(t){ case HOUSE->"⌂"; case FARM->"⚘"; case LUMBERJACK_HUT->"♠"; case MINE->"⛏"; case WAREHOUSE->"▣"; case BARRACKS->"⚔"; case BLACKSMITH->"⚒"; case BAKERY->"◯"; default->"⬢"; }; }
@@ -283,7 +283,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
         g.fill(x,y-2,x+316,y+12, C_BLUE_BG); g.fill(x,y-2,x+2,y+12, C_BLUE);
         g.drawString(font, "Hub "+c.getWarehouseManager().getWarehouseCenter().toShortString()+"  "+c.getWarehouseManager().getChestCount()+" chests", x+6,y, C_BLUE,false); y+=14;
         var snap=c.getWarehouseSnapshot(menu.player.level() instanceof net.minecraft.server.level.ServerLevel sl?sl:null);
-        if(snap.isEmpty()) drawHintBox(g,x,y,"Empty — put items in any colony chest, couriers consolidate 9 stacks/trip to hub.");
+        if(snap.isEmpty()) drawHintBox(g,x,y,"Empty — designate storage with the Building Tool. Couriers carry one stack to the hub.");
         else{
             g.drawString(font, "Stock (top by count):", x,y, C_TEXT,false); y+=10;
             var sorted=snap.entrySet().stream().sorted((a,b)->b.getValue()-a.getValue()).toList();
@@ -370,7 +370,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
     }
 
     // getters for bars
-    private int housing(com.simplecolonies.colony.Colony c){ return c.getBuildings().stream().filter(b->b.getType()==BuildingType.HOUSE).mapToInt(b->b.getHousingCapacity()).sum(); }
+    private int housing(com.simplecolonies.colony.Colony c){ return c.getShelterCapacity(); }
     private float housingPct(com.simplecolonies.colony.Colony c){ int h=housing(c); return h==0?0: Math.min(1f, (float)c.citizenCount()/h); }
     private float popPct(com.simplecolonies.colony.Colony c){ int max=com.simplecolonies.config.ColonyConfig.MAX_CITIZENS_PER_COLONY.get(); return max==0?0: (float)c.citizenCount()/max; }
     private int needFood(com.simplecolonies.colony.Colony c){ return (int)Math.ceil(c.citizenCount()*com.simplecolonies.config.ColonyConfig.FOOD_CONSUMPTION_MULTIPLIER.get()); }
