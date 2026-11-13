@@ -189,19 +189,20 @@ public final class ShepherdJob extends AbstractJob {
             }
             state = JobState.NEEDS_RESOURCE; return;
         }
-        if (villager.distanceToSqr(target) > 6.25 || !villager.hasLineOfSight(target)) {
-            var path = villager.getNavigation().createPath(target, 1);
-            if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
-            villager.getNavigation().moveTo(path, 0.7); state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
-        }
-        if (!partnerWaiting) {
+        if (partnerWaiting) {
+            if (villager.distanceToSqr(target) > 6.25 || !villager.hasLineOfSight(target)) {
+                var path = villager.getNavigation().createPath(target, 1);
+                if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
+                villager.getNavigation().moveTo(path, 0.7); state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
+            }
+        } else {
             var partner = adults.stream().filter(a -> a != target && a.canFallInLove() && a.distanceToSqr(target) <= 36)
                     .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
             if (partner == null) return;
-            if (villager.distanceToSqr(partner) > 6.25 || !villager.hasLineOfSight(partner)) {
-                var path = villager.getNavigation().createPath(partner, 1);
-                if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
-                villager.getNavigation().moveTo(path, .7); state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
+            if (villager.distanceToSqr(target) > 6.25 || !villager.hasLineOfSight(target)
+                    || villager.distanceToSqr(partner) > 6.25 || !villager.hasLineOfSight(partner)) {
+                approachPair(level, target, partner);
+                return;
             }
         }
         if (!target.isAlive() || target.hasCustomName() || target.getAge() != 0 || target.isInLove() || !target.canFallInLove()) return;
@@ -211,6 +212,39 @@ public final class ShepherdJob extends AbstractJob {
         villager.getLookControl().setLookAt(target); villager.swing(InteractionHand.MAIN_HAND);
         // Approach the second parent promptly, while the first is still in love.
         state = JobState.WORKING; ticksUntilNextWork = 5;
+    }
+
+    /** Approach a position within reach of both parents. Alternating between
+     * their positions can otherwise make the worker walk back and forth forever. */
+    private void approachPair(ServerLevel level, Sheep first, Sheep second) {
+        var existing = villager.getNavigation().getPath();
+        if (existing != null && !existing.isDone() && existing.canReach() && existing.getEndNode() != null) {
+            BlockPos end = existing.getEndNode().asBlockPos();
+            if (end.distToCenterSqr(first.position()) <= 5.0 && end.distToCenterSqr(second.position()) <= 5.0) {
+                state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
+            }
+        }
+        var stands = new java.util.ArrayList<BlockPos>();
+        BlockPos center = first.blockPosition();
+        for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) for (int y = -1; y <= 1; y++) {
+            BlockPos pos = center.offset(x, y, z);
+            if (!level.isLoaded(pos) || !level.isLoaded(pos.above()) || !level.isLoaded(pos.below()) || !colony.isInside(pos)) continue;
+            if (pos.distToCenterSqr(first.position()) > 5.0 || pos.distToCenterSqr(second.position()) > 5.0) continue;
+            if (!level.getBlockState(pos).getCollisionShape(level, pos).isEmpty()
+                    || !level.getBlockState(pos.above()).getCollisionShape(level, pos.above()).isEmpty()
+                    || !level.getFluidState(pos).isEmpty()
+                    || !level.getBlockState(pos.below()).isFaceSturdy(level, pos.below(), net.minecraft.core.Direction.UP)) continue;
+            stands.add(pos);
+        }
+        stands.sort(java.util.Comparator.comparingDouble(p -> p.distSqr(villager.blockPosition())));
+        for (var stand : stands) {
+            if (stand.equals(villager.blockPosition())) continue; // A blocked line of sight requires another stand.
+            var path = villager.getNavigation().createPath(stand, 0);
+            if (path == null || !path.canReach()) continue;
+            villager.getNavigation().moveTo(path, .7);
+            state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
+        }
+        state = JobState.STUCK; ticksUntilNextWork = 40;
     }
 
     private static boolean plainWheat(ItemStack stack) {
