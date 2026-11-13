@@ -41,6 +41,7 @@ public class ColonyVillager extends Villager {
     private CompoundTag minerMemory = new CompoundTag();
     private CompoundTag woodcutterMemory = new CompoundTag();
     private long nextConversationTime;
+    private long nextShelterAttempt;
 
     // Needs
     private int hungerTicks = 0; // increments daily if no food, leads to damage
@@ -363,7 +364,11 @@ public class ColonyVillager extends Villager {
         // Do not interrupt panic, trading or sleep with shelter navigation.
         if (isTrading() || isSleeping() || getBrain().hasMemoryValue(MemoryModuleType.IS_PANICKING)
                 || getBrain().hasMemoryValue(MemoryModuleType.NEAREST_HOSTILE)) return;
-        if (level.getGameTime() % 60 != 0) return;
+        if (level.getGameTime() < nextShelterAttempt) return;
+        // Ground navigation cannot create a path while airborne. Do not burn
+        // a whole retry interval just because this tick coincided with a jump.
+        if (!onGround() && !isInLiquid() && !isPassenger()) return;
+        nextShelterAttempt = level.getGameTime() + 60;
         if (getNavigation() instanceof net.minecraft.world.entity.ai.navigation.GroundPathNavigation ground) {
             ground.setCanOpenDoors(true);
             ground.setCanPassDoors(true);

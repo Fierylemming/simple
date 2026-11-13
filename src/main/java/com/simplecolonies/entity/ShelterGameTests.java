@@ -49,6 +49,34 @@ public class ShelterGameTests {
             if (!state.is(Blocks.OAK_DOOR) || state.getValue(DoorBlock.OPEN)) helper.fail("Hall door is not closed");
         });
     }
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void shelterSearchRetriesAfterLanding(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos hall = new BlockPos(8, 1, 9), door = hall.north(3);
+        for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) {
+            for (int y = 0; y <= 2; y++) if ((Math.abs(x) == 3 || Math.abs(z) == 3) && !(x == 0 && z == -3 && y < 2))
+                helper.setBlock(hall.offset(x, y, z), Blocks.COBBLESTONE);
+            helper.setBlock(hall.offset(x, 3, z), Blocks.OAK_PLANKS);
+        }
+        var absDoor = helper.absolutePos(door);
+        var low = Blocks.OAK_DOOR.defaultBlockState().setValue(DoorBlock.FACING, Direction.NORTH);
+        helper.getLevel().setBlock(absDoor, low, 2);
+        helper.getLevel().setBlock(absDoor.above(), low.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3);
+        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(hall));
+        colony.registerPlayerBuilding(new Building(BuildingType.TOWN_HALL, colony.getCenter(), CultureType.ROMAN, true));
+        var villager = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 3));
+        helper.runAtTickTime(20, () -> {
+            villager.setOnGround(false);
+            villager.seekShelter(helper.getLevel(), colony);
+            villager.setOnGround(true);
+            villager.seekShelter(helper.getLevel(), colony);
+            var walk = villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET);
+            if (walk.isEmpty() || walk.get().getTarget().currentBlockPosition().distSqr(colony.getCenter()) > 2)
+                helper.fail("Shelter search did not retry when the villager landed: " + walk);
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "empty")
     public static void rejectsRoofedShelterWithWallOpening(GameTestHelper helper) {
         BlockPos hall = new BlockPos(8, 1, 9);
