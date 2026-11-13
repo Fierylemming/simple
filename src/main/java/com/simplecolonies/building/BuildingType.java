@@ -23,7 +23,7 @@ public enum BuildingType {
     // Blacksmith now costs furnace+cobble+planks — no anvil, so Tier1 village can build it then start smelting iron for Tier2
     BLACKSMITH("Blacksmith", "Workplace for Blacksmith (smelts ores, makes iron tools)", 0, com.simplecolonies.villager.job.JobType.BLACKSMITH, Map.of("minecraft:furnace", 2, "minecraft:cobblestone", 32, "minecraft:oak_planks", 16)),
     BARRACKS("Barracks", "Houses & trains soldiers (needs iron from Tier2 miner)", 6, com.simplecolonies.villager.job.JobType.SOLDIER, Map.of("minecraft:cobblestone", 64, "minecraft:iron_ingot", 8)),
-    MARKET("Market", "Villager trading hall (late, needs emeralds)", 0, null, Map.of("minecraft:gold_ingot", 8, "minecraft:oak_planks", 24)),
+    MARKET("Market", "Civic meeting hall; trading is not yet implemented", 0, null, Map.of("minecraft:gold_ingot", 8, "minecraft:oak_planks", 24)),
     LIBRARY("Library", "Unlocks upgrades faster (needs books from Tier1+2)", 0, null, Map.of("minecraft:bookshelf", 12, "minecraft:oak_planks", 16)),
     TEMPLE("Temple", "Culture-specific, boosts reputation (late, needs quartz/gold)", 0, null, Map.of("minecraft:quartz_block", 16, "minecraft:sandstone", 32)),
     CASTLE("Castle", "Final upgrade for large city defense (iron+ stone)", 12, com.simplecolonies.villager.job.JobType.GUARD, Map.of("minecraft:stone_bricks", 128, "minecraft:iron_ingot", 16)),
