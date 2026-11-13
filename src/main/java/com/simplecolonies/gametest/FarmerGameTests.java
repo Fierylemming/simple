@@ -57,7 +57,7 @@ public class FarmerGameTests {
         });
     }
 
-    @GameTest(template = "empty", timeoutTicks = 1200)
+    @GameTest(template = "empty", timeoutTicks = 2000)
     public static void harvestReplantAndCraftBread(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
         helper.setBlock(8, 0, 8, Blocks.WATER);
@@ -75,14 +75,18 @@ public class FarmerGameTests {
         BlockPos chest = new BlockPos(13, 1, 7);
         helper.setBlock(chest, Blocks.CHEST);
         if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share farm storage");
+        // Wheat may drop no seed. Supply a real fallback so this integration
+        // checks replanting rather than depending on random loot.
+        ((net.minecraft.world.Container) helper.getBlockEntity(chest)).setItem(0,
+                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.WHEAT_SEEDS, 6));
         colony.registerPlayerBuilding(new Building(BuildingType.FARM, colony.getCenter(), CultureType.ROMAN, true));
         FarmerJob job = new FarmerJob(farmer, colony);
-        for (int tick = 1; tick < 1200; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        for (int tick = 1; tick < 2000; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
         helper.succeedWhen(() -> {
             if (colony.getWarehouseCount(helper.getLevel(), "minecraft:bread") < 1)
                 helper.fail("Farmer did not craft bread: " + job.getState() + " at " + farmer.blockPosition().toShortString());
             for (int x = 6; x <= 8; x++) {
-                if (!helper.getBlockState(new BlockPos(x, 1, 9)).is(Blocks.WHEAT)) helper.fail("Harvested crop was not replanted");
+                if (!helper.getBlockState(new BlockPos(x, 1, 9)).is(Blocks.WHEAT)) helper.fail("Harvested crop was not replanted at x=" + x + "; block=" + helper.getBlockState(new BlockPos(x, 1, 9)) + "; ground=" + helper.getBlockState(new BlockPos(x, 0, 9)) + "; worker=" + job.getState());
             }
         });
     }
@@ -132,6 +136,49 @@ public class FarmerGameTests {
             BlockPos dest = helper.absolutePos(chest);
             if (worker.distanceToSqr(dest.getX()+.5, dest.getY()+.5, dest.getZ()+.5) > 9)
                 helper.fail("Harvest deposited without visiting storage");
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 1500)
+    public static void carriesWheatToWorkstationAndDeliversBread(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos site = new BlockPos(4, 1, 8), chest = new BlockPos(13, 1, 8);
+        helper.setBlock(site, Blocks.COMPOSTER); helper.setBlock(chest, Blocks.CHEST);
+        BlockPos absSite = helper.absolutePos(site), absChest = helper.absolutePos(chest);
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(4, 1, 9));
+        worker.setVillagerData(worker.getVillagerData().setProfession(ColonyProfessions.profession(JobType.FARMER)));
+        worker.refreshBrain(helper.getLevel());
+        worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), absSite));
+        Colony colony = new Colony(0, CultureType.ROMAN, absSite);
+        colony.registerPlayerBuilding(new Building(BuildingType.FARM, absSite, CultureType.ROMAN, true));
+        var storage = (net.minecraft.world.Container) helper.getBlockEntity(chest);
+        storage.setItem(0, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.WHEAT, 3));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), absChest)) helper.fail("Could not share chest");
+        var job = new FarmerJob(worker, colony);
+        boolean[] gathered = {false}, made = {false}, delivered = {false};
+        for (int tick = 1; tick < 1500; tick++) helper.runAtTickTime(tick, () -> {
+            job.tick(helper.getLevel());
+            if (!gathered[0] && storage.countItem(net.minecraft.world.item.Items.WHEAT) == 0) {
+                if (worker.distanceToSqr(absChest.getX()+.5, absChest.getY()+.5, absChest.getZ()+.5) > 9
+                        || worker.getInventory().countItem(net.minecraft.world.item.Items.WHEAT) != 3)
+                    helper.fail("Wheat was not physically collected");
+                gathered[0] = true;
+            }
+            if (!made[0] && worker.getCourierCargo().is(net.minecraft.world.item.Items.BREAD)) {
+                if (!gathered[0] || worker.distanceToSqr(absSite.getX()+.5, absSite.getY()+.5, absSite.getZ()+.5) > 9
+                        || worker.getInventory().countItem(net.minecraft.world.item.Items.WHEAT) != 0)
+                    helper.fail("Bread was made remotely or without consuming wheat");
+                made[0] = true;
+            }
+            if (!delivered[0] && storage.countItem(net.minecraft.world.item.Items.BREAD) > 0) {
+                if (!made[0] || worker.distanceToSqr(absChest.getX()+.5, absChest.getY()+.5, absChest.getZ()+.5) > 9)
+                    helper.fail("Bread was deposited remotely");
+                delivered[0] = true;
+            }
+        });
+        helper.succeedWhen(() -> {
+            if (!gathered[0] || !made[0] || !delivered[0])
+                helper.fail("Bread in progress: " + job.getState() + "; at " + worker.blockPosition().toShortString());
         });
     }
 

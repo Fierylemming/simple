@@ -44,17 +44,7 @@ public class FarmerJob extends AbstractJob {
         // Vanilla farmers make bread. This keeps the four-founder starter settlement
         // viable without requiring a separately assigned baker.
         int targetBread = Math.max(16, colony.citizenCount() * 4);
-        if (colony.getWarehouseCount(level, "minecraft:bread") < targetBread
-                && colony.getWarehouseCount(level, "minecraft:wheat") >= 3) {
-            if (!atClaimedWorkstation(level)) return;
-            if (colony.consumeStock(level, "minecraft:wheat", 3)) {
-                depositToColony(level, "minecraft:bread", 1);
-                villager.swing(InteractionHand.MAIN_HAND);
-                state = JobState.WORKING;
-                ticksUntilNextWork = 40;
-                return;
-            }
-        }
+        if (colony.getWarehouseCount(level, "minecraft:bread") < targetBread && makeBread(level)) return;
         if (target == null || !level.isLoaded(target) || !eligible(level, target, farm.getPos())) target = findWork(level, farm.getPos());
         if (target == null) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
         if (villager.distanceToSqr(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5) > 9.0) {
@@ -110,6 +100,72 @@ public class FarmerJob extends AbstractJob {
         }
         target = null;
         ticksUntilNextWork = 40;
+    }
+
+    /** Collect plain wheat from a shared container, carry it to the claimed
+     * workstation, and carry the resulting bread back. Legacy virtual wheat
+     * is not an inventory and cannot be picked up by this physical recipe. */
+    private boolean makeBread(ServerLevel level) {
+        var inventory = villager.getInventory();
+        int carried = 0;
+        for (int i = 0; i < inventory.getContainerSize(); i++)
+            if (plainWheat(inventory.getItem(i))) carried += inventory.getItem(i).getCount();
+        if (carried >= 3) {
+            if (!atClaimedWorkstation(level)) return true;
+            int need = 3;
+            for (int i = 0; i < inventory.getContainerSize() && need > 0; i++) {
+                if (!plainWheat(inventory.getItem(i))) continue;
+                need -= inventory.removeItem(i, need).getCount();
+            }
+            if (need != 0) { state = JobState.STUCK; return true; }
+            carryHarvest(new ItemStack(Items.BREAD));
+            villager.swing(InteractionHand.MAIN_HAND);
+            state = JobState.WORKING; ticksUntilNextWork = 40; return true;
+        }
+        var warehouse = colony.getWarehouseManager();
+        var storage = warehouse.courierStoragePositions(level);
+        int available = carried;
+        for (var pos : storage) {
+            var container = warehouse.courierContainer(level, pos);
+            if (container == null) continue;
+            for (int i = 0; i < container.getContainerSize(); i++)
+                if (plainWheat(container.getItem(i))) available += container.getItem(i).getCount();
+        }
+        // If there is not yet enough physical wheat, continue harvesting.
+        if (available < 3 || !inventory.canAddItem(new ItemStack(Items.WHEAT))) return false;
+        unreachableStorageUntil.entrySet().removeIf(e -> e.getValue() <= level.getGameTime());
+        var candidates = storage.stream().filter(p -> !unreachableStorageUntil.containsKey(p))
+                .filter(p -> {
+                    var container = warehouse.courierContainer(level, p);
+                    if (container == null) return false;
+                    for (int i = 0; i < container.getContainerSize(); i++) if (plainWheat(container.getItem(i))) return true;
+                    return false;
+                }).sorted(java.util.Comparator.comparingDouble(p -> p.distSqr(villager.blockPosition()))).toList();
+        for (BlockPos pos : candidates) {
+            if (villager.distanceToSqr(pos.getX()+.5, pos.getY()+.5, pos.getZ()+.5) > 9) {
+                var path = villager.getNavigation().createPath(pos, 1);
+                if (path == null || !path.canReach()) { unreachableStorageUntil.put(pos, level.getGameTime()+200); continue; }
+                villager.getNavigation().moveTo(path, .7);
+                state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return true;
+            }
+            var container = warehouse.courierContainer(level, pos);
+            if (container == null) continue;
+            for (int i = 0; i < container.getContainerSize(); i++) {
+                if (!plainWheat(container.getItem(i))) continue;
+                var taken = container.removeItem(i, 3 - carried);
+                container.setChanged();
+                var remainder = inventory.addItem(taken);
+                if (!remainder.isEmpty()) villager.spawnAtLocation(remainder);
+                villager.swing(InteractionHand.MAIN_HAND);
+                state = JobState.WORKING; ticksUntilNextWork = 10; return true;
+            }
+        }
+        // Unreachable supplies do not prevent the farmer working its field.
+        return false;
+    }
+
+    private static boolean plainWheat(ItemStack stack) {
+        return stack.is(Items.WHEAT) && ItemStack.isSameItemSameComponents(stack, Items.WHEAT.getDefaultInstance());
     }
 
     /** The two persisted job-cargo slots retain actual stacks and components.
