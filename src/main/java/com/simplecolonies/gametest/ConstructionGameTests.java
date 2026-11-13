@@ -88,6 +88,30 @@ public class ConstructionGameTests {
     }
 
     @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void builderConstructsSpruceSmithyAroundWorkstation(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos relative = new BlockPos(8, 1, 9), origin = helper.absolutePos(relative);
+        helper.setBlock(relative, Blocks.SMITHING_TABLE);
+        Colony colony = new Colony(0, CultureType.ROMAN, origin);
+        colony.depositToWarehouse("minecraft:spruce_log", 300);
+        colony.depositToWarehouse("minecraft:cobblestone", 300);
+        colony.depositToWarehouse("minecraft:coal", 10);
+        Building site = new Building(BuildingType.BLACKSMITH, origin, CultureType.ROMAN, com.simplecolonies.building.HouseTimber.SPRUCE);
+        colony.registerPlayerBuilding(site);
+        BlockPos door = site.getRemainingPlacements().stream().filter(p -> p.state.is(Blocks.SPRUCE_DOOR)).findFirst().orElseThrow().pos;
+        var villager = helper.spawn(EntityType.VILLAGER, new BlockPos(8, 1, 2));
+        BuilderJob job = new BuilderJob(villager, colony);
+        for (int tick = 1; tick < 2400; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.succeedWhen(() -> {
+            if (site.getState() != BuildingState.COMPLETE || !helper.getLevel().getBlockState(door).is(Blocks.SPRUCE_DOOR)
+                    || !helper.getLevel().getBlockState(door.above()).is(Blocks.SPRUCE_DOOR)
+                    || !helper.getLevel().getBlockState(origin).is(Blocks.SMITHING_TABLE)
+                    || !helper.getLevel().getBlockState(origin.east()).is(Blocks.FURNACE))
+                helper.fail("Spruce smithy incomplete: " + site.getState() + " worker=" + job.getState());
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 2400)
     public static void builderHut(GameTestHelper helper) { runBuilder(helper, BuildingType.BUILDER_HUT, Blocks.ANVIL, CultureType.ROMAN, -1); }
 
     @GameTest(template = "empty", timeoutTicks = 2400)
