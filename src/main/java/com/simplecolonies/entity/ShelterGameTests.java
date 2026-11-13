@@ -37,8 +37,17 @@ public class ShelterGameTests {
         ColonyVillager villager = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 3));
         boolean[] sawTrackedDoor = {false};
         String[] whenTracked = {"never"};
+        var changes = new java.util.ArrayDeque<String>();
+        String[] previous = {""};
         for (int tick = 1; tick < 1200; tick++) helper.runAtTickTime(tick, () -> {
             villager.seekShelter(helper.getLevel(), colony);
+            String state = "open=" + helper.getLevel().getBlockState(absDoor).getValue(DoorBlock.OPEN)
+                    + ", own=" + villager.remembersShelterDoor(absDoor);
+            if (!state.equals(previous[0])) {
+                if (changes.size() == 8) changes.removeFirst();
+                changes.addLast(helper.getLevel().getGameTime() + ":" + state + ", pos=" + villager.blockPosition().toShortString());
+                previous[0] = state;
+            }
             var remembered = villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.DOORS_TO_CLOSE);
             if (remembered.isPresent() && remembered.get().contains(net.minecraft.core.GlobalPos.of(helper.getLevel().dimension(), absDoor))) {
                 sawTrackedDoor[0] = true;
@@ -61,7 +70,7 @@ public class ShelterGameTests {
                             .map(target -> target.getTarget().currentBlockPosition().toShortString())
                     + "; path=" + villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.PATH)
                     + "; doorsToClose=" + villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.DOORS_TO_CLOSE)
-                    + "; sawTrackedDoor=" + sawTrackedDoor[0] + "; lastTracked=" + whenTracked[0]
+                    + "; sawTrackedDoor=" + sawTrackedDoor[0] + "; changes=" + changes + "; lastTracked=" + whenTracked[0]
                     + "; now=" + helper.getLevel().getGameTime() + "; " + villager.shelterDiagnostic() + "; center=" + colony.getCenter().toShortString()
                     + "; door=" + absDoor.toShortString() + "; nearbyLiving="
                     + helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class,
