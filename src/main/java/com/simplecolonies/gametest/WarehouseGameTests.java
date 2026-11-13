@@ -79,6 +79,30 @@ public class WarehouseGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void genericStockDoesNotConsumeOrMergeModifiedItems(GameTestHelper helper) {
+        BlockPos chest = new BlockPos(8, 1, 8), pos = helper.absolutePos(chest);
+        helper.setBlock(chest, Blocks.CHEST);
+        Container items = (Container) helper.getBlockEntity(chest);
+        ItemStack namedBread = new ItemStack(Items.BREAD, 4);
+        namedBread.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal("Special bread"));
+        items.setItem(0, namedBread);
+        items.setItem(1, new ItemStack(Items.BREAD, 3));
+        Colony colony = new Colony(0, CultureType.ROMAN, pos);
+        var storage = colony.getWarehouseManager();
+        if (!storage.registerStorage(helper.getLevel(), pos)) helper.fail("Could not designate storage");
+        if (colony.getWarehouseCount(helper.getLevel(), "minecraft:bread") != 3)
+            helper.fail("Modified bread was counted as generic food");
+        if (colony.consumeStock(helper.getLevel(), "minecraft:bread", 4)) helper.fail("Consumed named bread as generic stock");
+        if (!colony.consumeStock(helper.getLevel(), "minecraft:bread", 3)) helper.fail("Failed to consume ordinary bread");
+        if (storage.deposit(helper.getLevel(), pos, "minecraft:bread", 2) != 2) helper.fail("Could not deposit ordinary bread");
+        if (items.getItem(0).getCount() != 4 || !items.getItem(0).has(net.minecraft.core.component.DataComponents.CUSTOM_NAME)
+                || items.getItem(1).getCount() != 2 || items.getItem(1).has(net.minecraft.core.component.DataComponents.CUSTOM_NAME))
+            helper.fail("Named bread was consumed or generic food merged into it");
+        if (colony.getWarehouseCount(helper.getLevel(), "minecraft:bread") != 2) helper.fail("Stock counts became inconsistent");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void warehouseHubDesignationSurvivesReloadWithoutInventingOne(GameTestHelper helper) {
         BlockPos center = helper.absolutePos(new BlockPos(8, 1, 8));
         Colony colony = new Colony(0, CultureType.GREEK, center);

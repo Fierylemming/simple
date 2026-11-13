@@ -95,6 +95,12 @@ public class WarehouseManager {
     }
 
 
+    /** ID-only stock operations cannot faithfully represent custom components.
+     * Keep named, enchanted, damaged or otherwise modified stacks out of them. */
+    private static boolean plainStock(ItemStack stack) {
+        return !stack.isEmpty() && ItemStack.isSameItemSameComponents(stack, stack.getItem().getDefaultInstance());
+    }
+
     /** Scan loaded, explicitly registered storage within the colony radius. */
     public void scan(ServerLevel level) {
         if (!level.dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) {
@@ -133,7 +139,7 @@ public class WarehouseManager {
                     chestCount++;
                     for (int slot = 0; slot < container.getContainerSize(); slot++) {
                         ItemStack stack = container.getItem(slot);
-                        if (!stack.isEmpty()) {
+                        if (plainStock(stack)) {
                             String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
                             aggregatedCounts.merge(id, stack.getCount(), Integer::sum);
                         }
@@ -155,7 +161,7 @@ public class WarehouseManager {
         for (Container container : cachedChests.values()) {
             for (int slot = 0; slot < container.getContainerSize(); slot++) {
                 ItemStack stack = container.getItem(slot);
-                if (!stack.isEmpty()) {
+                if (plainStock(stack)) {
                     String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
                     aggregatedCounts.merge(id, stack.getCount(), Integer::sum);
                 }
@@ -206,7 +212,7 @@ public class WarehouseManager {
             Container container = entry.getValue();
             for (int slot = 0; slot < container.getContainerSize() && remaining > 0; slot++) {
                 ItemStack stack = container.getItem(slot);
-                if (stack.isEmpty()) continue;
+                if (!plainStock(stack)) continue;
                 String regId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
                 if (!regId.equals(itemId)) continue;
                 int take = Math.min(stack.getCount(), remaining);
@@ -245,7 +251,7 @@ public class WarehouseManager {
             for (int slot = 0; slot < container.getContainerSize() && remaining > 0; slot++) {
                 ItemStack stack = container.getItem(slot);
                 if (stack.isEmpty()) continue;
-                if (!stack.is(item)) continue;
+                if (!stack.is(item) || !plainStock(stack)) continue;
                 int space = stack.getMaxStackSize() - stack.getCount();
                 if (space <= 0) continue;
                 int put = Math.min(space, remaining);
@@ -304,7 +310,7 @@ public class WarehouseManager {
             Container source = cachedChests.get(sourcePos);
             for (int slot = 0; slot < source.getContainerSize(); slot++) {
                 ItemStack stack = source.getItem(slot);
-                if (stack.isEmpty()) continue;
+                if (!plainStock(stack)) continue;
                 // Try deposit this stack into warehouse hub
                 String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
                 int deposited = deposit(level, warehouseCenter, id, stack.getCount());
