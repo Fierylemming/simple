@@ -58,6 +58,37 @@ public class GuardGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 1600)
+    public static void soldierFollowsBeyondColonyAndReturnsAfterDismissal(GameTestHelper helper) {
+        for (int x = 12; x <= 100; x++) for (int z = 50; z <= 62; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        var guard = helper.spawn(EntityType.VILLAGER, new BlockPos(68, 1, 56));
+        var leader = helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
+        var position = helper.absolutePos(new BlockPos(84, 1, 56));
+        leader.moveTo(position.getX() + 0.5, position.getY(), position.getZ() + 0.5);
+        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(18, 1, 56)));
+        colony.setLeader(leader);
+        if (colony.isInside(guard.blockPosition()) || colony.isInside(leader.blockPosition()))
+            helper.fail("Fixture must begin outside the colony");
+        SoldierJob job = new SoldierJob(guard, colony);
+        job.setCommander(leader, true);
+        boolean[] reachedLeader = {false};
+        double[] dismissedDistance = {0};
+        for (int tick = 1; tick < 1600; tick++) helper.runAtTickTime(tick, () -> {
+            job.tick(helper.getLevel());
+            if (!reachedLeader[0] && guard.distanceToSqr(leader) <= 36) {
+                reachedLeader[0] = true;
+                dismissedDistance[0] = colony.getCenter().distSqr(guard.blockPosition());
+                job.setCommander(leader, false);
+            }
+        });
+        helper.succeedWhen(() -> {
+            if (!reachedLeader[0] || job.isFollowing()
+                    || colony.getCenter().distSqr(guard.blockPosition()) >= dismissedDistance[0] - 25)
+                helper.fail("Follow/return failed: followed=" + reachedLeader[0] + " state=" + job.getState()
+                        + " guard=" + guard.blockPosition().toShortString());
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 1000)
     public static void soldierFollowsLeaderAndStopsWhenReleased(GameTestHelper helper) {
         for (int x = 40; x <= 72; x++) for (int z = 40; z <= 72; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);

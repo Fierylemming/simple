@@ -21,6 +21,16 @@ public class SoldierJob extends AbstractJob {
     }
     public boolean isFollowing() { return followingLeader; }
 
+    private boolean hasValidCommander(ServerLevel level) {
+        return followingLeader && commander != null && commander.isAlive() && !commander.isRemoved()
+                && commander.level() == level && colony.isLeader(commander);
+    }
+
+    // A follow order must keep working after crossing the colony boundary.
+    // An invalid, disconnected or dismissed commander restores the ordinary
+    // return-to-colony behavior; no chunks are loaded to find a player.
+    @Override protected boolean mayWorkOutsideColony(ServerLevel level) { return hasValidCommander(level); }
+
     @Override protected void onTick(ServerLevel level) {
         // Vanilla villagers panic and replace the combat path with a flee target.
         // During an active defense, let this job own navigation and suppress that
@@ -35,7 +45,7 @@ public class SoldierJob extends AbstractJob {
 
     @Override protected void doWork(ServerLevel level) {
         LivingEntity target = null;
-        if (followingLeader && commander != null && commander.isAlive() && !commander.isRemoved() && commander.level() == level && colony.isLeader(commander)) {
+        if (hasValidCommander(level)) {
             LivingEntity recent = commander.getLastHurtMob();
             if (recent instanceof Monster && recent.isAlive() && villager.distanceToSqr(recent) < 400) target = recent;
         }
@@ -62,8 +72,7 @@ public class SoldierJob extends AbstractJob {
             ticksUntilNextWork = 20;
             return;
         }
-        if (followingLeader && commander != null && commander.isAlive() && !commander.isRemoved() && commander.level() == level && colony.isLeader(commander)
-                && villager.distanceToSqr(commander) > 36) {
+        if (hasValidCommander(level) && villager.distanceToSqr(commander) > 36) {
             villager.getNavigation().moveTo(commander, 1.0);
             state = JobState.GOING_TO_WORK;
         } else {

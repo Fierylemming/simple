@@ -36,7 +36,7 @@ public abstract class AbstractJob {
     public final void tick(ServerLevel level) {
         onTick(level);
         if (ticksUntilNextWork > 0) { ticksUntilNextWork--; return; }
-        if (!colony.isInside(villager.blockPosition())) {
+        if (!colony.isInside(villager.blockPosition()) && !mayWorkOutsideColony(level)) {
             state = JobState.GOING_TO_WORK;
             // Path to colony center — courier is faster
             double speed = (type == JobType.COURIER) ? 1.2 : 0.6;
@@ -87,6 +87,9 @@ public abstract class AbstractJob {
         ticksUntilNextWork = 20;
         return false;
     }
+
+    /** Ordinary workers stay within the colony; specific activities may allow travel. */
+    protected boolean mayWorkOutsideColony(ServerLevel level) { return false; }
 
     /** Called even between work actions, for behaviours that must not be deferred. */
     protected void onTick(ServerLevel level) {}
