@@ -45,17 +45,18 @@ final class PhysicalBuilderMaterials {
         if (snapshot(held()).getOrDefault(wanted, 0) > 0) return Result.READY;
         var local = snapshot(held());
         if (ConstructionCrafting.requiredInputs(local, wanted) != null) {
-            BlockPos table = findCraftingTable(level);
-            if (table == null) return Result.BLOCKED;
-            if (worker.distanceToSqr(table.getX()+.5, table.getY()+.5, table.getZ()+.5) > 9) {
-                var path = worker.getNavigation().createPath(table, 1);
-                if (path == null || !path.canReach()) return Result.BLOCKED;
-                worker.getNavigation().moveTo(path, .7);
-                return Result.MOVING;
+            for (BlockPos table : findCraftingTables(level)) {
+                if (worker.distanceToSqr(table.getX()+.5, table.getY()+.5, table.getZ()+.5) > 9) {
+                    var path = worker.getNavigation().createPath(table, 1);
+                    if (path == null || !path.canReach()) continue;
+                    worker.getNavigation().moveTo(path, .7);
+                    return Result.MOVING;
+                }
+                if (!craftOne(wanted)) return Result.BLOCKED;
+                worker.swing(InteractionHand.MAIN_HAND);
+                return Result.WORKING;
             }
-            if (!craftOne(wanted)) return Result.BLOCKED;
-            worker.swing(InteractionHand.MAIN_HAND);
-            return Result.WORKING;
+            return Result.BLOCKED;
         }
         var warehouse = colony.getWarehouseManager();
         var positions = warehouse.courierStoragePositions(level);
@@ -117,18 +118,16 @@ final class PhysicalBuilderMaterials {
         return room;
     }
 
-    private BlockPos findCraftingTable(ServerLevel level) {
-        BlockPos best = null; double bestDistance = Double.MAX_VALUE;
+    private java.util.List<BlockPos> findCraftingTables(ServerLevel level) {
+        var tables = new java.util.HashSet<BlockPos>();
         for (var building : colony.getBuildings()) {
             if (building.getState() != BuildingState.COMPLETE
                     || (building.getType() != BuildingType.TOWN_HALL && building.getType() != BuildingType.HOUSE)) continue;
             for (BlockPos p : BlockPos.betweenClosed(building.getPos().offset(-3, -1, -3), building.getPos().offset(3, 3, 3))) {
-                if (!level.isLoaded(p) || !colony.isInside(p) || !level.getBlockState(p).is(Blocks.CRAFTING_TABLE)) continue;
-                double distance = worker.distanceToSqr(p.getX()+.5, p.getY()+.5, p.getZ()+.5);
-                if (distance < bestDistance) { bestDistance = distance; best = p.immutable(); }
+                if (level.isLoaded(p) && colony.isInside(p) && level.getBlockState(p).is(Blocks.CRAFTING_TABLE)) tables.add(p.immutable());
             }
         }
-        return best;
+        return tables.stream().sorted(Comparator.comparingDouble(p -> p.distSqr(worker.blockPosition()))).toList();
     }
 
     /** Craft on a temporary copy and commit only if every result fits. */
