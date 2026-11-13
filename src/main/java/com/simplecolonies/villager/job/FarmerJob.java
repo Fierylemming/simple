@@ -1,11 +1,11 @@
 package com.simplecolonies.villager.job;
 
 import com.simplecolonies.colony.Colony;
+import com.simplecolonies.entity.ColonyVillager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -18,9 +18,16 @@ import net.minecraft.world.level.block.state.BlockState;
 public class FarmerJob extends AbstractJob {
     private BlockPos target;
     private final java.util.Map<BlockPos, Long> unreachableUntil = new java.util.HashMap<>();
-    public FarmerJob(Villager villager, Colony colony) { super(villager, colony, JobType.FARMER); }
+    private final java.util.Map<BlockPos, Long> unreachableStorageUntil = new java.util.HashMap<>();
+    public FarmerJob(ColonyVillager villager, Colony colony) { super(villager, colony, JobType.FARMER); }
+    private ColonyVillager worker() { return (ColonyVillager) villager; }
 
     @Override protected void doWork(ServerLevel level) {
+        // Preserve and deliver harvest even if the farm or workstation disappears.
+        if (!worker().getCourierCargo().isEmpty() || !worker().getCourierCargoExtra().isEmpty()) {
+            deliverHarvest(level);
+            return;
+        }
         var site = villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE);
         if (site.isEmpty() || !site.get().dimension().equals(level.dimension()) || !level.isLoaded(site.get().pos())
                 || !level.getBlockState(site.get().pos()).is(Blocks.COMPOSTER)) {
@@ -74,7 +81,11 @@ public class FarmerJob extends AbstractJob {
                             count--; replanted = true;
                         }
                     }
-                    if (count > 0) depositToColony(level, BuiltInRegistries.ITEM.getKey(drop.getItem()).toString(), count);
+                    if (count > 0) {
+                        var harvested = drop.copy();
+                        harvested.setCount(count);
+                        carryHarvest(harvested);
+                    }
                 }
                 // Wheat sometimes drops no seeds. Use an actual stored seed as a
                 // fallback so a successful harvest doesn't permanently shrink the farm.
@@ -99,6 +110,56 @@ public class FarmerJob extends AbstractJob {
         }
         target = null;
         ticksUntilNextWork = 40;
+    }
+
+    /** The two persisted job-cargo slots retain actual stacks and components.
+     * Unexpected excess remains as a real dropped item at the harvest site. */
+    private void carryHarvest(ItemStack stack) {
+        var remaining = stack.copy();
+        if (worker().getCourierCargo().isEmpty()) worker().setCourierCargo(remaining.split(remaining.getMaxStackSize()));
+        else mergeHarvest(worker().getCourierCargo(), remaining);
+        if (!remaining.isEmpty()) {
+            if (worker().getCourierCargoExtra().isEmpty()) worker().setCourierCargoExtra(remaining.split(remaining.getMaxStackSize()));
+            else mergeHarvest(worker().getCourierCargoExtra(), remaining);
+        }
+        if (!remaining.isEmpty()) villager.spawnAtLocation(remaining);
+    }
+
+    private static void mergeHarvest(ItemStack target, ItemStack source) {
+        if (!ItemStack.isSameItemSameComponents(target, source)) return;
+        int moved = Math.min(source.getCount(), target.getMaxStackSize() - target.getCount());
+        if (moved > 0) { target.grow(moved); source.shrink(moved); }
+    }
+
+    private void deliverHarvest(ServerLevel level) {
+        var warehouse = colony.getWarehouseManager();
+        unreachableStorageUntil.entrySet().removeIf(e -> e.getValue() <= level.getGameTime());
+        var candidates = warehouse.courierStoragePositions(level).stream()
+                .filter(p -> !unreachableStorageUntil.containsKey(p))
+                .filter(p -> {
+                    var container = warehouse.courierContainer(level, p);
+                    return CourierJob.canInsert(container, worker().getCourierCargo())
+                            || CourierJob.canInsert(container, worker().getCourierCargoExtra());
+                })
+                .sorted(java.util.Comparator.comparingDouble(p -> p.distSqr(villager.blockPosition()))).toList();
+        for (BlockPos destination : candidates) {
+            if (villager.distanceToSqr(destination.getX()+0.5, destination.getY()+0.5, destination.getZ()+0.5) > 9) {
+                var path = villager.getNavigation().createPath(destination, 1);
+                if (path == null || !path.canReach()) {
+                    unreachableStorageUntil.put(destination, level.getGameTime() + 200);
+                    continue;
+                }
+                villager.getNavigation().moveTo(path, 0.7);
+                state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
+            }
+            var container = warehouse.courierContainer(level, destination);
+            if (container == null) continue;
+            CourierJob.insert(container, worker().getCourierCargo());
+            CourierJob.insert(container, worker().getCourierCargoExtra());
+            villager.swing(InteractionHand.MAIN_HAND);
+            state = JobState.WORKING; ticksUntilNextWork = 40; return;
+        }
+        state = JobState.WAITING_FOR_CHEST; ticksUntilNextWork = 100;
     }
 
     boolean replantFromStock(ServerLevel level, BlockPos pos, CropBlock crop, Item seed) {

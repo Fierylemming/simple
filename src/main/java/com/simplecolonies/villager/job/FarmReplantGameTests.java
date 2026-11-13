@@ -20,7 +20,7 @@ public class FarmReplantGameTests {
         BlockPos plot = new BlockPos(8, 1, 8), pos = helper.absolutePos(plot);
         helper.setBlock(plot.below(), Blocks.FARMLAND);
         var colony = new Colony(0, CultureType.ROMAN, pos);
-        var farmer = helper.spawn(EntityType.VILLAGER, new BlockPos(6, 1, 8));
+        var farmer = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(6, 1, 8));
         var job = new FarmerJob(farmer, colony);
         if (job.replantFromStock(helper.getLevel(), pos, (CropBlock) Blocks.WHEAT, Items.WHEAT_SEEDS))
             helper.fail("Planted without a seed");
