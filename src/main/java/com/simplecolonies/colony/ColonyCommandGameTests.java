@@ -18,7 +18,7 @@ public class ColonyCommandGameTests {
         ColonyCommand.register(dispatcher);
         var root = dispatcher.getRoot().getChild("colony");
         var operator = helper.getLevel().getServer().createCommandSourceStack().withPermission(2);
-        var ordinary = operator.withMaximumPermission(0);
+        var ordinary = operator.withPermission(0);
         for (String name : new String[]{"give", "unlock", "tickprogress", "spawn", "tp", "delete", "build", "repair", "cancel_building"}) {
             var command = root.getChild(name);
             if (command == null || command.canUse(ordinary) || !command.canUse(operator)) helper.fail("Wrong permissions for " + name);
