@@ -18,7 +18,14 @@ public class BuilderJob extends AbstractJob {
     // is obstructed, unloaded, unreachable, or waiting for materials.
     private final java.util.Map<Building, Long> retryAfter = new java.util.IdentityHashMap<>();
     private void deferCurrent(ServerLevel level, int ticks) {
-        if (currentJob != null) retryAfter.put(currentJob, level.getGameTime() + ticks);
+        if (currentJob == null) return;
+        // With no other unfinished plan, retain the normal prompt retry. Long
+        // backoffs on a lone project slow ordinary construction dramatically.
+        boolean alternative = colony.getBuildings().stream().anyMatch(b -> b != currentJob && b.hasSupportedPlan()
+                && b.getState() != BuildingState.COMPLETE
+                && retryAfter.getOrDefault(b, Long.MIN_VALUE) <= level.getGameTime());
+        if (!alternative) return;
+        retryAfter.put(currentJob, level.getGameTime() + ticks);
         currentJob = null;
     }
     public BuilderJob(Villager villager, Colony colony) { super(villager, colony, JobType.BUILDER); }
@@ -82,7 +89,7 @@ public class BuilderJob extends AbstractJob {
             if (!level.isLoaded(next.pos)) { state = JobState.STUCK; deferCurrent(level, 200); return; }
             if (villager.distanceToSqr(next.pos.getX() + 0.5, next.pos.getY() + 0.5, next.pos.getZ() + 0.5) > 25.0) {
                 var path = findApproach(level, next.pos);
-                if (path == null) { state = JobState.STUCK; deferCurrent(level, 200); ticksUntilNextWork = 20; return; }
+                if (path == null) { state = JobState.STUCK; deferCurrent(level, 200); ticksUntilNextWork = 40; return; }
                 villager.getNavigation().moveTo(path, 0.7);
                 state = JobState.GOING_TO_WORK;
                 ticksUntilNextWork = 10;

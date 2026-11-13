@@ -130,7 +130,7 @@ public class ConstructionGameTests {
         var obstructed = blocked.getNextPlacement().pos;
         var otherNext = other.getNextPlacement().pos;
         helper.getLevel().setBlock(obstructed, Blocks.OBSIDIAN.defaultBlockState(), 3);
-        var villager = helper.spawn(EntityType.VILLAGER, new BlockPos(9, 1, 5));
+        var villager = helper.spawn(EntityType.VILLAGER, new BlockPos(5, 1, 6));
         BuilderJob job = new BuilderJob(villager, colony);
         for (int tick = 1; tick < 400; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
         helper.succeedWhen(() -> {
