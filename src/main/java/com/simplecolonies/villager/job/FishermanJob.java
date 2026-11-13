@@ -58,19 +58,22 @@ public class FishermanJob extends AbstractJob {
 
     @Override protected void doWork(ServerLevel level) {
         if (villager.getBrain().hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.IS_PANICKING)) {
+            lastSearch = "panicking";
             state = JobState.IDLE; ticksUntilNextWork = 20; return;
         }
         var site = villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE);
         if (site.isEmpty() || !site.get().dimension().equals(level.dimension()) || !level.isLoaded(site.get().pos())
                 || !colony.isInside(site.get().pos()) || !level.getBlockState(site.get().pos()).is(Blocks.BARREL)) {
+            lastSearch = "invalid or missing job site: " + site;
             clearJobPath(); state = JobState.STUCK; ticksUntilNextWork = 100; return;
         }
         var harbor = colony.getBuildings().stream()
                 .filter(b -> b.getType() == BuildingType.HARBOR && b.getState() == BuildingState.COMPLETE)
                 .filter(b -> level.isLoaded(b.getPos()) && b.getPos().distSqr(site.get().pos()) <= 144)
                 .min(Comparator.comparingDouble(b -> b.getPos().distSqr(site.get().pos()))).orElse(null);
-        if (harbor == null) { clearJobPath(); state = JobState.STUCK; ticksUntilNextWork = 100; return; }
+        if (harbor == null) { lastSearch = "no loaded completed harbor near " + site.get().pos().toShortString(); clearJobPath(); state = JobState.STUCK; ticksUntilNextWork = 100; return; }
         if (colony.getWarehouseCount(level, "minecraft:cod") + colony.getWarehouseCount(level, "minecraft:salmon") >= 8) {
+            lastSearch = "fish reserve full";
             clearJobPath(); state = JobState.IDLE; ticksUntilNextWork = 200; return;
         }
         var fish = level.getEntitiesOfClass(AbstractFish.class, new AABB(harbor.getPos()).inflate(10, 4, 10),
