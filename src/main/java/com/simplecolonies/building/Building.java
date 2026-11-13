@@ -82,7 +82,8 @@ public class Building {
         if (type != BuildingType.HOUSE) {
             if (planVersion >= 4 && LevelOneWorksites.supports(type, planVersion)) {
                 var plan = new ArrayList<BlockPlacement>();
-                LevelOneWorksites.generate(type, pos, culture, (at, state) -> plan.add(placement(at, state)));
+                LevelOneWorksites.generate(type, pos, culture, (at, state) ->
+                        plan.add(placement(at, planVersion >= 12 ? houseTimber.replaceOak(state) : state)));
                 addPlan(plan, false);
             }
             return;
@@ -207,7 +208,7 @@ public class Building {
         tag.putInt("level", level);
         tag.putInt("planVersion", planVersion);
         tag.putInt("houseVariant", houseVariant);
-        if (planVersion >= 12 && type == BuildingType.HOUSE) tag.putString("houseTimber", houseTimber.id);
+        if (planVersion >= 12) tag.putString("houseTimber", houseTimber.id);
         tag.putBoolean("isPlayerPlaced", isPlayerPlaced);
         CompoundTag req = new CompoundTag();
         requiredResources.forEach((k,v) -> req.putInt(k, v));

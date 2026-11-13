@@ -105,6 +105,21 @@ class WorksitePlanTest {
         }
     }
 
+    @Test void timberWorksitesResumeAndLegacyVersionRemainsOak() {
+        for (var type : new BuildingType[]{BuildingType.MARKET, BuildingType.BLACKSMITH, BuildingType.WAREHOUSE}) {
+            var b = new Building(type, BlockPos.ZERO, CultureType.ROMAN, HouseTimber.SPRUCE);
+            assertTrue(b.getRequiredResources().containsKey("minecraft:spruce_door"));
+            for (int i = 0; i < 8; i++) b.markPlaced(b.getNextPlacement());
+            var restored = Building.load(b.save());
+            assertEquals(b.getRequiredResources(), restored.getRequiredResources());
+            assertEquals(b.getNextPlacement().state, restored.getNextPlacement().state);
+            var tag = new Building(type, BlockPos.ZERO, CultureType.ROMAN, HouseTimber.SPRUCE).save();
+            tag.putInt("planVersion", 11);
+            var legacy = Building.load(tag);
+            assertTrue(legacy.getRequiredResources().containsKey("minecraft:oak_door"));
+        }
+    }
+
     @Test void smithPlanIncludesUsableAdjacentFurnace() {
         var b = new Building(BuildingType.BLACKSMITH, BlockPos.ZERO, CultureType.ROMAN);
         assertTrue(b.getRemainingPlacements().stream().anyMatch(p -> p.pos.equals(BlockPos.ZERO.east()) && p.state.is(Blocks.FURNACE)));

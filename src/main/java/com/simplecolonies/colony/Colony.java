@@ -327,10 +327,12 @@ public class Colony {
                         || !isClearWorksite(level, station, true)
                         || (pair.getValue() == BuildingType.WAREHOUSE && !warehouseManager.isRegisteredStorage(level, station))
                         || (pair.getValue() == BuildingType.HARBOR && !hasFishingWater(level, station))) continue;
-                Building building = new Building(pair.getValue(), station, culture);
-                if (com.simplecolonies.building.ConstructionCrafting.canBuild(stock, building.getRemainingPlacements())) {
-                    queueExpansion(building);
-                    return;
+                for (var timber : com.simplecolonies.building.HouseTimber.values()) {
+                    Building building = new Building(pair.getValue(), station, culture, timber);
+                    if (com.simplecolonies.building.ConstructionCrafting.canBuild(stock, building.getRemainingPlacements())) {
+                        queueExpansion(building);
+                        return;
+                    }
                 }
             }
         }
@@ -339,10 +341,13 @@ public class Colony {
         // claim that trading or higher-tier upgrades are implemented.
         if (!housingNeeded && this.level >= 2 && buildings.stream().noneMatch(b -> b.getType() == BuildingType.MARKET
                 && (b.getState() == com.simplecolonies.building.BuildingState.COMPLETE || b.hasSupportedPlan()))) {
-            Building sample = new Building(BuildingType.MARKET, center, culture);
-            if (com.simplecolonies.building.ConstructionCrafting.canBuild(stock, sample.getRemainingPlacements())) {
-                BlockPos site = findCivicSite(level);
-                if (site != null) { queueExpansion(new Building(BuildingType.MARKET, site, culture)); return; }
+            for (var timber : com.simplecolonies.building.HouseTimber.values()) {
+                Building sample = new Building(BuildingType.MARKET, center, culture, timber);
+                if (com.simplecolonies.building.ConstructionCrafting.canBuild(stock, sample.getRemainingPlacements())) {
+                    BlockPos site = findCivicSite(level);
+                    if (site != null) { queueExpansion(new Building(BuildingType.MARKET, site, culture, timber)); return; }
+                    break; // The site search is independent of the timber palette.
+                }
             }
         }
         expansionStatus = housingReason + "; no affordable, clear claimed worksite or civic site";

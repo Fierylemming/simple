@@ -125,6 +125,27 @@ public class HousingGrowthGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 400)
+    public static void civicHallCanUseSpruce(GameTestHelper helper) {
+        Colony original = setup(helper);
+        citizen(original, JobType.BUILDER);
+        var tag = original.save();
+        tag.putInt("level", 2); tag.putInt("radius", 64);
+        Colony colony = Colony.load(tag);
+        colony.depositToWarehouse("minecraft:spruce_log", 200);
+        colony.depositToWarehouse("minecraft:cobblestone", 200);
+        colony.depositToWarehouse("minecraft:coal", 10);
+        helper.runAtTickTime(200, () -> {
+            colony.tick(helper.getLevel());
+            var hall = colony.getBuildings().stream().filter(b -> b.getType() == BuildingType.MARKET && b.hasSupportedPlan()).findFirst().orElse(null);
+            if (hall == null || !hall.getRequiredResources().containsKey("minecraft:spruce_door"))
+                helper.fail("Civic hall did not use available spruce: " + colony.getExpansionStatus());
+            var restored = Colony.load(colony.save()).getBuildings().stream().filter(b -> b.getType() == BuildingType.MARKET).findFirst().orElseThrow();
+            if (!restored.getRequiredResources().equals(hall.getRequiredResources())) helper.fail("Civic timber plan changed on reload");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 300)
     public static void compactHouseLeavesOutsideFootprintUntouched(GameTestHelper helper) {
         Colony colony = setup(helper);

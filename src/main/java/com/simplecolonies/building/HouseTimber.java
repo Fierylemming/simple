@@ -7,7 +7,7 @@ import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
-/** Explicit vanilla timber families; never turn one species into another. */
+/** Explicit vanilla timber families for generated plans; never turn one species into another. */
 public enum HouseTimber {
     OAK("oak", Blocks.OAK_LOG, Blocks.OAK_PLANKS, Blocks.OAK_STAIRS, Blocks.OAK_SLAB, Blocks.OAK_DOOR),
     SPRUCE("spruce", Blocks.SPRUCE_LOG, Blocks.SPRUCE_PLANKS, Blocks.SPRUCE_STAIRS, Blocks.SPRUCE_SLAB, Blocks.SPRUCE_DOOR),
