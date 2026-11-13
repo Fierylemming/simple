@@ -41,7 +41,8 @@ public class BuilderJob extends AbstractJob {
     }
 
     @Override protected void doWork(ServerLevel level) {
-        if (currentJob == null || currentJob.getState() == BuildingState.COMPLETE) {
+        if (currentJob == null || currentJob.getState() == BuildingState.COMPLETE
+                || !colony.getBuildings().contains(currentJob)) {
             currentJob = colony.getBuildings().stream()
                 .filter(Building::hasSupportedPlan)
                 .filter(b -> b.getState() == BuildingState.BLUEPRINT || b.getState() == BuildingState.UNDER_CONSTRUCTION || b.getState() == BuildingState.NEEDS_RESOURCES || b.getState() == BuildingState.BLOCKED)

@@ -116,6 +116,47 @@ public class ConstructionGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 300)
+    public static void cancelledPlanLeavesWorldAndBuilderStops(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos relative = new BlockPos(8, 1, 9), origin = helper.absolutePos(relative);
+        helper.setBlock(relative, Blocks.FURNACE);
+        Colony colony = new Colony(0, CultureType.ROMAN, origin);
+        colony.depositToWarehouse("minecraft:oak_log", 200);
+        Building building = new Building(BuildingType.MINE, origin, CultureType.ROMAN);
+        colony.registerPlayerBuilding(building);
+        var next = building.getNextPlacement();
+        helper.getLevel().setBlock(next.pos, Blocks.OBSIDIAN.defaultBlockState(), 3);
+        var villager = helper.spawn(EntityType.VILLAGER, new BlockPos(5, 1, 6));
+        BuilderJob job = new BuilderJob(villager, colony);
+        for (int tick = 1; tick < 300; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(100, () -> {
+            if (building.getState() != BuildingState.BLOCKED) helper.fail("Builder did not reach blocked plan");
+            if (!colony.cancelUnfinishedBuilding(origin)) helper.fail("Could not cancel unfinished plan");
+            if (!helper.getLevel().getBlockState(next.pos).is(Blocks.OBSIDIAN)
+                    || !helper.getLevel().getBlockState(origin).is(Blocks.FURNACE)) helper.fail("Cancellation removed existing blocks");
+            helper.getLevel().setBlock(next.pos, Blocks.AIR.defaultBlockState(), 3);
+        });
+        helper.runAtTickTime(220, () -> {
+            if (!helper.getLevel().getBlockState(next.pos).isAir()) helper.fail("Builder continued a cancelled plan");
+            if (colony.getWarehouseCount("minecraft:oak_log") != 200) helper.fail("Cancellation spent materials");
+            if (!Colony.load(colony.save()).getBuildings().isEmpty()) helper.fail("Cancelled plan returned on reload");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "empty")
+    public static void cancelRejectsCompletedAndAmbiguousBuildings(GameTestHelper helper) {
+        BlockPos origin = helper.absolutePos(new BlockPos(8, 1, 9));
+        Colony colony = new Colony(0, CultureType.ROMAN, origin);
+        colony.registerPlayerBuilding(new Building(BuildingType.HOUSE, origin, CultureType.ROMAN, true));
+        if (colony.cancelUnfinishedBuilding(origin)) helper.fail("Cancelled a completed player building");
+        colony.registerPlayerBuilding(new Building(BuildingType.HOUSE, origin, CultureType.ROMAN));
+        if (colony.cancelUnfinishedBuilding(origin) || colony.getBuildings().size() != 2)
+            helper.fail("Cancelled an ambiguous plan");
+        helper.succeed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 200)
     public static void missingMaterialsLeaveWorldUnchanged(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);

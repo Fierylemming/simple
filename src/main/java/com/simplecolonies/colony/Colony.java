@@ -644,6 +644,19 @@ public class Colony {
         com.simplecolonies.SimpleColonies.LOGGER.info("[Colony #{}] {}", id, msg.getString());
     }
 
+    /** Forget a specific unfinished generated plan without modifying the world or
+     * refunding already-placed blocks. Refuse ambiguous or player-owned records. */
+    public boolean cancelUnfinishedBuilding(BlockPos pos) {
+        var matches = buildings.stream().filter(b -> b.getPos().equals(pos)).toList();
+        if (matches.size() != 1) return false;
+        Building building = matches.getFirst();
+        if (building.isPlayerPlaced || building.getState() == com.simplecolonies.building.BuildingState.COMPLETE) return false;
+        buildings.remove(building);
+        expansionStatus = "Plan cancelled; placed blocks remain";
+        ColonyManager.getInstance().markDirty(this);
+        return true;
+    }
+
     // --- Building Marker integration ---
     public boolean registerPlayerBuilding(Building building) {
         if (!isInside(building.getPos())) return false;

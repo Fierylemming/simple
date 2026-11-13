@@ -197,6 +197,21 @@ public class ColonyCommand {
                             ctx.getSource().sendSuccess(() -> Component.literal("Queued house at " + building.getPos().toShortString() + "; use /colony status for progress."), false);
                             return 1;
                         })))
+                .then(Commands.literal("cancel_building").requires(src -> src.hasPermission(2))
+                        .then(Commands.argument("id", IntegerArgumentType.integer(1))
+                                .then(Commands.argument("position", net.minecraft.commands.arguments.coordinates.BlockPosArgument.blockPos())
+                                        .executes(ctx -> {
+                                            var colony = ColonyManager.getInstance().getColony(IntegerArgumentType.getInteger(ctx, "id"));
+                                            if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("No such colony.")); return 0; }
+                                            var pos = net.minecraft.commands.arguments.coordinates.BlockPosArgument.getBlockPos(ctx, "position");
+                                            if (!colony.get().cancelUnfinishedBuilding(pos)) {
+                                                ctx.getSource().sendFailure(Component.literal("No unique unfinished generated plan at that exact position. Completed and player buildings cannot be cancelled."));
+                                                return 0;
+                                            }
+                                            ctx.getSource().sendSuccess(() -> Component.literal("Cancelled plan at " + pos.toShortString()
+                                                    + ". Existing blocks and spent materials remain; no blocks were removed."), true);
+                                            return 1;
+                                        }))))
                 .then(Commands.literal("spawn")
                         .then(Commands.argument("culture", StringArgumentType.string()).executes(ctx -> {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
@@ -271,6 +286,7 @@ public class ColonyCommand {
                     + ": " + building.getState() + (next == null ? "" : "; next block " + next.pos.toShortString() + " needs " + next.itemId)), false);
         }
         if (!unfinished) src.sendSuccess(() -> Component.literal("No construction is queued."), false);
+        else src.sendSuccess(() -> Component.literal("Operators can cancel an unfinished generated plan with /colony cancel_building <id> <x y z>; existing blocks remain."), false);
         return 1;
     }
 
