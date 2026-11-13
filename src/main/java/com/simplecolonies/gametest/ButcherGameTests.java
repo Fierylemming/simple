@@ -27,7 +27,10 @@ public class ButcherGameTests {
         BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
-        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(54, 1, 56));
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(54, 1, 56));
+        BlockPos chest = new BlockPos(65, 1, 56);
+        helper.setBlock(chest, Blocks.CHEST);
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
         for (int x = 57; x <= 59; x++) {
             var cow = helper.spawn(EntityType.COW, new BlockPos(x, 1, 56));
             cow.setNoAi(true);
@@ -35,11 +38,30 @@ public class ButcherGameTests {
         var playerDrop = new ItemEntity(helper.getLevel(), center.getX() + 1.5, center.getY(), center.getZ() + 0.5, new ItemStack(Items.BEEF, 7));
         helper.getLevel().addFreshEntity(playerDrop);
         var job = new ButcherJob(worker, colony);
-        for (int tick = 1; tick < 1200; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        var storage = (net.minecraft.world.Container) helper.getBlockEntity(chest);
+        BlockPos absChest = helper.absolutePos(chest);
+        boolean[] carried = {false}, delivered = {false};
+        for (int tick = 1; tick < 1200; tick++) helper.runAtTickTime(tick, () -> {
+            job.tick(helper.getLevel());
+            if (!carried[0] && (!worker.getCourierCargo().isEmpty() || !worker.getCourierCargoExtra().isEmpty())) {
+                if (worker.distanceToSqr(absChest.getX()+.5, absChest.getY()+.5, absChest.getZ()+.5) <= 9
+                        || colony.getWarehouseCount("minecraft:beef") != 0) helper.fail("Meat was not carried from the herd");
+                var tag = new net.minecraft.nbt.CompoundTag(); worker.addAdditionalSaveData(tag);
+                var saved = net.minecraft.world.item.ItemStack.parseOptional(helper.getLevel().registryAccess(), tag.getCompound("courierCargo"));
+                if (!ItemStack.isSameItemSameComponents(saved, worker.getCourierCargo()) || saved.getCount() != worker.getCourierCargo().getCount())
+                    helper.fail("Meat cargo did not persist");
+                carried[0] = true;
+            }
+            if (!delivered[0] && storage.countItem(Items.BEEF) > 0) {
+                if (!carried[0] || worker.distanceToSqr(absChest.getX()+.5, absChest.getY()+.5, absChest.getZ()+.5) > 9)
+                    helper.fail("Meat was deposited without visiting the chest");
+                delivered[0] = true;
+            }
+        });
         helper.runAtTickTime(1000, () -> {
             int cows = helper.getLevel().getEntitiesOfClass(Cow.class, new AABB(center).inflate(8, 4, 8), Cow::isAlive).size();
             int beef = colony.getWarehouseCount(helper.getLevel(), "minecraft:beef");
-            if (cows != 2 || beef < 1 || beef > 3) helper.fail("Livestock or real loot incorrect: cows=" + cows + " beef=" + beef + " state=" + job.getState());
+            if (!carried[0] || !delivered[0] || cows != 2 || beef < 1 || beef > 3) helper.fail("Livestock or real loot incorrect: cows=" + cows + " beef=" + beef + " state=" + job.getState());
             if (!playerDrop.isAlive() || !playerDrop.getItem().is(Items.BEEF) || playerDrop.getItem().getCount() != 7)
                 helper.fail("Butcher collected an unrelated existing item");
             helper.succeed();
@@ -51,7 +73,7 @@ public class ButcherGameTests {
         BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
-        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(54, 1, 56));
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(54, 1, 56));
         var first = helper.spawn(EntityType.COW, new BlockPos(57, 1, 56));
         var second = helper.spawn(EntityType.COW, new BlockPos(58, 1, 56));
         var named = helper.spawn(EntityType.COW, new BlockPos(59, 1, 56));
@@ -78,7 +100,7 @@ public class ButcherGameTests {
         BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
-        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(56, 1, 56));
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(56, 1, 56));
         worker.setNoAi(true);
         var cows = new java.util.ArrayList<Cow>();
         for (int z = 55; z <= 57; z++) {
@@ -102,7 +124,7 @@ public class ButcherGameTests {
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
         colony.depositToWarehouse("minecraft:wheat", 4);
-        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(56, 1, 56));
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(56, 1, 56));
         worker.setNoAi(true);
         var first = helper.spawn(EntityType.COW, new BlockPos(58, 1, 55));
         var second = helper.spawn(EntityType.COW, new BlockPos(58, 1, 56));
@@ -122,7 +144,7 @@ public class ButcherGameTests {
         BlockPos center = helper.absolutePos(new BlockPos(18, 1, 56));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, helper.absolutePos(new BlockPos(66, 1, 56)), CultureType.ROMAN, true));
-        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(65, 1, 56));
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(65, 1, 56));
         worker.setNoAi(true);
         var cows = new java.util.ArrayList<Cow>();
         for (int z = 55; z <= 57; z++) {
@@ -151,7 +173,7 @@ public class ButcherGameTests {
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
         colony.depositToWarehouse("minecraft:wheat", 4);
-        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(54, 1, 56));
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(54, 1, 56));
         Cow first = helper.spawn(EntityType.COW, new BlockPos(56, 1, 56));
         Cow second = helper.spawn(EntityType.COW, new BlockPos(58, 1, 56));
         var job = new ButcherJob(worker, colony);
@@ -192,7 +214,7 @@ public class ButcherGameTests {
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
         colony.depositToWarehouse("minecraft:carrot", 4);
-        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(54, 1, 56));
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(54, 1, 56));
         var first = helper.spawn(EntityType.PIG, new BlockPos(56, 1, 56));
         var second = helper.spawn(EntityType.PIG, new BlockPos(58, 1, 56));
         var job = new ButcherJob(worker, colony);

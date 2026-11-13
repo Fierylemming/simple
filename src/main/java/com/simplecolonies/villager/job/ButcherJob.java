@@ -9,14 +9,31 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.entity.animal.Pig;
-import net.minecraft.world.entity.npc.Villager;
+import com.simplecolonies.entity.ColonyVillager;
 import net.minecraft.world.phys.AABB;
 
 /** Butchers actual livestock near a designated butcher hut, leaving a breeding pair. */
 public class ButcherJob extends AbstractJob {
-    public ButcherJob(Villager villager, Colony colony) { super(villager, colony, JobType.BUTCHER); }
+    private final PhysicalJobCargo cargo;
+    public ButcherJob(ColonyVillager villager, Colony colony) {
+        super(villager, colony, JobType.BUTCHER);
+        this.cargo = new PhysicalJobCargo(villager, colony);
+    }
+    private ColonyVillager worker() { return (ColonyVillager) villager; }
 
     @Override protected void doWork(ServerLevel level) {
+        // Finish a physical delivery even if the hut or workstation disappears.
+        var delivery = cargo.deliver(level);
+        if (delivery != PhysicalJobCargo.Delivery.NONE) {
+            state = switch (delivery) {
+                case MOVING -> JobState.GOING_TO_WORK;
+                case DELIVERED -> JobState.WORKING;
+                default -> JobState.WAITING_FOR_CHEST;
+            };
+            ticksUntilNextWork = delivery == PhysicalJobCargo.Delivery.MOVING ? 10
+                    : delivery == PhysicalJobCargo.Delivery.DELIVERED ? 40 : 100;
+            return;
+        }
         var hut = colony.getBuildings().stream()
                 .filter(b -> b.getType() == BuildingType.BUTCHER_HUT && b.getState() == BuildingState.COMPLETE)
                 .filter(b -> level.isLoaded(b.getPos()))
@@ -41,10 +58,9 @@ public class ButcherJob extends AbstractJob {
         villager.getLookControl().setLookAt(target);
         villager.swing(InteractionHand.MAIN_HAND);
         var drops = WorkerDrops.attack(villager, target, 4.0f);
-        // Transfer only actual, unmodified vanilla livestock drops from this attack,
-        // only after the server has spawned them and while they are within reach.
-        // Existing nearby items, cancelled drops and component-bearing modded loot
-        // are left alone. Other professions still use the provisional stock network.
+        // Pick up only spawned plain livestock drops caused by this attack and
+        // still in reach. Other drops, including unrelated or customized items,
+        // remain in the world. Delivery requires a trip to shared storage.
         for (var drop : drops) {
             if (drop.isRemoved() || level.getEntity(drop.getUUID()) != drop || villager.distanceToSqr(drop) > 6.25) continue;
             var stack = drop.getItem();
@@ -53,10 +69,8 @@ public class ButcherJob extends AbstractJob {
                     || stack.is(net.minecraft.world.item.Items.COOKED_BEEF) || stack.is(net.minecraft.world.item.Items.COOKED_PORKCHOP)
                     || stack.is(net.minecraft.world.item.Items.LEATHER))
                     || !net.minecraft.world.item.ItemStack.isSameItemSameComponents(stack, item.getDefaultInstance())) continue;
-            int count = stack.getCount();
-            if (count <= 0) continue;
-            depositToColony(level, net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString(), count);
-            drop.discard();
+            if (stack.getCount() <= 0) continue;
+            cargo.collect(drop);
         }
         state = JobState.WORKING;
         ticksUntilNextWork = 40;
