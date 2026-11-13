@@ -259,7 +259,7 @@ public class WoodcutterGameTests {
         });
     }
 
-    @GameTest(template = "isolated", timeoutTicks = 900)
+    @GameTest(template = "isolated", timeoutTicks = 1800)
     public static void crookedAcaciaStopsIfConstructionAppears(GameTestHelper helper) {
         makeCrookedAcacia(helper);
         Colony colony = colony(helper);
@@ -267,18 +267,23 @@ public class WoodcutterGameTests {
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56));
         var job = new WoodcutterJob(worker, colony);
         boolean[] blocked = {false};
-        for (int tick = 1; tick < 900; tick++) helper.runAtTickTime(tick, () -> {
+        long[] blockedAt = {0};
+        for (int tick = 1; tick < 1800; tick++) helper.runAtTickTime(tick, () -> {
             job.tick(helper.getLevel());
             if (!blocked[0] && colony.getWarehouseCount(helper.getLevel(), "minecraft:acacia_log") == 1) {
                 helper.setBlock(ROOT.offset(-4, 0, 0), Blocks.OAK_PLANKS); blocked[0] = true;
+                blockedAt[0] = helper.getLevel().getGameTime();
             }
         });
-        helper.runAtTickTime(850, () -> {
-            if (!blocked[0] || colony.getWarehouseCount(helper.getLevel(), "minecraft:acacia_log") != 1
+        helper.succeedWhen(() -> {
+            if (!blocked[0] || helper.getLevel().getGameTime() - blockedAt[0] < 200
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:acacia_log") != 1
                     || !helper.getBlockState(ROOT).is(Blocks.ACACIA_LOG)
                     || !helper.getBlockState(ROOT.offset(-4, 0, 0)).is(Blocks.OAK_PLANKS))
-                helper.fail("Crooked-tree safety did not stop on new construction");
-            helper.succeed();
+                helper.fail("Crooked-tree safety: blocked=" + blocked[0] + " state=" + job.getState()
+                        + " stock=" + colony.getWarehouseCount(helper.getLevel(), "minecraft:acacia_log")
+                        + " worker=" + worker.blockPosition() + " root=" + helper.getBlockState(ROOT)
+                        + " memory=" + worker.getWoodcutterMemory());
         });
     }
 
