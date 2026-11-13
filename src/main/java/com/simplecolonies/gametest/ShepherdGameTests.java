@@ -168,6 +168,38 @@ public class ShepherdGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 600)
+    public static void separatedSheepAreNotFedUntilClose(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.COBBLESTONE);
+        BlockPos pasture = new BlockPos(8, 1, 8), loom = new BlockPos(7, 1, 7), chest = new BlockPos(6, 1, 8);
+        helper.setBlock(pasture, ModBlocks.BUILDING_MARKER.get()); helper.setBlock(loom, Blocks.LOOM); helper.setBlock(chest, Blocks.CHEST);
+        BlockPos center = helper.absolutePos(pasture);
+        var marker = (BuildingMarkerBlockEntity) helper.getBlockEntity(pasture);
+        marker.setBuildingType(BuildingType.PASTURE); marker.setLinkedBuildingPos(center);
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        colony.registerPlayerBuilding(new Building(BuildingType.PASTURE, center, CultureType.ROMAN, true));
+        var container = (Container) helper.getBlockEntity(chest); container.setItem(0, new ItemStack(Items.WHEAT, 4));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(6, 1, 9)); worker.setNoAi(true);
+        worker.setVillagerData(worker.getVillagerData().setProfession(ColonyProfessions.profession(JobType.SHEPHERD)));
+        worker.refreshBrain(helper.getLevel());
+        worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(loom)));
+        var first = helper.spawn(EntityType.SHEEP, new BlockPos(4, 1, 9)); first.setSheared(true); first.setNoAi(true);
+        var second = helper.spawn(EntityType.SHEEP, new BlockPos(12, 1, 9)); second.setSheared(true); second.setNoAi(true);
+        var job = new ShepherdJob(worker, colony);
+        for (int tick = 1; tick < 600; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(200, () -> {
+            if (first.isInLove() || second.isInLove() || container.countItem(Items.WHEAT) != 4)
+                helper.fail("Used wheat while parents were too far apart");
+            var target = helper.absolutePos(new BlockPos(5, 1, 9));
+            second.teleportTo(target.getX() + .5, target.getY(), target.getZ() + .5);
+        });
+        helper.succeedWhen(() -> {
+            if (!first.isInLove() || !second.isInLove() || container.countItem(Items.WHEAT) != 2)
+                helper.fail("Did not feed the nearby pair: " + job.getState());
+        });
+    }
+
     @GameTest(template = "empty", timeoutTicks = 650)
     public static void breedingProtectsCustomizedWheatReserveAndFlockCap(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.COBBLESTONE);

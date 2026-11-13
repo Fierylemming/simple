@@ -129,7 +129,11 @@ public final class ShepherdJob extends AbstractJob {
         if (flock.size() >= 4) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
         var adults = flock.stream().filter(a -> !a.hasCustomName() && a.getAge() == 0).toList();
         var target = adults.stream().filter(a -> !a.isInLove() && a.canFallInLove())
-                .filter(a -> adults.stream().anyMatch(other -> other != a && (other.isInLove() || other.canFallInLove())))
+                // Do not spend two wheat on sheep that are too far apart to
+                // find each other before vanilla's love timer expires. The
+                // shepherd does not teleport or force animal navigation.
+                .filter(a -> adults.stream().anyMatch(other -> other != a && a.distanceToSqr(other) <= 36
+                        && (other.isInLove() || other.canFallInLove())))
                 .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
         if (target == null) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
         boolean partnerWaiting = adults.stream().anyMatch(a -> a != target && a.isInLove());
@@ -185,7 +189,8 @@ public final class ShepherdJob extends AbstractJob {
         if (fed.isEmpty()) return;
         target.setInLove(null);
         villager.getLookControl().setLookAt(target); villager.swing(InteractionHand.MAIN_HAND);
-        state = JobState.WORKING; ticksUntilNextWork = 20;
+        // Approach the second parent promptly, while the first is still in love.
+        state = JobState.WORKING; ticksUntilNextWork = 5;
     }
 
     private static boolean plainWheat(ItemStack stack) {
