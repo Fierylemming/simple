@@ -104,9 +104,14 @@ public class ColonyVillager extends Villager {
         }
         this.colonyId = colony.getId();
         // Avoid duplicate citizen entry if already exists
-        boolean exists = colony.getCitizens().stream().anyMatch(c -> c.uuid.equals(getUUID()));
-        if (!exists) {
-            colony.addCitizen(new CitizenData(getUUID(), getName().getString(), job));
+        var citizen = colony.getCitizens().stream().filter(c -> c.uuid.equals(getUUID())).findFirst().orElse(null);
+        if (citizen == null) {
+            citizen = new CitizenData(getUUID(), getName().getString(), job);
+            citizen.isChild = isBaby();
+            colony.addCitizen(citizen);
+        } else if (citizen.isChild != isBaby()) {
+            citizen.isChild = isBaby();
+            ColonyManager.getInstance().markDirty(colony);
         }
     }
 
@@ -277,7 +282,13 @@ public class ColonyVillager extends Villager {
 
             if (!sl.isNight()) trySocialize(sl);
             colony.getCitizens().stream().filter(c -> c.uuid.equals(getUUID())).findFirst()
-                    .ifPresent(this::applyPendingDailyHealth);
+                    .ifPresent(c -> {
+                        if (c.isChild != isBaby()) {
+                            c.isChild = isBaby();
+                            ColonyManager.getInstance().markDirty(colony);
+                        }
+                        applyPendingDailyHealth(c);
+                    });
             // Show job icon above head if client config enabled
             // (handled via custom renderer; placeholder is nameplate)
         }

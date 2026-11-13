@@ -471,17 +471,33 @@ public class Colony {
 
     // Vanilla-like breeding with costs → populates empty houses and drives expansion
     private void tryBreed(ServerLevel level) {
-        int housingSlots = shelterCapacity();
-        if (housingSlots <= citizens.size()) return; // no free shelter
-        if (citizens.size() < 2) return; // need pair
-        if (daysWithoutFood > 0) return; // must be well-fed
+        int emptySlots = shelterCapacity() - citizens.size();
+        if (emptySlots <= 0) return;
+        double chance = 0.25 + 0.08 * emptySlots;
+        if (level.random.nextDouble() <= Math.min(chance, 0.65)) tryBreedWithNearbyAdults(level);
+    }
+
+    /** Require two loaded, living, nearby adults. Colony records by themselves
+     * are not parents, and physical breeding must not fast-forward on time skips. */
+    boolean tryBreedWithNearbyAdults(ServerLevel level) {
+        if (citizens.size() >= com.simplecolonies.config.ColonyConfig.MAX_CITIZENS_PER_COLONY.get()
+                || shelterCapacity() <= citizens.size() || citizens.size() < 2 || daysWithoutFood > 0) return false;
         int neededFood = (int) Math.ceil(citizens.size() * com.simplecolonies.config.ColonyConfig.FOOD_CONSUMPTION_MULTIPLIER.get());
-        int availableFood = countFoodInWarehouse(level);
-        // Need surplus of 2 days + 3 bread breeding cost, and at least 3% chance per day per empty bed (vanilla ~5%)
-        if (availableFood < neededFood * 2 + 3) return;
-        int emptyBeds = housingSlots - citizens.size();
-        double chance = 0.25 + 0.08 * emptyBeds; // 25% base + more beds = faster growth, cap below
-        if (level.random.nextDouble() > Math.min(chance, 0.65)) return;
+        if (countFoodInWarehouse(level) < neededFood * 2 + 3) return false;
+        var adults = citizens.values().stream().map(c -> level.getEntity(c.uuid))
+                .filter(com.simplecolonies.entity.ColonyVillager.class::isInstance)
+                .map(com.simplecolonies.entity.ColonyVillager.class::cast)
+                .filter(v -> v.isAlive() && v.getColonyId() == id && v.getAge() == 0 && !v.isTrading() && !v.isSleeping()
+                        && !v.getBrain().hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.IS_PANICKING)
+                        && level.isLoaded(v.blockPosition()) && isInside(v.blockPosition()))
+                .sorted(java.util.Comparator.comparing(v -> v.getUUID())).toList();
+        com.simplecolonies.entity.ColonyVillager first = null, second = null;
+        outer: for (int i = 0; i < adults.size(); i++) for (int j = i + 1; j < adults.size(); j++) {
+            if (adults.get(i).distanceToSqr(adults.get(j)) <= 36 && adults.get(i).hasLineOfSight(adults.get(j))) {
+                first = adults.get(i); second = adults.get(j); break outer;
+            }
+        }
+        if (first == null) return false;
 
         // Pay breeding cost: 3 bread (vanilla) — consume from warehouse/chests
         int breadHave = getWarehouseCount(level, "minecraft:bread");
@@ -490,12 +506,11 @@ public class Colony {
             // fallback to wheat/carrots if no bread
             int wheatHave = getWarehouseCount(level, "minecraft:wheat");
             if (wheatHave >= 12) costId = "minecraft:wheat";
-            else return;
+            else return false;
         }
         int cost = costId.equals("minecraft:bread") ? 3 : 12;
-        var houses = buildings.stream().filter(b -> b.getType() == BuildingType.HOUSE
-                && b.getState() == com.simplecolonies.building.BuildingState.COMPLETE).toList();
-        BlockPos anchor = houses.isEmpty() ? center : houses.get(level.random.nextInt(houses.size())).getPos();
+        // The child appears near its actual parents, never at a remote empty house.
+        BlockPos anchor = first.blockPosition();
         BlockPos spawnAt = null;
         for (int dy = 0; dy <= 3 && spawnAt == null; dy++) for (int dx = -4; dx <= 4 && spawnAt == null; dx++) for (int dz = -4; dz <= 4; dz++) {
             BlockPos p = anchor.offset(dx, dy, dz);
@@ -504,33 +519,41 @@ public class Colony {
                     || !level.getBlockState(p.above()).getCollisionShape(level, p.above()).isEmpty()
                     || !level.getBlockState(p).getFluidState().isEmpty()
                     || !level.getBlockState(p.below()).isFaceSturdy(level, p.below(), net.minecraft.core.Direction.UP)) continue;
+            var area = new net.minecraft.world.phys.AABB(p.getX() + 0.2, p.getY(), p.getZ() + 0.2,
+                    p.getX() + 0.8, p.getY() + 1.8, p.getZ() + 0.8);
+            if (!level.getEntities(null, area, e -> e.isAlive() && !e.isSpectator()).isEmpty()) continue;
             spawnAt = p; break;
         }
-        if (spawnAt == null || !consumeStock(level, costId, cost)) return;
+        if (spawnAt == null || !consumeStock(level, costId, cost)) return false;
         com.simplecolonies.entity.ColonyVillager baby = null;
         boolean added = false;
         try {
             baby = com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get().create(level);
-            if (baby == null) return;
+            if (baby == null) return false;
             baby.moveTo(spawnAt.getX() + 0.5, spawnAt.getY(), spawnAt.getZ() + 0.5, level.random.nextFloat() * 360, 0);
             baby.finalizeSpawn(level, level.getCurrentDifficultyAt(spawnAt), net.minecraft.world.entity.MobSpawnType.BREEDING, null);
             baby.setBaby(true);
             baby.setColony(this);
             baby.setJob(JobType.UNEMPLOYED);
             added = level.addFreshEntity(baby);
-            if (added) broadcast(Component.literal("§aColony #" + id + " bred a new villager at " + spawnAt.toShortString()));
+            if (added) {
+                first.setAge(6000); second.setAge(6000);
+                broadcast(Component.literal("§aColony #" + id + " welcomed a new villager at " + spawnAt.toShortString()));
+            }
         } catch (Exception e) {
             com.simplecolonies.SimpleColonies.LOGGER.error("Failed to spawn baby for colony #{}", id, e);
         } finally {
             if (!added) {
                 // finalizeSpawn may have already registered the entity, even if insertion failed.
                 if (baby != null) {
+                    citizens.remove(baby.getUUID());
                     var registered = ColonyManager.getInstance().getColony(baby.getColonyId()).orElse(null);
                     if (registered != null) registered.removeCitizen(baby.getUUID());
                 }
                 depositToWarehouse(costId, cost);
             }
         }
+        return added;
     }
 
     /** Take a real item when available, preserving its components; legacy virtual stock
