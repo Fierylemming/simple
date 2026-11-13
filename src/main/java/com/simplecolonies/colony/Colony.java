@@ -345,7 +345,8 @@ public class Colony {
         // Once a settlement has grown, add a modest civic meeting hall if no
         // market has already been designated. It is a real builder plan, not a
         // claim that trading or higher-tier upgrades are implemented.
-        if (!housingNeeded && this.level >= 2 && buildings.stream().noneMatch(b -> b.getType() == BuildingType.MARKET)) {
+        if (!housingNeeded && this.level >= 2 && buildings.stream().noneMatch(b -> b.getType() == BuildingType.MARKET
+                && (b.getState() == com.simplecolonies.building.BuildingState.COMPLETE || b.hasSupportedPlan()))) {
             Building sample = new Building(BuildingType.MARKET, center, culture);
             if (com.simplecolonies.building.ConstructionCrafting.canBuild(stock, sample.getRemainingPlacements())) {
                 BlockPos site = findCivicSite(level);
