@@ -24,12 +24,16 @@ jobs:
           echo 'eula=true' > run/eula.txt
           timeout 300s ./gradlew runGameTestServer --info 2>&1 | tee gametest.log
           test ${PIPESTATUS[0]} -eq 0
+      - name: Run Create compatibility GameTests
+        run: |
+          timeout 420s ./gradlew runGameTestServer -PwithCreateTest --info 2>&1 | tee create-gametest.log
+          test ${PIPESTATUS[0]} -eq 0
       - name: Report failure details
         if: failure()
         run: |
           python3 - <<'PYCODE'
           from pathlib import Path
-          log = Path('gametest.log') if Path('gametest.log').exists() else Path('build.log')
+          log = Path('create-gametest.log') if Path('create-gametest.log').exists() else (Path('gametest.log') if Path('gametest.log').exists() else Path('build.log'))
           lines = log.read_text(errors='replace').splitlines()
           failures = [line for line in lines if any(term in line.lower() for term in ('failed at ', 'error:', 'could not ', 'could not resolve', 'could not find'))]
           for line in failures:
@@ -46,6 +50,7 @@ jobs:
           path: |
             build.log
             gametest.log
+            create-gametest.log
           if-no-files-found: warn
       - name: Upload Prism jar
         if: success()

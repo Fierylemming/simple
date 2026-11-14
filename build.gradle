@@ -79,6 +79,10 @@ configurations {
 }
 
 dependencies {
+    // CI-only compatibility run: production builds never bundle or require Create.
+    if (providers.gradleProperty("withCreateTest").isPresent()) {
+        localRuntime "maven.modrinth:LNytGWDc:UjX6dr61" // Create 6.0.10, NeoForge 1.21.1
+    }
     // Optional integration: Create Aeronautics is NeoForge 1.21.1 - we remain compatible
     // Mark Create as compileOnly so mod works without it, but can use its API if present
     // compileOnly fg.deobf("com.simibubi.create:create-1.21.1:6.0.4:slim")
