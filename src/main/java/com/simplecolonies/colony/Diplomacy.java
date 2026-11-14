@@ -6,18 +6,17 @@ import net.minecraft.server.level.ServerLevel;
 
 import java.util.*;
 
-/**
- * Alliance / war between colonies. Leader can propose alliance via Town Hall.
- * Wars are declared, then soldier villagers from both sides fight.
- * Alliances give shared defense + trade bonuses.
- */
+/** Persistent bilateral relations. Temporary relations use the world day, not
+ * an exact server-tick modulo, so both sides agree after unloads and time skips. */
 public class Diplomacy {
     public enum Relation { NEUTRAL, ALLIED, WAR, PEACE_TREATY }
+    private static final long NO_DEADLINE = Long.MIN_VALUE;
 
     public static class RelationData {
         public int otherColonyId;
         public Relation relation;
-        public int daysRemaining; // for wars/peace treaties
+        public int daysRemaining;
+        private long expiresDay = NO_DEADLINE;
 
         public RelationData(int otherColonyId, Relation relation, int daysRemaining) {
             this.otherColonyId = otherColonyId;
@@ -29,39 +28,56 @@ public class Diplomacy {
     private final Map<Integer, RelationData> relations = new HashMap<>();
 
     public Relation getRelation(int otherId) {
-        return relations.getOrDefault(otherId, new RelationData(otherId, Relation.NEUTRAL, 0)).relation;
+        var data = relations.get(otherId);
+        return data == null ? Relation.NEUTRAL : data.relation;
     }
 
-    public void declareWar(Colony self, Colony other) {
-        relations.put(other.getId(), new RelationData(other.getId(), Relation.WAR, 14));
-        other.getDiplomacy().relations.put(self.getId(), new RelationData(self.getId(), Relation.WAR, 14));
+    /** Read a timed relation accurately even if that colony's chunk has not ticked yet. */
+    public Relation getRelationAt(int otherId, long day) {
+        var data = relations.get(otherId);
+        if (data == null) return Relation.NEUTRAL;
+        if (data.expiresDay != NO_DEADLINE && day >= data.expiresDay) return Relation.NEUTRAL;
+        return data.relation;
     }
 
-    public void proposeAlliance(Colony self, Colony other) {
-        relations.put(other.getId(), new RelationData(other.getId(), Relation.ALLIED, -1));
-        other.getDiplomacy().relations.put(self.getId(), new RelationData(self.getId(), Relation.ALLIED, -1));
+    private void setBilateral(Colony self, Colony other, Relation relation, int duration, long day) {
+        if (self == other || self.getId() == other.getId()) return;
+        var first = new RelationData(other.getId(), relation, duration);
+        var second = new RelationData(self.getId(), relation, duration);
+        if (duration > 0) {
+            long deadline;
+            try { deadline = Math.addExact(day, duration); }
+            catch (ArithmeticException e) { deadline = Long.MAX_VALUE; }
+            first.expiresDay = second.expiresDay = deadline;
+        }
+        relations.put(other.getId(), first);
+        other.getDiplomacy().relations.put(self.getId(), second);
+        ColonyManager.getInstance().markDirty(self);
     }
 
-    public void makePeace(Colony self, Colony other) {
-        relations.put(other.getId(), new RelationData(other.getId(), Relation.PEACE_TREATY, 30));
-        other.getDiplomacy().relations.put(self.getId(), new RelationData(self.getId(), Relation.PEACE_TREATY, 30));
-    }
+    public void declareWar(Colony self, Colony other, long day) { setBilateral(self, other, Relation.WAR, 14, day); }
+    public void proposeAlliance(Colony self, Colony other) { setBilateral(self, other, Relation.ALLIED, -1, 0); }
+    public void makePeace(Colony self, Colony other, long day) { setBilateral(self, other, Relation.PEACE_TREATY, 30, day); }
+    public Collection<RelationData> getAll() { return Collections.unmodifiableCollection(relations.values()); }
 
-    public Collection<RelationData> getAll() { return relations.values(); }
+    public void tick(Colony self, ServerLevel level) { updateDay(Math.floorDiv(level.getDayTime(), 24000L)); }
 
-    public void tick(Colony self, ServerLevel level) {
-        // Decrement war duration, auto peace
-        Iterator<Map.Entry<Integer, RelationData>> it = relations.entrySet().iterator();
-        while (it.hasNext()) {
-            RelationData rd = it.next().getValue();
-            if (rd.relation == Relation.WAR && rd.daysRemaining > 0) {
-                // decrement each new day
-                if (level.getGameTime() % 24000 == 0) {
-                    rd.daysRemaining--;
-                    if (rd.daysRemaining <= 0) {
-                        rd.relation = Relation.NEUTRAL;
-                    }
-                }
+    /** Legacy timed relations had no absolute deadline; preserve their remaining
+     * duration starting when they are first observed after the upgrade. */
+    void updateDay(long day) {
+        for (var rd : relations.values()) {
+            if (rd.relation != Relation.WAR && rd.relation != Relation.PEACE_TREATY) continue;
+            if (rd.expiresDay == NO_DEADLINE) {
+                if (rd.daysRemaining <= 0) { rd.relation = Relation.NEUTRAL; rd.daysRemaining = 0; continue; }
+                try { rd.expiresDay = Math.addExact(day, rd.daysRemaining); }
+                catch (ArithmeticException e) { rd.expiresDay = Long.MAX_VALUE; }
+            }
+            if (day >= rd.expiresDay) { rd.relation = Relation.NEUTRAL; rd.daysRemaining = 0; }
+            else {
+                long remaining;
+                try { remaining = Math.subtractExact(rd.expiresDay, day); }
+                catch (ArithmeticException e) { remaining = Integer.MAX_VALUE; }
+                rd.daysRemaining = (int) Math.min(remaining, Integer.MAX_VALUE);
             }
         }
     }
@@ -74,6 +90,7 @@ public class Diplomacy {
             t.putInt("other", rd.otherColonyId);
             t.putString("relation", rd.relation.name());
             t.putInt("days", rd.daysRemaining);
+            if (rd.expiresDay != NO_DEADLINE) t.putLong("expiresDay", rd.expiresDay);
             list.add(t);
         }
         tag.put("relations", list);
@@ -85,8 +102,11 @@ public class Diplomacy {
         ListTag list = tag.getList("relations", 10);
         for (int i = 0; i < list.size(); i++) {
             CompoundTag t = list.getCompound(i);
-            RelationData rd = new RelationData(t.getInt("other"), Relation.valueOf(t.getString("relation")), t.getInt("days"));
-            relations.put(rd.otherColonyId, rd);
+            try {
+                RelationData rd = new RelationData(t.getInt("other"), Relation.valueOf(t.getString("relation")), t.getInt("days"));
+                if (t.contains("expiresDay")) rd.expiresDay = t.getLong("expiresDay");
+                relations.put(rd.otherColonyId, rd);
+            } catch (IllegalArgumentException ignored) { /* Unknown future relation; leave neutral. */ }
         }
     }
 }

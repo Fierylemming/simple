@@ -12,9 +12,14 @@ import net.minecraft.world.entity.player.Player;
 public class SoldierJob extends AbstractJob {
     private Player commander;
     private java.util.UUID commanderId;
+    private final java.util.function.IntFunction<Colony> colonyLookup;
 
     public SoldierJob(Villager villager, Colony colony) {
+        this(villager, colony, id -> com.simplecolonies.colony.ColonyManager.getInstance().getColony(id).orElse(null));
+    }
+    SoldierJob(Villager villager, Colony colony, java.util.function.IntFunction<Colony> colonyLookup) {
         super(villager, colony, JobType.SOLDIER);
+        this.colonyLookup = colonyLookup;
         if (villager instanceof com.simplecolonies.entity.ColonyVillager citizen)
             commanderId = citizen.getFollowCommanderId();
     }
@@ -67,6 +72,20 @@ public class SoldierJob extends AbstractJob {
             target = level.getEntitiesOfClass(Monster.class, villager.getBoundingBox().inflate(16, 6, 16),
                         m -> m.isAlive() && colony.isInside(m.blockPosition()))
                 .stream().min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
+        if (target == null && com.simplecolonies.config.ColonyConfig.ENABLE_WARFARE.get()) {
+            long day = Math.floorDiv(level.getDayTime(), 24000L);
+            boolean following = hasValidCommander(level);
+            target = level.getEntitiesOfClass(com.simplecolonies.entity.ColonyVillager.class,
+                    villager.getBoundingBox().inflate(16, 6, 16), enemy -> {
+                        if (enemy == villager || !enemy.isAlive() || enemy.isBaby() || !enemy.getColonyJob().isCombat
+                                || enemy.getColonyId() == colony.getId() || enemy.getColonyId() < 0
+                                || (!following && (!level.dimension().equals(net.minecraft.world.level.Level.OVERWORLD)
+                                    || !colony.isInside(enemy.blockPosition())))) return false;
+                        Colony other = colonyLookup.apply(enemy.getColonyId());
+                        return other != null && colony.getDiplomacy().getRelationAt(other.getId(), day) == com.simplecolonies.colony.Diplomacy.Relation.WAR
+                                && other.getDiplomacy().getRelationAt(colony.getId(), day) == com.simplecolonies.colony.Diplomacy.Relation.WAR;
+                    }).stream().min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
+        }
         if (target != null) {
             villager.getLookControl().setLookAt(target);
             if (villager.distanceToSqr(target) > 4 || !villager.hasLineOfSight(target)) {

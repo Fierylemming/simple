@@ -126,6 +126,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
             case 4 -> {
                 addRenderableWidget(Button.builder(Component.literal("⚔ Declare War"), b->send(TownHallMenu.BTN_DECLARE_WAR_NEXT)).bounds(btnX, btnY, 110, 16).build());
                 addRenderableWidget(Button.builder(Component.literal("⚖ Ally"), b->send(TownHallMenu.BTN_PROPOSE_ALLIANCE)).bounds(btnX+116, btnY, 90, 16).build());
+                addRenderableWidget(Button.builder(Component.literal("Peace"), b->send(TownHallMenu.BTN_MAKE_PEACE)).bounds(btnX+212, btnY, 82, 16).build());
             }
             case 5 -> {
                 var av = menu.colony.getResearch().getAvailableToBuy();
@@ -320,9 +321,9 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
 
     // ── Diplomacy ──
     private void drawDiplomacy(GuiGraphics g,int x,int y, com.simplecolonies.colony.Colony c){
-        g.drawString(font, "Relations — declare war or ally (leader only):", x,y, C_TEXT,false); y+=12;
+        g.drawString(font, "Relations — actions target nearest colony (leader only):", x,y, C_TEXT,false); y+=12;
         var all=c.getDiplomacy().getAll();
-        if(all.isEmpty()) drawHintBox(g,x,y,"Neutral with all. Wars auto-end after days. Allies share courier hub.");
+        if(all.isEmpty()) drawHintBox(g,x,y,"Neutral with all. Wars and peace treaties expire by world day.");
         else for(var r: all){
             int col=r.relation==com.simplecolonies.colony.Diplomacy.Relation.WAR?C_RED: r.relation==com.simplecolonies.colony.Diplomacy.Relation.ALLIED?C_GREEN:C_TEXT_MID;
             int bg=r.relation==com.simplecolonies.colony.Diplomacy.Relation.WAR?C_RED_BG: r.relation==com.simplecolonies.colony.Diplomacy.Relation.ALLIED?C_GREEN_BG: C_PANEL;

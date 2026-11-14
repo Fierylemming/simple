@@ -43,6 +43,7 @@ public class TownHallMenu extends AbstractContainerMenu {
     public static final int BTN_RALLY_SOLDIERS = 21;
     public static final int BTN_DECLARE_WAR_NEXT = 30;
     public static final int BTN_PROPOSE_ALLIANCE = 31;
+    public static final int BTN_MAKE_PEACE = 32;
     public static final int BTN_CLAIM_LEADER = 40;
     public static final int BTN_DONATE_FOOD = 41;
 
@@ -130,18 +131,36 @@ public class TownHallMenu extends AbstractContainerMenu {
                 player.displayClientMessage(net.minecraft.network.chat.Component.literal("§6Rallied " + rallied + " loaded defenders."), false);
                 return true;
             }
-            case BTN_DECLARE_WAR_NEXT -> {
+            case BTN_DECLARE_WAR_NEXT, BTN_PROPOSE_ALLIANCE, BTN_MAKE_PEACE -> {
                 if (!isLeader) { deny(player); return true; }
-                var nearby = ColonyManager.getInstance().getAll().stream().filter(c -> c.getId() != colony.getId()).findFirst();
-                if (nearby.isPresent()) { colony.getDiplomacy().declareWar(colony, nearby.get()); player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cDeclared war on #" + nearby.get().getId()), false); }
-                else player.displayClientMessage(net.minecraft.network.chat.Component.literal("No other colonies nearby"), true);
-                return true;
-            }
-            case BTN_PROPOSE_ALLIANCE -> {
-                if (!isLeader) { deny(player); return true; }
-                var nearby = ColonyManager.getInstance().getAll().stream().filter(c -> c.getId() != colony.getId()).findFirst();
-                if (nearby.isPresent()) { colony.getDiplomacy().proposeAlliance(colony, nearby.get()); player.displayClientMessage(net.minecraft.network.chat.Component.literal("§aAllied with #" + nearby.get().getId()), false); }
-                else player.displayClientMessage(net.minecraft.network.chat.Component.literal("No other colonies nearby"), true);
+                if (level == null) return true;
+                if (!com.simplecolonies.config.ColonyConfig.ENABLE_WARFARE.get()) {
+                    player.displayClientMessage(net.minecraft.network.chat.Component.literal("Warfare and diplomacy are disabled."), true);
+                    return true;
+                }
+                var nearest = ColonyManager.getInstance().getAll().stream().filter(c -> c.getId() != colony.getId())
+                        .min(java.util.Comparator.comparingDouble((Colony c) -> c.getCenter().distSqr(colony.getCenter()))
+                                .thenComparingInt(Colony::getId));
+                if (nearest.isEmpty()) {
+                    player.displayClientMessage(net.minecraft.network.chat.Component.literal("No other colony exists."), true);
+                    return true;
+                }
+                var other = nearest.get();
+                long day = Math.floorDiv(level.getDayTime(), 24000L);
+                if (id == BTN_DECLARE_WAR_NEXT) {
+                    if (colony.getDiplomacy().getRelationAt(other.getId(), day) == com.simplecolonies.colony.Diplomacy.Relation.PEACE_TREATY) {
+                        player.displayClientMessage(net.minecraft.network.chat.Component.literal("A peace treaty is still in force."), true);
+                        return true;
+                    }
+                    colony.getDiplomacy().declareWar(colony, other, day);
+                    player.displayClientMessage(net.minecraft.network.chat.Component.literal("Declared war on nearest colony #" + other.getId()), false);
+                } else if (id == BTN_PROPOSE_ALLIANCE) {
+                    colony.getDiplomacy().proposeAlliance(colony, other);
+                    player.displayClientMessage(net.minecraft.network.chat.Component.literal("Allied with nearest colony #" + other.getId()), false);
+                } else {
+                    colony.getDiplomacy().makePeace(colony, other, day);
+                    player.displayClientMessage(net.minecraft.network.chat.Component.literal("Made peace with nearest colony #" + other.getId()), false);
+                }
                 return true;
             }
             case BTN_CREATE_SCHEMATIC -> {
