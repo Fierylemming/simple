@@ -249,3 +249,7 @@ A trusted player may now sneak-use the Building Tool on a cow, pig or sheep to m
 ## Unloaded citizen health catch-up
 
 Pending daily health effects for unloaded citizens are stored as ordered run lengths, with legacy byte-array migration. At most 64 pending days are applied per entity invocation; the rest remain saved, and starvation hits from different simulated days no longer collapse into one due to Minecraft's same-tick damage immunity. This bounds the common long uniform time-skip case but does not simulate physical work during a skip. [Run 43638575497](https://github.com/Fierylemming/simple/actions/runs/43638575497) passed the build and both GameTest suites with these changes.
+
+## Courier destination selection
+
+Couriers carrying real cargo now select among accepting shared containers near the warehouse hub rather than staying indefinitely at a full or incompatible nearest container. Unreachable destinations are temporarily set aside; no eligible destination leaves cargo on the worker. A GameTest checks an alternate shared hub, physical delivery, preservation of item components, and an unshared chest. [Run 43638979706](https://github.com/Fierylemming/simple/actions/runs/43638979706) passed the build and both GameTest suites.
