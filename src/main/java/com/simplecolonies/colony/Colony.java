@@ -620,9 +620,9 @@ public class Colony {
             if (!level.getEntities((net.minecraft.world.entity.Entity) null, area, e -> e.isAlive() && !e.isSpectator()).isEmpty()) continue;
             spawnAt = p; break;
         }
-        if (spawnAt == null || !consumeStock(level, costId, cost)) return false;
+        if (spawnAt == null) return false;
         com.simplecolonies.entity.ColonyVillager baby = null;
-        boolean added = false;
+        boolean inserted = false, added = false;
         try {
             baby = com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get().create(level);
             if (baby == null) return false;
@@ -631,8 +631,9 @@ public class Colony {
             baby.setBaby(true);
             baby.setColony(this);
             baby.setJob(JobType.UNEMPLOYED);
-            added = level.addFreshEntity(baby);
-            if (added) {
+            inserted = level.addFreshEntity(baby);
+            if (inserted && consumeStock(level, costId, cost)) {
+                added = true;
                 first.setAge(6000); second.setAge(6000);
                 broadcast(Component.literal("§aColony #" + id + " welcomed a new villager at " + spawnAt.toShortString()));
             }
@@ -642,11 +643,11 @@ public class Colony {
             if (!added) {
                 // finalizeSpawn may have already registered the entity, even if insertion failed.
                 if (baby != null) {
+                    if (inserted) baby.discard();
                     citizens.remove(baby.getUUID());
                     var registered = ColonyManager.getInstance().getColony(baby.getColonyId()).orElse(null);
                     if (registered != null) registered.removeCitizen(baby.getUUID());
                 }
-                depositToWarehouse(costId, cost);
             }
         }
         return added;
