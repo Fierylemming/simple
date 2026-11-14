@@ -88,17 +88,21 @@ public class TownHallMenu extends AbstractContainerMenu {
                     ItemStack st = player.getInventory().getItem(i);
                     if (st.is(net.minecraft.world.item.Items.BREAD) && st.getCount() > 0
                             && ItemStack.isSameItemSameComponents(st, net.minecraft.world.item.Items.BREAD.getDefaultInstance())) {
-                        int take = Math.min(st.getCount(), 5 - donated);
-                        st.shrink(take);
-                        colony.depositToWarehouse("minecraft:bread", take);
-                        donated += take;
+                        // Donation is a real transfer into nearby explicitly shared
+                        // hall storage. If it is missing or full, leave the remainder
+                        // in the player's inventory; never manufacture virtual stock.
+                        int offered = Math.min(st.getCount(), 5 - donated);
+                        int stored = level == null ? 0 : colony.getWarehouseManager()
+                                .depositNearby(level, pos, "minecraft:bread", offered, 36);
+                        st.shrink(stored);
+                        donated += stored;
                         if (donated >= 5) break;
                     }
                 }
                 if (donated > 0) {
                     colony.addReputation(player, 2 * donated, "donated food");
                     player.displayClientMessage(net.minecraft.network.chat.Component.literal("§aDonated " + donated + " bread! +" + (2*donated) + " rep"), false);
-                } else player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cNo bread in inventory"), true);
+                } else player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cNeed plain bread and room in shared storage near the hall"), true);
                 return true;
             }
             case BTN_ADD_BUILDING_HOUSE -> { if (isLeader) queueBuilding(colony, com.simplecolonies.building.BuildingType.HOUSE, player); else deny(player); return true; }

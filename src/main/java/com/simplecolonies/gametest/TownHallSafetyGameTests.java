@@ -42,6 +42,10 @@ public class TownHallSafetyGameTests {
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         helper.setBlock(new BlockPos(8, 1, 8), com.simplecolonies.block.ModBlocks.TOWN_HALL.get());
         ((com.simplecolonies.block.entity.TownHallBlockEntity) helper.getBlockEntity(new BlockPos(8, 1, 8))).setColonyId(colony.getId());
+        var chestPos = new BlockPos(10, 1, 8);
+        helper.setBlock(chestPos, net.minecraft.world.level.block.Blocks.CHEST);
+        var chest = (net.minecraft.world.Container) helper.getBlockEntity(chestPos);
+        var absoluteChest = helper.absolutePos(chestPos);
         var player = helper.makeMockPlayer(GameType.SURVIVAL);
         player.moveTo(center.getX() + .5, center.getY(), center.getZ() + .5);
         ItemStack special = new ItemStack(Items.BREAD, 3);
@@ -50,9 +54,20 @@ public class TownHallSafetyGameTests {
         player.getInventory().setItem(1, new ItemStack(Items.BREAD, 2));
         var menu = new TownHallMenu(1, player.getInventory(), colony, center);
         menu.clickMenuButton(player, TownHallMenu.BTN_DONATE_FOOD);
+        if (player.getInventory().getItem(1).getCount() != 2 || chest.countItem(Items.BREAD) != 0)
+            helper.fail("Unshared storage accepted a donation");
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), absoluteChest)) helper.fail("Could not share hall chest");
+        menu.clickMenuButton(player, TownHallMenu.BTN_DONATE_FOOD);
         if (player.getInventory().getItem(0).getCount() != 3 || !player.getInventory().getItem(0).has(DataComponents.CUSTOM_NAME)
-                || !player.getInventory().getItem(1).isEmpty() || colony.getWarehouseCount("minecraft:bread") != 2)
-            helper.fail("Donation consumed or converted named bread");
+                || !player.getInventory().getItem(1).isEmpty() || chest.countItem(Items.BREAD) != 2
+                || colony.getWarehouseCount("minecraft:bread") != 0)
+            helper.fail("Donation consumed named bread or failed to deposit real bread");
+        for (int i = 0; i < chest.getContainerSize(); i++) chest.setItem(i, new ItemStack(Items.STONE, 64));
+        chest.setItem(0, new ItemStack(Items.BREAD, 63));
+        player.getInventory().setItem(1, new ItemStack(Items.BREAD, 5));
+        menu.clickMenuButton(player, TownHallMenu.BTN_DONATE_FOOD);
+        if (player.getInventory().getItem(1).getCount() != 4 || chest.getItem(0).getCount() != 64)
+            helper.fail("Full storage did not preserve unaccepted bread");
         // A stale menu cannot donate after the player moves away or the hall is removed.
         player.getInventory().setItem(1, new ItemStack(Items.BREAD, 2));
         player.moveTo(center.getX() + 40, center.getY(), center.getZ());

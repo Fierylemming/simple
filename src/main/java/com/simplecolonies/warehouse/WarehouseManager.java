@@ -239,6 +239,12 @@ public class WarehouseManager {
 
     /** Deposit item stacks into nearest chest with space. Returns amount actually deposited. */
     public int deposit(ServerLevel level, BlockPos depositorPos, String itemId, int amount) {
+        return depositNearby(level, depositorPos, itemId, amount, Double.POSITIVE_INFINITY);
+    }
+
+    /** Deposit only into shared containers within the specified squared distance. */
+    public int depositNearby(ServerLevel level, BlockPos depositorPos, String itemId, int amount, double maxDistanceSquared) {
+        if (amount <= 0 || maxDistanceSquared < 0) return 0;
         scan(level);
         // Resolve item from id
         var itemOpt = net.minecraft.core.registries.BuiltInRegistries.ITEM.getOptional(
@@ -249,6 +255,7 @@ public class WarehouseManager {
 
         int remaining = amount;
         List<Map.Entry<BlockPos, Container>> sorted = new ArrayList<>(cachedChests.entrySet());
+        sorted.removeIf(e -> e.getKey().distSqr(depositorPos) > maxDistanceSquared);
         sorted.sort(Comparator.comparingDouble(e -> e.getKey().distSqr(depositorPos)));
 
         // Try existing stacks first (merge)
