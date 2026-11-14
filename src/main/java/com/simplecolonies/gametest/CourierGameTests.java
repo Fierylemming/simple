@@ -18,6 +18,38 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder("simplecolonies")
 @PrefixGameTestTemplate(false)
 public class CourierGameTests {
+    @GameTest(template = "empty", timeoutTicks = 800)
+    public static void courierUsesAnotherSharedHubWhenNearestIsFull(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        var full = new BlockPos(8, 1, 8); var open = new BlockPos(12, 1, 8); var privateChest = new BlockPos(6, 1, 10);
+        helper.setBlock(full, Blocks.CHEST); helper.setBlock(open, Blocks.CHEST); helper.setBlock(privateChest, Blocks.CHEST);
+        var fullContainer = (Container) helper.getBlockEntity(full);
+        var openContainer = (Container) helper.getBlockEntity(open);
+        var privateContainer = (Container) helper.getBlockEntity(privateChest);
+        for (int i = 0; i < fullContainer.getContainerSize(); i++) fullContainer.setItem(i, new ItemStack(Items.STONE, 64));
+        var colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(full));
+        colony.setWarehouseCenter(helper.absolutePos(full));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(full))
+                || !colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(open))) helper.fail("Could not share hubs");
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(6, 1, 8));
+        var cargo = new ItemStack(Items.BREAD, 3);
+        cargo.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal("Keepsake"));
+        worker.setCourierCargo(cargo.copy());
+        var job = new CourierJob(worker, colony);
+        for (int tick = 1; tick < 800; tick++) helper.runAtTickTime(tick, () -> {
+            job.tick(helper.getLevel());
+            if (!openContainer.getItem(0).isEmpty()
+                    && worker.distanceToSqr(helper.absolutePos(open).getX()+.5, helper.absolutePos(open).getY()+.5, helper.absolutePos(open).getZ()+.5) > 9)
+                helper.fail("Courier deposited into the alternate hub remotely");
+        });
+        helper.succeedWhen(() -> {
+            if (!worker.getCourierCargo().isEmpty() || !ItemStack.isSameItemSameComponents(cargo, openContainer.getItem(0))
+                    || openContainer.getItem(0).getCount() != 3 || !privateContainer.isEmpty()
+                    || fullContainer.getItem(0).getCount() != 64)
+                helper.fail("Alternate shared hub did not safely accept cargo: " + job.getState());
+        });
+    }
+
     @GameTest(template = "empty", timeoutTicks = 200)
     public static void courierRetainsNestedShulkerWhenHubRejectsIt(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);

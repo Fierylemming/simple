@@ -12,6 +12,7 @@ import net.minecraft.world.item.ItemStack;
 public class CourierJob extends AbstractJob {
     private BlockPos source;
     private BlockPos hub;
+    private final java.util.Map<BlockPos, Long> unreachableHubs = new java.util.HashMap<>();
 
     public CourierJob(ColonyVillager villager, Colony colony) { super(villager, colony, JobType.COURIER); }
     private ColonyVillager worker() { return (ColonyVillager) villager; }
@@ -21,13 +22,22 @@ public class CourierJob extends AbstractJob {
         var center = warehouse.getConfiguredWarehouseCenter();
         if (center == null || !level.isLoaded(center)) { state = JobState.STUCK; ticksUntilNextWork = 100; return; }
         var storage = warehouse.courierStoragePositions(level);
-        if (hub == null || !storage.contains(hub) || hub.distSqr(center) > 100) {
-            hub = storage.stream().filter(p -> p.distSqr(center) <= 100)
-                    .min(java.util.Comparator.comparingDouble(p -> p.distSqr(center))).orElse(null);
-        }
-        if (hub == null) { state = JobState.WAITING_FOR_CHEST; ticksUntilNextWork = 100; return; }
+        unreachableHubs.entrySet().removeIf(e -> e.getValue() <= level.getGameTime());
         if (!worker().getCourierCargo().isEmpty() || !worker().getCourierCargoExtra().isEmpty()) {
-            if (!walkTo(hub)) return;
+            // Pick an accepting hub rather than permanently waiting at the
+            // closest full or incompatible chest. Never fall back to unshared
+            // containers or lose the cargo if none is available.
+            if (hub == null || !storage.contains(hub) || hub.distSqr(center) > 100
+                    || unreachableHubs.containsKey(hub)
+                    || !(canInsert(warehouse.courierContainer(level, hub), worker().getCourierCargo())
+                        || canInsert(warehouse.courierContainer(level, hub), worker().getCourierCargoExtra()))) {
+                hub = storage.stream().filter(p -> p.distSqr(center) <= 100 && !unreachableHubs.containsKey(p))
+                        .filter(p -> canInsert(warehouse.courierContainer(level, p), worker().getCourierCargo())
+                                || canInsert(warehouse.courierContainer(level, p), worker().getCourierCargoExtra()))
+                        .min(java.util.Comparator.comparingDouble(p -> p.distSqr(villager.blockPosition()))).orElse(null);
+            }
+            if (hub == null) { state = JobState.WAITING_FOR_CHEST; ticksUntilNextWork = 40; return; }
+            if (!walkTo(hub, level, true)) return;
             Container destination = warehouse.courierContainer(level, hub);
             if (destination == null) { hub = null; state = JobState.STUCK; return; }
             insert(destination, worker().getCourierCargo());
@@ -40,13 +50,16 @@ public class CourierJob extends AbstractJob {
             ticksUntilNextWork = 40;
             return;
         }
+        if (storage.stream().noneMatch(p -> p.distSqr(center) <= 100)) {
+            state = JobState.WAITING_FOR_CHEST; ticksUntilNextWork = 100; return;
+        }
         if (source == null || !storage.contains(source) || source.distSqr(center) <= 100) {
             source = storage.stream().filter(p -> p.distSqr(center) > 100)
                     .filter(p -> hasItems(warehouse.courierContainer(level, p)))
                     .min(java.util.Comparator.comparingDouble(p -> p.distSqr(villager.blockPosition()))).orElse(null);
         }
         if (source == null) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
-        if (!walkTo(source)) return;
+        if (!walkTo(source, level, false)) return;
         Container from = warehouse.courierContainer(level, source);
         if (from == null) { source = null; state = JobState.STUCK; return; }
         for (int slot = 0; slot < from.getContainerSize(); slot++) {
@@ -71,11 +84,16 @@ public class CourierJob extends AbstractJob {
         source = null; state = JobState.IDLE; ticksUntilNextWork = 40;
     }
 
-    private boolean walkTo(BlockPos target) {
+    private boolean walkTo(BlockPos target, ServerLevel level, boolean destination) {
         if (villager.distanceToSqr(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5) <= 9) return true;
+        if (!villager.onGround() && !villager.isInLiquid() && !villager.isPassenger()) {
+            state = JobState.GOING_TO_WORK; ticksUntilNextWork = 0; return false;
+        }
         var path = villager.getNavigation().createPath(target, 1);
         if (path == null || !path.canReach()) {
-            source = null; state = JobState.STUCK; ticksUntilNextWork = 60; return false;
+            if (destination) { unreachableHubs.put(target, level.getGameTime() + 200); hub = null; }
+            else source = null;
+            state = JobState.STUCK; ticksUntilNextWork = 10; return false;
         }
         villager.getNavigation().moveTo(path, 1.0);
         state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return false;
