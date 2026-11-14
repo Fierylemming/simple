@@ -189,7 +189,7 @@ class WorksitePlanTest {
     @Test void generatedHousesAndWorksitesPersistPhysicalWingsThroughFiveTiers() {
         for (var type : java.util.List.of(BuildingType.HOUSE, BuildingType.BLACKSMITH, BuildingType.BAKERY,
                 BuildingType.BUILDER_HUT, BuildingType.LUMBERJACK_HUT, BuildingType.MINE, BuildingType.BUTCHER_HUT,
-                BuildingType.LEATHER_SHOP, BuildingType.HARBOR, BuildingType.WAREHOUSE, BuildingType.BARRACKS)) {
+                BuildingType.LEATHER_SHOP, BuildingType.HARBOR, BuildingType.WAREHOUSE, BuildingType.BARRACKS, BuildingType.LIBRARY)) {
             var building = new Building(type, BlockPos.ZERO, CultureType.GREEK, HouseTimber.BIRCH);
             building.setState(BuildingState.COMPLETE);
             for (int target = 2; target <= 5; target++) {

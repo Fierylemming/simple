@@ -114,6 +114,7 @@ public class Building {
             case LEATHER_SHOP -> net.minecraft.world.level.block.Blocks.CAULDRON.defaultBlockState();
             case HARBOR, WAREHOUSE -> net.minecraft.world.level.block.Blocks.BARREL.defaultBlockState();
             case BARRACKS -> net.minecraft.world.level.block.Blocks.GRINDSTONE.defaultBlockState();
+            case LIBRARY -> net.minecraft.world.level.block.Blocks.LECTERN.defaultBlockState();
             default -> null;
         };
     }

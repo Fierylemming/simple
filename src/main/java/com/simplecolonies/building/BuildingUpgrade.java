@@ -116,7 +116,8 @@ public class BuildingUpgrade {
         if (level == null || !level.dimension().equals(net.minecraft.world.level.Level.OVERWORLD)
                 || !colony.getBuildings().contains(building) || !building.canBuildWorksiteWing()
                 || !level.isLoaded(building.getPos())
-                || (building.getType() != BuildingType.HOUSE && !level.getBlockState(building.getPos()).is(Building.wingStation(building.getType()).getBlock()))
+                || (building.getType() != BuildingType.HOUSE && building.getType() != BuildingType.LIBRARY
+                    && !level.getBlockState(building.getPos()).is(Building.wingStation(building.getType()).getBlock()))
                 || colony.getCitizens().stream().noneMatch(c -> !c.isChild && c.job == com.simplecolonies.villager.job.JobType.BUILDER)
                 || colony.getBuildings().stream().anyMatch(b -> b != building && b.hasSupportedPlan() && b.getState() != BuildingState.COMPLETE)) return null;
         var stock = colony.getWarehouseSnapshot(level);

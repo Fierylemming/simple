@@ -115,12 +115,14 @@ public class ResearchManager {
     /** Called daily in Colony.tick — auto-progress if village has surplus. */
     public void tickAutoProgress(ServerLevel level) {
         if (autoProgressCooldown-- > 0) return;
-        // A completed library shortens the next automatic-research interval.
-        // Research is daily simulation, so time skips still catch it up normally.
-        boolean library = colony.getBuildings().stream().anyMatch(b ->
-                b.getType() == com.simplecolonies.building.BuildingType.LIBRARY
-                        && b.getState() == com.simplecolonies.building.BuildingState.COMPLETE);
-        autoProgressCooldown = library ? 2 : 5;
+        // Completed physical library wings improve research; a wing under
+        // construction does not award its tier, but the parent remains useful.
+        // Time skips still catch up daily simulation in bounded batches.
+        int libraryLevel = colony.getBuildings().stream()
+                .filter(b -> b.getType() == com.simplecolonies.building.BuildingType.LIBRARY && b.isOperational())
+                .mapToInt(com.simplecolonies.building.Building::getLevel).max().orElse(0);
+        autoProgressCooldown = libraryLevel == 0 ? 5 : Math.max(0, 3 - libraryLevel);
+        int remainingUnlocks = Math.max(1, libraryLevel - 2);
         // Find cheapest unlockable upgrade we can afford (cheapest first = tier order)
         for (ColonyUpgrade up : ColonyUpgrade.values()) {
             if (canUnlock(up) && ResearchCosts.hasSurplus(stock(level), up.cost)) {
@@ -130,7 +132,7 @@ public class ResearchManager {
                 unlocked.add(up);
                 colony.broadcast(Component.literal("§eColony #" + colony.getId() + " self-unlocked " + up.displayName + " (had enough resources)"));
                 com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
-                break; // at most one per research interval
+                if (--remainingUnlocks == 0) break;
             }
         }
     }

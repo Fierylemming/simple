@@ -171,4 +171,43 @@ public class ResearchGameTests {
         if (research.tryBuy(ColonyUpgrade.TOOL_STONE, level, player)) helper.fail("Research was purchased twice");
         helper.succeed();
     }
+    @GameTest(template = "empty")
+    public static void libraryTierReducesResearchInterval(GameTestHelper helper) {
+        for (int tier = 1; tier <= 5; tier++) {
+            Colony colony = new Colony(tier, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
+            var library = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.LIBRARY,
+                    colony.getCenter(), CultureType.ROMAN, true);
+            library.setLevel(tier); colony.registerPlayerBuilding(library);
+            var tag = colony.getResearch().save(); tag.putInt("autoCooldown", 0); colony.getResearch().load(tag);
+            colony.getResearch().tickAutoProgress(helper.getLevel());
+            int cooldown = colony.getResearch().save().getInt("autoCooldown");
+            if (cooldown != Math.max(0, 3 - tier)) helper.fail("Wrong library cooldown for tier " + tier + ": " + cooldown);
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void upgradedLibraryResearchesMultipleAffordableTopics(GameTestHelper helper) {
+        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
+        var library = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.LIBRARY,
+                colony.getCenter(), CultureType.ROMAN, true);
+        library.setLevel(5); colony.registerPlayerBuilding(library);
+        colony.depositToWarehouse("minecraft:cobblestone", 128);
+        colony.depositToWarehouse("minecraft:oak_planks", 128);
+        colony.depositToWarehouse("minecraft:coal", 32);
+        colony.depositToWarehouse("minecraft:wheat", 96);
+        colony.depositToWarehouse("minecraft:oak_fence", 16);
+        var tag = colony.getResearch().save(); tag.putInt("autoCooldown", 0); colony.getResearch().load(tag);
+        colony.getResearch().tickAutoProgress(helper.getLevel());
+        if (!colony.getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE)
+                || !colony.getResearch().isUnlocked(ColonyUpgrade.UNLOCK_BUTCHER)
+                || !colony.getResearch().isUnlocked(ColonyUpgrade.EFFICIENCY_1))
+            helper.fail("Tier five library did not fund three eligible topics");
+        if (colony.getWarehouseCount("minecraft:cobblestone") != 96
+                || colony.getWarehouseCount("minecraft:wheat") != 64
+                || colony.getWarehouseCount("minecraft:oak_fence") != 8)
+            helper.fail("Research did not pay each cost exactly once");
+        helper.succeed();
+    }
+
 }
