@@ -55,6 +55,8 @@ public class WoodcutterJob extends AbstractJob {
     private int[] branchAxes = new int[0];
     private boolean restored;
     private boolean saplingsChecked;
+    private net.minecraft.world.level.pathfinder.Path approachPath;
+    private BlockPos approachLog;
     private final PhysicalJobCargo cargo;
     private final PhysicalToolPickup toolPickup;
     private final PhysicalBuilderMaterials materials;
@@ -67,6 +69,37 @@ public class WoodcutterJob extends AbstractJob {
         cargo = worker == null ? null : new PhysicalJobCargo(worker, colony);
         toolPickup = worker == null ? null : new PhysicalToolPickup(worker, colony);
         materials = worker == null ? null : new PhysicalBuilderMaterials(worker, colony);
+    }
+
+    @Override protected void onTick(ServerLevel level) {
+        if (approachPath == null) return;
+        var brain = villager.getBrain();
+        var pathMemory = net.minecraft.world.entity.ai.memory.MemoryModuleType.PATH;
+        boolean panic = brain.isActive(net.minecraft.world.entity.schedule.Activity.PANIC)
+                || brain.hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.NEAREST_HOSTILE)
+                || brain.hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.HURT_BY);
+        if (!panic && state == JobState.GOING_TO_WORK && villager.getNavigation().getPath() == approachPath && !approachPath.isDone()) {
+            brain.eraseMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET);
+            brain.setMemory(pathMemory, approachPath);
+        } else {
+            if (brain.getMemory(pathMemory).orElse(null) == approachPath) brain.eraseMemory(pathMemory);
+            approachPath = null; approachLog = null;
+        }
+    }
+
+    private void followApproach(net.minecraft.world.level.pathfinder.Path path, BlockPos log) {
+        if (villager.getNavigation().moveTo(path, .7)) {
+            approachPath = path; approachLog = log;
+            villager.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.PATH, path);
+        }
+    }
+
+    private void clearApproach() {
+        if (approachPath == null) return;
+        if (villager.getNavigation().getPath() == approachPath) villager.getNavigation().stop();
+        var memory = net.minecraft.world.entity.ai.memory.MemoryModuleType.PATH;
+        if (villager.getBrain().getMemory(memory).orElse(null) == approachPath) villager.getBrain().eraseMemory(memory);
+        approachPath = null; approachLog = null;
     }
 
     @Override
@@ -203,10 +236,17 @@ public class WoodcutterJob extends AbstractJob {
         }
         BlockPos log = tree.get(remaining - 1);
         if (!inToolReach(log)) {
+            if (approachPath != null && log.equals(approachLog)
+                    && villager.getNavigation().getPath() == approachPath && !approachPath.isDone()) {
+                state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
+            }
+            if (!villager.onGround() && !villager.isInLiquid() && !villager.isPassenger()) {
+                state = JobState.GOING_TO_WORK; ticksUntilNextWork = 0; return;
+            }
             if (branchedTree || squareTree || tree.size() > MAX_GROUND_TRUNK) {
                 var approach = findTallApproach(level, treeBase, log);
                 if (approach == null) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
-                villager.getNavigation().moveTo(approach, 0.7);
+                followApproach(approach, log);
                 state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
             }
             net.minecraft.world.level.pathfinder.Path path = null;
@@ -222,9 +262,10 @@ public class WoodcutterJob extends AbstractJob {
                 if (attempt != null && attempt.canReach()) { path = attempt; break; }
             }
             if (path == null) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
-            villager.getNavigation().moveTo(path, 0.7);
+            followApproach(path, log);
             state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
         }
+        clearApproach();
         var block = level.getBlockState(log);
         var drops = net.minecraft.world.level.block.Block.getDrops(block, level, log, null, villager, villager.getMainHandItem());
         if (!level.destroyBlock(log, false)) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
@@ -321,6 +362,7 @@ public class WoodcutterJob extends AbstractJob {
     }
 
     private void clearTree() {
+        clearApproach();
         treeBase = null; treeSpecies = null; tree = java.util.List.of(); remaining = 0; squareTree = false; branchedTree = false; saplingsChecked = false; branchAxes = new int[0]; writeMemory();
     }
     private void writeMemory() {
