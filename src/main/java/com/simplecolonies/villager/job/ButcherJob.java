@@ -125,31 +125,34 @@ public class ButcherJob extends AbstractJob {
                 if (collectFood(level, storage, food, needed - carried)) return;
                 continue;
             }
-            if (villager.distanceToSqr(candidate) > 6.25 || !villager.hasLineOfSight(candidate)) {
-                var path = villager.getNavigation().createPath(candidate, 1);
-                if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
-                villager.getNavigation().moveTo(path, 0.7);
-                state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
-            }
-            if (!partnerWaiting) {
-                // Do not start the short love timer until both parents can be
-                // reached promptly from the same position. This avoids wasting
-                // the first item on a pair separated by a fence or long walk.
-                var partner = adults.stream().filter(a -> a != candidate && a.canFallInLove()
+            Animal partner = null;
+            if (partnerWaiting) {
+                if (villager.distanceToSqr(candidate) > 6.25 || !villager.hasLineOfSight(candidate)) {
+                    var path = villager.getNavigation().createPath(candidate, 1);
+                    if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
+                    villager.getNavigation().moveTo(path, .7);
+                    state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
+                }
+            } else {
+                partner = adults.stream().filter(a -> a != candidate && a.canFallInLove()
                                 && a.distanceToSqr(candidate) <= 36)
                         .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
                 if (partner == null) continue;
-                if (villager.distanceToSqr(partner) > 6.25 || !villager.hasLineOfSight(partner)) {
-                    var path = villager.getNavigation().createPath(partner, 1);
-                    if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
-                    villager.getNavigation().moveTo(path, .7); state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
+                if (villager.distanceToSqr(candidate) > 6.25 || !villager.hasLineOfSight(candidate)
+                        || villager.distanceToSqr(partner) > 6.25 || !villager.hasLineOfSight(partner)) {
+                    approachPair(level, candidate, partner); return;
                 }
             }
             if (!candidate.isAlive() || candidate.hasCustomName() || candidate.getAge() != 0
                     || candidate.isInLove() || !candidate.canFallInLove()) continue;
-            supplies.shrink(1);
+            // Both are in reach right now. Feed the pair together so their short
+            // love timers cannot expire while the worker chases a wandering mate.
+            if (partner != null && (!partner.isAlive() || partner.hasCustomName() || partner.getAge() != 0
+                    || partner.isInLove() || !partner.canFallInLove() || supplies.getCount() < 2)) continue;
+            supplies.shrink(partner == null ? 1 : 2);
             if (supplies.isEmpty()) worker().setWorkSupplies(net.minecraft.world.item.ItemStack.EMPTY);
             candidate.setInLove(null);
+            if (partner != null) partner.setInLove(null);
             villager.getLookControl().setLookAt(candidate);
             villager.swing(InteractionHand.MAIN_HAND);
             state = JobState.WORKING; ticksUntilNextWork = 5; return;

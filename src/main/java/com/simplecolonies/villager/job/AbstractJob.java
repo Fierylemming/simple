@@ -94,6 +94,39 @@ public abstract class AbstractJob {
     /** Called even between work actions, for behaviours that must not be deferred. */
     protected void onTick(ServerLevel level) {}
 
+    /** Approach a position within reach of both parents. Alternating between
+     * their positions can otherwise make the worker walk back and forth forever. */
+    protected void approachPair(ServerLevel level, net.minecraft.world.entity.animal.Animal first, net.minecraft.world.entity.animal.Animal second) {
+        var existing = villager.getNavigation().getPath();
+        if (existing != null && !existing.isDone() && existing.canReach() && existing.getEndNode() != null) {
+            BlockPos end = existing.getEndNode().asBlockPos();
+            if (end.distToCenterSqr(first.position()) <= 5.0 && end.distToCenterSqr(second.position()) <= 5.0) {
+                state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
+            }
+        }
+        var stands = new java.util.ArrayList<BlockPos>();
+        BlockPos center = first.blockPosition();
+        for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) for (int y = -1; y <= 1; y++) {
+            BlockPos pos = center.offset(x, y, z);
+            if (!level.isLoaded(pos) || !level.isLoaded(pos.above()) || !level.isLoaded(pos.below()) || !colony.isInside(pos)) continue;
+            if (pos.distToCenterSqr(first.position()) > 5.0 || pos.distToCenterSqr(second.position()) > 5.0) continue;
+            if (!level.getBlockState(pos).getCollisionShape(level, pos).isEmpty()
+                    || !level.getBlockState(pos.above()).getCollisionShape(level, pos.above()).isEmpty()
+                    || !level.getFluidState(pos).isEmpty()
+                    || !level.getBlockState(pos.below()).isFaceSturdy(level, pos.below(), net.minecraft.core.Direction.UP)) continue;
+            stands.add(pos);
+        }
+        stands.sort(java.util.Comparator.comparingDouble(p -> p.distSqr(villager.blockPosition())));
+        for (var stand : stands) {
+            if (stand.equals(villager.blockPosition())) continue; // A blocked line of sight requires another stand.
+            var path = villager.getNavigation().createPath(stand, 0);
+            if (path == null || !path.canReach()) continue;
+            villager.getNavigation().moveTo(path, .7);
+            state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
+        }
+        state = JobState.STUCK; ticksUntilNextWork = 40;
+    }
+
     protected abstract void doWork(ServerLevel level);
 
     protected int getWorkInterval() {
