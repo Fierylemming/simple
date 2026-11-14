@@ -144,12 +144,16 @@ public class PhysicalBuilderGameTests {
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(7, 1, 9)); worker.setNoAi(true);
         var job = new BuilderJob(worker, colony);
         if (container.countItem(Items.OAK_PLANKS) != 1) helper.fail("Fixture chest was not stocked");
-        for (int tick = 1; tick < 900; tick++) helper.runAtTickTime(tick, () -> {
-            if (colony.isProtectedPlot(center) && container.countItem(Items.OAK_PLANKS) != 1)
-                helper.fail("Stock disappeared while protected, before job tick: carried=" + worker.getBuilderMaterials().countItem(Items.OAK_PLANKS)
-                        + " plan=" + plan.getState() + " job=" + job.getState());
-            job.tick(helper.getLevel());
-        });
+        for (int tick = 1; tick < 900; tick++) {
+            int scheduledTick = tick;
+            helper.runAtTickTime(tick, () -> {
+                if (colony.isProtectedPlot(center) && container.countItem(Items.OAK_PLANKS) != 1)
+                    helper.fail("Stock disappeared at tick " + scheduledTick + ": carried=" + worker.getBuilderMaterials().countItem(Items.OAK_PLANKS)
+                            + " plan=" + plan.getState() + " job=" + job.getState() + " chest=" + helper.getBlockState(chest)
+                            + " same=" + (helper.getBlockEntity(chest) == container));
+                job.tick(helper.getLevel());
+            });
+        }
         boolean[] unprotected = {false};
         helper.runAtTickTime(150, () -> {
             if (!helper.getBlockState(base).isAir() || container.countItem(Items.OAK_PLANKS) != 1
