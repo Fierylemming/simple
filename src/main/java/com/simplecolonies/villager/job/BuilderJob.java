@@ -40,7 +40,8 @@ public class BuilderJob extends AbstractJob {
     /** Find an actual standing position in reach, on either side of a wall. */
     private net.minecraft.world.level.pathfinder.Path findApproach(ServerLevel level, BlockPos target) {
         var candidates = new java.util.ArrayList<BlockPos>();
-        int groundY = currentJob.constructionWalkY();
+        int groundY = currentJob.getType() == com.simplecolonies.building.BuildingType.SCHEMATIC
+                ? target.getY() : currentJob.constructionWalkY();
         for (int dx = -4; dx <= 4; dx++) for (int dz = -4; dz <= 4; dz++) for (int dy = -2; dy <= 2; dy++) {
             BlockPos stand = new BlockPos(target.getX() + dx, groundY + dy, target.getZ() + dz);
             double vertical = target.getY() + 0.5 - stand.getY();

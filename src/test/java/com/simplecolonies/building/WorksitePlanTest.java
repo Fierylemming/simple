@@ -253,4 +253,33 @@ class WorksitePlanTest {
         assertEquals(0.0, restored.distanceToOperationalSite(first));
     }
 
+    @Test void importedPlanRetainsExactStatesAndProgressWithoutSourceFile() {
+        var source = new net.minecraft.nbt.CompoundTag(); source.putString("identity", "example");
+        var stairs = Blocks.OAK_STAIRS.defaultBlockState().setValue(net.minecraft.world.level.block.StairBlock.FACING, net.minecraft.core.Direction.SOUTH);
+        var plan = java.util.List.of(new Building.BlockPlacement(BlockPos.ZERO, Blocks.OAK_PLANKS.defaultBlockState(), "minecraft:oak_planks"),
+                new Building.BlockPlacement(BlockPos.ZERO.above(), stairs, "minecraft:oak_stairs"));
+        var imported = Building.imported(BlockPos.ZERO, CultureType.ROMAN, source, plan);
+        assertTrue(imported.hasSupportedPlan());
+        assertTrue(imported.hasImportedSource(source));
+        imported.markPlaced(imported.getNextPlacement());
+        var restored = Building.load(imported.save());
+        assertTrue(restored.hasSupportedPlan());
+        assertEquals(BlockPos.ZERO.above(), restored.getNextPlacement().pos);
+        assertEquals(stairs, restored.getNextPlacement().state);
+        assertEquals(1, restored.getRequiredResources().get("minecraft:oak_stairs"));
+        restored.markPlaced(restored.getNextPlacement()); restored.finishConstruction();
+        var completed = Building.load(restored.save());
+        assertTrue(completed.hasImportedSource(source));
+        assertTrue(completed.hasSupportedPlan());
+        assertNull(completed.getNextPlacement());
+        var unavailable = imported.save();
+        unavailable.getCompound("importedPlan").getList("placements", net.minecraft.nbt.Tag.TAG_COMPOUND)
+                .getCompound(0).getCompound("state").putString("Name", "missingmod:missing_block");
+        var missing = Building.load(unavailable);
+        assertFalse(missing.hasSupportedPlan());
+        assertTrue(missing.getRemainingPlacements().isEmpty());
+        assertEquals("missingmod:missing_block", missing.save().getCompound("importedPlan")
+                .getList("placements", net.minecraft.nbt.Tag.TAG_COMPOUND).getCompound(0).getCompound("state").getString("Name"));
+    }
+
 }

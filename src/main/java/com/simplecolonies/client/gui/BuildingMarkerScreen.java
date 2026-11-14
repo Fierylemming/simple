@@ -54,7 +54,7 @@ public class BuildingMarkerScreen extends AbstractContainerScreen<BuildingMarker
         addRenderableWidget(Button.builder(Component.literal("Pasture"), b->send(BuildingMarkerMenu.BTN_SET_PASTURE)).bounds(x+80, y+142, 70,18).build());
         addRenderableWidget(Button.builder(Component.literal("✔ Done"), b->onClose()).bounds(x+imageWidth-78, y+142, 70,18).build());
     }
-    private String icon(BuildingType t){ return switch(t){ case HOUSE->"⌂"; case FARM->"⚘"; case LUMBERJACK_HUT->"♠"; case BUILDER_HUT->"⚒"; case MINE->"⛏"; case WAREHOUSE->"▣"; case BARRACKS->"⚔"; case BLACKSMITH->"⚒"; case BAKERY->"◯"; case BUTCHER_HUT->"B"; case LEATHER_SHOP->"L"; case TEMPLE->"☥"; case MARKET->"⚖"; case LIBRARY->"L"; case CASTLE->"C"; case WALLS->"W"; case HARBOR->"H"; case TOWN_HALL->"T"; case PASTURE->"P"; }; }
+    private String icon(BuildingType t){ return switch(t){ case HOUSE->"⌂"; case FARM->"⚘"; case LUMBERJACK_HUT->"♠"; case BUILDER_HUT->"⚒"; case MINE->"⛏"; case WAREHOUSE->"▣"; case BARRACKS->"⚔"; case BLACKSMITH->"⚒"; case BAKERY->"◯"; case BUTCHER_HUT->"B"; case LEATHER_SHOP->"L"; case TEMPLE->"☥"; case MARKET->"⚖"; case LIBRARY->"L"; case CASTLE->"C"; case WALLS->"W"; case HARBOR->"H"; case TOWN_HALL->"T"; case PASTURE->"P"; case SCHEMATIC->"S"; }; }
     private void send(int id){ if(minecraft!=null && minecraft.gameMode!=null) minecraft.gameMode.handleInventoryButtonClick(menu.containerId, id); }
 
     @Override protected void renderBg(GuiGraphics g,float pt,int mx,int my){

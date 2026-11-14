@@ -28,6 +28,10 @@ public class Building {
     private BlockPos upgradeSite;
     private int upgradePlanVersion;
     private final List<BlockPos> previousWings = new ArrayList<>();
+    // Imported plans are stored independently of external schematic files so
+    // that edits, file deletion or removing Create cannot alter an active job.
+    private CompoundTag importedPlan;
+    private boolean importedPlanValid;
     private final Map<String, Integer> requiredResources = new HashMap<>();
     private final Queue<BlockPlacement> placements = new ArrayDeque<>();
     private final List<BlockPlacement> completed = new ArrayList<>();
@@ -59,6 +63,30 @@ public class Building {
             this.requiredResources.clear();
             this.state = BuildingState.COMPLETE;
         }
+    }
+
+    /** Capture an already validated external plan as an immutable save-backed task. */
+    public static Building imported(BlockPos origin, CultureType culture, CompoundTag source, List<BlockPlacement> plan) {
+        if (source == null || plan.isEmpty() || plan.size() > 16384) throw new IllegalArgumentException("Invalid imported plan");
+        Building b = new Building(BuildingType.SCHEMATIC, origin, culture);
+        CompoundTag data = new CompoundTag();
+        data.put("source", source.copy());
+        var list = new net.minecraft.nbt.ListTag();
+        for (BlockPlacement p : plan) {
+            CompoundTag entry = new CompoundTag();
+            entry.putLong("pos", p.pos.asLong());
+            entry.put("state", net.minecraft.nbt.NbtUtils.writeBlockState(p.state));
+            entry.putString("item", p.itemId);
+            list.add(entry);
+        }
+        data.put("placements", list);
+        b.importedPlan = data;
+        b.loadSchematicPlacements();
+        if (!b.importedPlanValid) throw new IllegalArgumentException("Invalid imported placements");
+        return b;
+    }
+    public boolean hasImportedSource(CompoundTag source) {
+        return type == BuildingType.SCHEMATIC && importedPlan != null && importedPlan.getCompound("source").equals(source);
     }
 
     public BuildingType getType() { return type; }
@@ -136,6 +164,29 @@ public class Building {
         // Preserve the original plans of all in-progress saves. Worksite plans were introduced in v4.
         placements.clear();
         requiredResources.clear();
+        if (type == BuildingType.SCHEMATIC) {
+            importedPlanValid = false;
+            if (importedPlan == null) return;
+            var list = importedPlan.getList("placements", net.minecraft.nbt.Tag.TAG_COMPOUND);
+            if (list.isEmpty() || list.size() > 16384) return;
+            var decoded = new ArrayList<BlockPlacement>();
+            try {
+                for (int i = 0; i < list.size(); i++) {
+                    var entry = list.getCompound(i);
+                    var stateTag = entry.getCompound("state");
+                    var blockId = net.minecraft.resources.ResourceLocation.parse(stateTag.getString("Name"));
+                    var itemId = net.minecraft.resources.ResourceLocation.parse(entry.getString("item"));
+                    if (net.minecraft.core.registries.BuiltInRegistries.BLOCK.getOptional(blockId).isEmpty()
+                            || net.minecraft.core.registries.BuiltInRegistries.ITEM.getOptional(itemId).isEmpty()) return;
+                    var state = net.minecraft.nbt.NbtUtils.readBlockState(net.minecraft.core.registries.BuiltInRegistries.BLOCK.asLookup(), stateTag);
+                    if (state.isAir()) return;
+                    decoded.add(new BlockPlacement(BlockPos.of(entry.getLong("pos")), state, itemId.toString()));
+                }
+            } catch (RuntimeException e) { return; }
+            for (var placement : decoded) addPlacement(placement.pos, placement.state, placement.itemId);
+            importedPlanValid = true;
+            return;
+        }
         if (upgradeSite != null) {
             if (upgradePlanVersion != 1 && upgradePlanVersion != 2 && upgradePlanVersion != 3) return;
             var plan = new ArrayList<BlockPlacement>();
@@ -221,6 +272,7 @@ public class Building {
     }
 
     public boolean hasSupportedPlan() {
+        if (type == BuildingType.SCHEMATIC) return !isPlayerPlaced && importedPlanValid;
         return !isPlayerPlaced && (upgradeSite == null || upgradePlanVersion == 1 || upgradePlanVersion == 2 || upgradePlanVersion == 3)
                 && (type == BuildingType.HOUSE || (planVersion >= 4 && LevelOneWorksites.supports(type, planVersion)));
     }
@@ -358,6 +410,7 @@ public class Building {
         tag.putInt("houseVariant", houseVariant);
         if (planVersion >= 12) tag.putString("houseTimber", houseTimber.id);
         tag.putBoolean("isPlayerPlaced", isPlayerPlaced);
+        if (importedPlan != null) tag.put("importedPlan", importedPlan.copy());
         if (!previousWings.isEmpty()) tag.putLongArray("previousWings", previousWings.stream().mapToLong(BlockPos::asLong).toArray());
         if (upgradeSite != null) {
             tag.putLong("upgradeSite", upgradeSite.asLong());
@@ -381,6 +434,8 @@ public class Building {
         b.houseTimber = b.planVersion >= 12 ? HouseTimber.byId(tag.getString("houseTimber")) : HouseTimber.OAK;
         b.houseVariant = tag.contains("houseVariant") ? Math.floorMod(tag.getInt("houseVariant"), LevelOneHouses.VARIANTS) : LevelOneHouses.variant(pos);
         b.state = BuildingState.valueOf(tag.getString("state"));
+        if (type == BuildingType.SCHEMATIC && tag.contains("importedPlan", net.minecraft.nbt.Tag.TAG_COMPOUND))
+            b.importedPlan = tag.getCompound("importedPlan").copy();
         b.level = tag.getInt("level");
         if (!isPlayer) for (long p : tag.getLongArray("previousWings")) b.previousWings.add(BlockPos.of(p));
         if (!isPlayer && tag.contains("upgradeSite")) {
@@ -393,6 +448,7 @@ public class Building {
             int done = Math.max(0, tag.getInt("completedPlacements"));
             while (done-- > 0 && b.getNextPlacement() != null) b.markPlaced(b.getNextPlacement());
         } else if (b.state == BuildingState.COMPLETE) {
+            if (type == BuildingType.SCHEMATIC) b.loadSchematicPlacements();
             b.placements.clear(); b.completed.clear(); b.requiredResources.clear();
         }
         return b;
