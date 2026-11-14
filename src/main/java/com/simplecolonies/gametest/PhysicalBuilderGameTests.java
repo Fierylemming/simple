@@ -147,7 +147,9 @@ public class PhysicalBuilderGameTests {
         boolean[] unprotected = {false};
         helper.runAtTickTime(150, () -> {
             if (!helper.getBlockState(base).isAir() || container.countItem(Items.OAK_PLANKS) != 1
-                    || plan.getState() != BuildingState.BLOCKED) helper.fail("Builder modified protected plot or took materials");
+                    || plan.getState() != BuildingState.BLOCKED) helper.fail("Builder protection: block=" + helper.getBlockState(base)
+                            + " stock=" + container.countItem(Items.OAK_PLANKS) + " plan=" + plan.getState() + " job=" + job.getState()
+                            + " protected=" + colony.isProtectedPlot(center));
             colony.updateMarkerBuilding(center.east(7), true, null);
             unprotected[0] = true;
         });
