@@ -21,9 +21,18 @@ public final class ConstructionCrafting {
     public static boolean take(Stock stock, String id) {
         if (id == null || id.isEmpty()) return true;
         if (stock.count(id) > 0) return stock.consume(id, 1);
-        if (id.equals("minecraft:stone_pickaxe") || id.equals("minecraft:stone_axe")) {
-            if (stock.count("minecraft:cobblestone") < 3) return false;
-            if (stock.count(STICK) < 2) {
+        if (id.equals("minecraft:shears")) {
+            if (stock.count("minecraft:iron_ingot") < 2 || !stock.consume("minecraft:iron_ingot", 2)) return false;
+            stock.add(id, 1); return stock.consume(id, 1);
+        }
+        boolean stoneTool = id.equals("minecraft:stone_pickaxe") || id.equals("minecraft:stone_axe") || id.equals("minecraft:stone_sword");
+        boolean ironTool = id.equals("minecraft:iron_pickaxe") || id.equals("minecraft:iron_axe") || id.equals("minecraft:iron_sword");
+        if (stoneTool || ironTool) {
+            String material = stoneTool ? "minecraft:cobblestone" : "minecraft:iron_ingot";
+            int materials = id.endsWith("_sword") ? 2 : 3;
+            int sticks = id.endsWith("_sword") ? 1 : 2;
+            if (stock.count(material) < materials) return false;
+            if (stock.count(STICK) < sticks) {
                 HouseTimber source = null;
                 for (var wood : HouseTimber.all()) {
                     if (stock.count(woodId(wood, "planks")) >= 2 || stock.count(woodId(wood, "log")) > 0) {
@@ -39,7 +48,7 @@ public final class ConstructionCrafting {
                 if (!stock.consume(planks, 2)) return false;
                 stock.add(STICK, 4);
             }
-            if (!stock.consume("minecraft:cobblestone", 3) || !stock.consume(STICK, 2)) return false;
+            if (!stock.consume(material, materials) || !stock.consume(STICK, sticks)) return false;
             stock.add(id, 1);
             return stock.consume(id, 1);
         }

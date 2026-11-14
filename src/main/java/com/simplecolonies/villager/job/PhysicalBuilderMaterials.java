@@ -41,11 +41,13 @@ final class PhysicalBuilderMaterials {
         return result;
     }
 
-    Result prepare(ServerLevel level, String wanted) {
+    Result prepare(ServerLevel level, String wanted) { return prepare(level, wanted, null); }
+
+    Result prepare(ServerLevel level, String wanted, BlockPos station) {
         if (snapshot(held()).getOrDefault(wanted, 0) > 0) return Result.READY;
         var local = snapshot(held());
         if (ConstructionCrafting.requiredInputs(local, wanted) != null) {
-            for (BlockPos table : findCraftingTables(level)) {
+            for (BlockPos table : station == null ? findCraftingTables(level) : java.util.List.of(station)) {
                 if (worker.distanceToSqr(table.getX()+.5, table.getY()+.5, table.getZ()+.5) > 9) {
                     var path = worker.getNavigation().createPath(table, 1);
                     if (path == null || !path.canReach()) continue;
@@ -105,6 +107,16 @@ final class PhysicalBuilderMaterials {
             return Result.BLOCKED;
         }
         return Result.BLOCKED;
+    }
+
+    boolean canPrepare(ServerLevel level, String wanted) {
+        var available = snapshot(held());
+        var warehouse = colony.getWarehouseManager();
+        for (var pos : warehouse.courierStoragePositions(level)) {
+            var container = warehouse.courierContainer(level, pos);
+            if (container != null) snapshot(container).forEach((key, value) -> available.merge(key, value, Integer::sum));
+        }
+        return ConstructionCrafting.requiredInputs(available, wanted) != null;
     }
 
     /** Fetch exactly the requested plain items, without crafting or consulting
