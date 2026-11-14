@@ -199,4 +199,36 @@ public class SmithFurnaceGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 650)
+    public static void physicalSmithRelinquishesPlayerModifiedFurnace(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos site = new BlockPos(8, 1, 8), furnacePos = site.east(), chest = site.west();
+        helper.setBlock(site, Blocks.SMITHING_TABLE); helper.setBlock(furnacePos, Blocks.FURNACE); helper.setBlock(chest, Blocks.CHEST);
+        var station = helper.absolutePos(site);
+        var colony = new Colony(0, CultureType.ROMAN, station);
+        colony.registerPlayerBuilding(new Building(BuildingType.BLACKSMITH, station, CultureType.ROMAN, true));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
+        var storage = (Container) helper.getBlockEntity(chest); storage.setItem(0, new ItemStack(Items.RAW_IRON, 3)); storage.setItem(1, new ItemStack(Items.COAL, 1));
+        var machine = (Container) helper.getBlockEntity(furnacePos);
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 9)); worker.setNoAi(true);
+        worker.setVillagerData(worker.getVillagerData().setProfession(ColonyProfessions.profession(JobType.BLACKSMITH)));
+        worker.refreshBrain(helper.getLevel());
+        worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), station));
+        var job = new BlacksmithJob(worker, colony);
+        boolean[] altered = {false};
+        for (int tick = 1; tick < 650; tick++) helper.runAtTickTime(tick, () -> {
+            job.tick(helper.getLevel());
+            if (!altered[0] && machine.getItem(0).is(Items.RAW_IRON)) {
+                machine.setItem(0, new ItemStack(Items.GOLD_ORE, 2)); altered[0] = true;
+            }
+        });
+        helper.runAtTickTime(550, () -> {
+            if (!altered[0] || !machine.getItem(0).is(Items.GOLD_ORE) || machine.getItem(0).getCount() != 2
+                    || helper.getBlockEntity(furnacePos).getPersistentData().contains("simplecolonies_smith_batch")
+                    || !worker.getCourierCargo().isEmpty() || storage.countItem(Items.IRON_INGOT) != 0)
+                helper.fail("Physical smith touched a player-modified furnace or invented iron: " + job.getState());
+            helper.succeed();
+        });
+    }
+
 }
