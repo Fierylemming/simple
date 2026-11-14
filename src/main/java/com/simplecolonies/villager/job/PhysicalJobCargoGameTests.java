@@ -57,6 +57,34 @@ public class PhysicalJobCargoGameTests {
         if (excess.isRemoved() || !excess.getItem().is(Items.PORKCHOP)) helper.fail("Over-capacity world drop disappeared");
         helper.succeed();
     }
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void jumpingDoesNotBlacklistReachableStorage(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        var chest = new BlockPos(13, 1, 8);
+        helper.setBlock(chest, Blocks.CHEST);
+        var container = (Container) helper.getBlockEntity(chest);
+        container.setItem(0, new ItemStack(Items.OAK_PLANKS, 5));
+        var colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share storage");
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(3, 1, 8)); worker.setNoAi(true);
+        worker.setCourierCargo(new ItemStack(Items.BREAD));
+        var cargo = new PhysicalJobCargo(worker, colony);
+        worker.setOnGround(false);
+        if (cargo.deliver(helper.getLevel()) != PhysicalJobCargo.Delivery.MOVING)
+            helper.fail("Airborne delivery blacklisted storage");
+        worker.setOnGround(true);
+        if (cargo.deliver(helper.getLevel()) != PhysicalJobCargo.Delivery.MOVING)
+            helper.fail("Delivery could not retry reachable storage after landing");
+        var materials = new PhysicalBuilderMaterials(worker, colony);
+        worker.setOnGround(false);
+        if (materials.prepare(helper.getLevel(), "minecraft:oak_planks") != PhysicalBuilderMaterials.Result.MOVING)
+            helper.fail("Airborne supply pickup blacklisted storage");
+        worker.setOnGround(true);
+        if (materials.prepare(helper.getLevel(), "minecraft:oak_planks") != PhysicalBuilderMaterials.Result.MOVING)
+            helper.fail("Supply pickup could not retry reachable storage after landing");
+        helper.succeed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 600)
     public static void missingWorkstationReturnsAllCarriedItemsWithoutProduction(GameTestHelper helper) {
         var chest = new BlockPos(7, 1, 8);

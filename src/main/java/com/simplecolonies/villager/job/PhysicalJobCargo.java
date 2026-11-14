@@ -58,6 +58,9 @@ final class PhysicalJobCargo {
                 }).sorted(java.util.Comparator.comparingDouble(p -> p.distSqr(worker.blockPosition()))).toList();
         for (BlockPos pos : positions) {
             if (worker.distanceToSqr(pos.getX()+.5, pos.getY()+.5, pos.getZ()+.5) > 9) {
+                // Ground navigation cannot create a path mid-jump. Do not mark
+                // an otherwise reachable chest unreachable for ten seconds.
+                if (!worker.onGround() && !worker.isInLiquid() && !worker.isPassenger()) return Delivery.MOVING;
                 var path = worker.getNavigation().createPath(pos, 1);
                 if (path == null || !path.canReach()) { unreachable.put(pos, level.getGameTime()+200); continue; }
                 worker.getNavigation().moveTo(path, .7);

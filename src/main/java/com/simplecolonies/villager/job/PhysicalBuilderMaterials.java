@@ -49,6 +49,7 @@ final class PhysicalBuilderMaterials {
         if (ConstructionCrafting.requiredInputs(local, wanted) != null) {
             for (BlockPos table : station == null ? findCraftingTables(level) : java.util.List.of(station)) {
                 if (worker.distanceToSqr(table.getX()+.5, table.getY()+.5, table.getZ()+.5) > 9) {
+                    if (!worker.onGround() && !worker.isInLiquid() && !worker.isPassenger()) return Result.MOVING;
                     var path = worker.getNavigation().createPath(table, 1);
                     if (path == null || !path.canReach()) continue;
                     worker.getNavigation().moveTo(path, .7);
@@ -79,6 +80,7 @@ final class PhysicalBuilderMaterials {
                     }).sorted(Comparator.comparingDouble(p -> p.distSqr(worker.blockPosition()))).toList();
             for (var pos : candidates) {
                 if (worker.distanceToSqr(pos.getX()+.5, pos.getY()+.5, pos.getZ()+.5) > 9) {
+                    if (!worker.onGround() && !worker.isInLiquid() && !worker.isPassenger()) return Result.MOVING;
                     var path = worker.getNavigation().createPath(pos, 1);
                     if (path == null || !path.canReach()) { unreachable.put(pos, level.getGameTime()+200); continue; }
                     worker.getNavigation().moveTo(path, .7);
@@ -259,6 +261,7 @@ final class PhysicalBuilderMaterials {
                 }).sorted(Comparator.comparingDouble(p -> p.distSqr(worker.blockPosition()))).toList();
         for (var pos : positions) {
             if (worker.distanceToSqr(pos.getX()+.5, pos.getY()+.5, pos.getZ()+.5) > 9) {
+                if (!worker.onGround() && !worker.isInLiquid() && !worker.isPassenger()) return Result.MOVING;
                 var path = worker.getNavigation().createPath(pos, 1);
                 if (path == null || !path.canReach()) { unreachable.put(pos, level.getGameTime()+200); continue; }
                 worker.getNavigation().moveTo(path, .7); return Result.MOVING;
