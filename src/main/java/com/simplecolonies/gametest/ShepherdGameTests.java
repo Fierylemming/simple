@@ -55,6 +55,9 @@ public class ShepherdGameTests {
         child.setBaby(true); child.setNoAi(true);
         var outside = helper.spawn(EntityType.SHEEP, new BlockPos(64, 1, 59));
         outside.setNoAi(true);
+        var protectedSheep = helper.spawn(EntityType.SHEEP, new BlockPos(57, 1, 57));
+        com.simplecolonies.entity.AnimalProtection.protect(protectedSheep, java.util.UUID.randomUUID());
+        protectedSheep.setNoAi(true);
         var job = new ShepherdJob(worker, colony);
         boolean[] sawCargo = {false};
         for (int tick = 1; tick < 1200; tick++) helper.runAtTickTime(tick, () -> {
@@ -77,7 +80,7 @@ public class ShepherdGameTests {
             if (!sawCargo[0] || !worker.getCourierCargo().isEmpty() || !items.getItem(0).is(Items.WHITE_WOOL)
                     || items.getItem(0).getCount() < 1 || items.getItem(0).getCount() > 3)
                 helper.fail("Wool not physically delivered: " + job.getState() + "; position=" + worker.blockPosition().toShortString());
-            if (named.isSheared() || child.isSheared() || outside.isSheared()) helper.fail("Shepherd sheared protected sheep");
+            if (named.isSheared() || child.isSheared() || outside.isSheared() || protectedSheep.isSheared()) helper.fail("Shepherd sheared protected sheep");
         });
     }
 

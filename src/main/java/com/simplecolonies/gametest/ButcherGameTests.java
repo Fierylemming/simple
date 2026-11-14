@@ -90,13 +90,30 @@ public class ButcherGameTests {
         named.setCustomName(net.minecraft.network.chat.Component.literal("Pet"));
         var calf = helper.spawn(EntityType.COW, new BlockPos(60, 1, 56));
         calf.setBaby(true);
-        first.setNoAi(true); second.setNoAi(true); named.setNoAi(true); calf.setNoAi(true);
+        var protectedCow = helper.spawn(EntityType.COW, new BlockPos(61, 1, 56));
+        var player = helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
+        if (com.simplecolonies.item.BuildingToolItem.toggleAnimalProtection(player, protectedCow, colony) != net.minecraft.world.InteractionResult.FAIL
+                || com.simplecolonies.entity.AnimalProtection.protectedFromWorkers(protectedCow)) helper.fail("Untrusted player protected animal");
+        colony.setLeader(player);
+        com.simplecolonies.item.BuildingToolItem.toggleAnimalProtection(player, protectedCow, colony);
+        var protector = player.getUUID();
+        if (!protector.equals(com.simplecolonies.entity.AnimalProtection.protector(protectedCow))) helper.fail("Leader could not protect animal");
+        com.simplecolonies.item.BuildingToolItem.toggleAnimalProtection(player, protectedCow, colony);
+        if (com.simplecolonies.entity.AnimalProtection.protectedFromWorkers(protectedCow)) helper.fail("Leader could not unprotect animal");
+        com.simplecolonies.item.BuildingToolItem.toggleAnimalProtection(player, protectedCow, colony);
+        var saved = new net.minecraft.nbt.CompoundTag(); protectedCow.saveWithoutId(saved);
+        var loaded = EntityType.COW.create(helper.getLevel());
+        if (loaded == null) { helper.fail("Could not recreate cow"); return; }
+        loaded.load(saved);
+        if (!protector.equals(com.simplecolonies.entity.AnimalProtection.protector(loaded))) helper.fail("Animal protection did not persist");
+        first.setNoAi(true); second.setNoAi(true); named.setNoAi(true); calf.setNoAi(true); protectedCow.setNoAi(true);
         var job = new ButcherJob(worker, colony);
         for (int tick = 1; tick < 650; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
         helper.runAtTickTime(600, () -> {
-            if (!first.isAlive() || !second.isAlive() || !named.isAlive() || !calf.isAlive()
+            if (!first.isAlive() || !second.isAlive() || !named.isAlive() || !calf.isAlive() || !protectedCow.isAlive()
                     || first.getHealth() != first.getMaxHealth() || second.getHealth() != second.getMaxHealth()
                     || named.getHealth() != named.getMaxHealth() || calf.getHealth() != calf.getMaxHealth()
+                    || protectedCow.getHealth() != protectedCow.getMaxHealth()
                     || colony.getWarehouseCount(helper.getLevel(), "minecraft:beef") != 0)
                 helper.fail("Butcher attacked protected livestock or created meat");
             helper.succeed();

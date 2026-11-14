@@ -59,7 +59,7 @@ public class ButcherJob extends AbstractJob {
         }
         BlockPos center = pasture.getPos();
         var animals = level.getEntitiesOfClass(Animal.class, new AABB(center).inflate(8, 4, 8),
-                a -> a.isAlive() && colony.isInside(a.blockPosition()) && !a.isBaby() && !a.hasCustomName()
+                a -> a.isAlive() && colony.isInside(a.blockPosition()) && !a.isBaby() && !com.simplecolonies.entity.AnimalProtection.protectedFromWorkers(a)
                         && (a instanceof Cow || a instanceof Pig));
         // Never slaughter the last two eligible adults of either species.
         Animal target = animals.stream().filter(a -> !a.isInLove())
@@ -101,7 +101,7 @@ public class ButcherJob extends AbstractJob {
         for (Class<? extends Animal> species : java.util.List.of(Cow.class, Pig.class)) {
             var herd = all.stream().filter(a -> a.getClass() == species).toList();
             if (herd.size() >= 4) continue;
-            var adults = herd.stream().filter(a -> !a.hasCustomName() && a.getAge() == 0).toList();
+            var adults = herd.stream().filter(a -> !com.simplecolonies.entity.AnimalProtection.protectedFromWorkers(a) && a.getAge() == 0).toList();
             var candidate = adults.stream().filter(a -> !a.isInLove() && a.canFallInLove())
                     .filter(a -> adults.stream().anyMatch(other -> other != a && a.distanceToSqr(other) <= 36
                             && (other.isInLove() || other.canFallInLove())))
@@ -143,11 +143,11 @@ public class ButcherJob extends AbstractJob {
                     approachPair(level, candidate, partner); return;
                 }
             }
-            if (!candidate.isAlive() || candidate.hasCustomName() || candidate.getAge() != 0
+            if (!candidate.isAlive() || com.simplecolonies.entity.AnimalProtection.protectedFromWorkers(candidate) || candidate.getAge() != 0
                     || candidate.isInLove() || !candidate.canFallInLove()) continue;
             // Both are in reach right now. Feed the pair together so their short
             // love timers cannot expire while the worker chases a wandering mate.
-            if (partner != null && (!partner.isAlive() || partner.hasCustomName() || partner.getAge() != 0
+            if (partner != null && (!partner.isAlive() || com.simplecolonies.entity.AnimalProtection.protectedFromWorkers(partner) || partner.getAge() != 0
                     || partner.isInLove() || !partner.canFallInLove() || supplies.getCount() < 2)) continue;
             supplies.shrink(partner == null ? 1 : 2);
             if (supplies.isEmpty()) worker().setWorkSupplies(net.minecraft.world.item.ItemStack.EMPTY);
@@ -164,7 +164,7 @@ public class ButcherJob extends AbstractJob {
             // second item while its love timer is active instead of starting a
             // long storage trip and abandoning the pair.
             var carriedFood = worker().getWorkSupplies();
-            boolean waiting = all.stream().anyMatch(a -> !a.hasCustomName() && a.getAge() == 0 && a.isInLove()
+            boolean waiting = all.stream().anyMatch(a -> !com.simplecolonies.entity.AnimalProtection.protectedFromWorkers(a) && a.getAge() == 0 && a.isInLove()
                     && ((a instanceof Cow && carriedFood.is(net.minecraft.world.item.Items.WHEAT))
                         || (a instanceof Pig && (carriedFood.is(net.minecraft.world.item.Items.CARROT)
                             || carriedFood.is(net.minecraft.world.item.Items.POTATO) || carriedFood.is(net.minecraft.world.item.Items.BEETROOT)))));
