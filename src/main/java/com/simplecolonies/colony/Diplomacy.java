@@ -26,6 +26,42 @@ public class Diplomacy {
     }
 
     private final Map<Integer, RelationData> relations = new HashMap<>();
+    public enum Offer { ALLIANCE, PEACE }
+    public enum OfferResult { SENT, ACCEPTED, ALREADY_ACTIVE, INVALID }
+    private record PendingOffer(Offer offer, long expiresDay) {}
+    // Incoming offers only. Removing or accepting one never requires the other
+    // colony's chunks to be loaded; both are part of the saved overworld data.
+    private final Map<Integer, PendingOffer> offers = new HashMap<>();
+
+    public Offer incomingOffer(int fromId, long day) {
+        var pending = offers.get(fromId);
+        return pending != null && day < pending.expiresDay ? pending.offer : null;
+    }
+
+    /** A matching return offer accepts the incoming proposal. Leaderless colonies
+     * accept immediately; player-led colonies must act from their own hall. */
+    public OfferResult offer(Colony self, Colony other, Offer offer, long day) {
+        if (self == other || self.getId() == other.getId() || offer == null) return OfferResult.INVALID;
+        Relation desired = offer == Offer.ALLIANCE ? Relation.ALLIED : Relation.PEACE_TREATY;
+        if (getRelationAt(other.getId(), day) == desired && other.getDiplomacy().getRelationAt(self.getId(), day) == desired)
+            return OfferResult.ALREADY_ACTIVE;
+        if (incomingOffer(other.getId(), day) == offer || other.getLeaderId() == null) {
+            if (offer == Offer.ALLIANCE) proposeAlliance(self, other); else makePeace(self, other, day);
+            return OfferResult.ACCEPTED;
+        }
+        long expires;
+        try { expires = Math.addExact(day, 7); } catch (ArithmeticException e) { expires = Long.MAX_VALUE; }
+        other.getDiplomacy().offers.put(self.getId(), new PendingOffer(offer, expires));
+        ColonyManager.getInstance().markDirty(self);
+        return OfferResult.SENT;
+    }
+
+    public boolean decline(Colony self, int fromId, long day) {
+        if (incomingOffer(fromId, day) == null) return false;
+        offers.remove(fromId);
+        ColonyManager.getInstance().markDirty(self);
+        return true;
+    }
 
     public Relation getRelation(int otherId) {
         var data = relations.get(otherId);
@@ -52,8 +88,12 @@ public class Diplomacy {
         }
         relations.put(other.getId(), first);
         other.getDiplomacy().relations.put(self.getId(), second);
+        offers.remove(other.getId());
+        other.getDiplomacy().offers.remove(self.getId());
         ColonyManager.getInstance().markDirty(self);
     }
+
+    void forgetColony(int id) { relations.remove(id); offers.remove(id); }
 
     public void declareWar(Colony self, Colony other, long day) { setBilateral(self, other, Relation.WAR, 14, day); }
     public void proposeAlliance(Colony self, Colony other) { setBilateral(self, other, Relation.ALLIED, -1, 0); }
@@ -86,6 +126,7 @@ public class Diplomacy {
 
     /** Legacy unpaired relations retain their remaining duration from the migration day. */
     void updateDay(long day) {
+        offers.entrySet().removeIf(e -> day >= e.getValue().expiresDay);
         for (var rd : relations.values()) {
             if (rd.relation != Relation.WAR && rd.relation != Relation.PEACE_TREATY) continue;
             if (rd.expiresDay == NO_DEADLINE) {
@@ -115,11 +156,26 @@ public class Diplomacy {
             list.add(t);
         }
         tag.put("relations", list);
+        ListTag pending = new ListTag();
+        for (var entry : offers.entrySet()) {
+            CompoundTag t = new CompoundTag();
+            t.putInt("from", entry.getKey()); t.putString("offer", entry.getValue().offer.name());
+            t.putLong("expiresDay", entry.getValue().expiresDay); pending.add(t);
+        }
+        tag.put("offers", pending);
         return tag;
     }
 
     public void load(CompoundTag tag) {
         relations.clear();
+        offers.clear();
+        ListTag pending = tag.getList("offers", 10);
+        for (int i = 0; i < pending.size(); i++) {
+            var t = pending.getCompound(i);
+            if (!t.contains("from") || !t.contains("expiresDay")) continue;
+            try { offers.put(t.getInt("from"), new PendingOffer(Offer.valueOf(t.getString("offer")), t.getLong("expiresDay"))); }
+            catch (IllegalArgumentException ignored) { }
+        }
         ListTag list = tag.getList("relations", 10);
         for (int i = 0; i < list.size(); i++) {
             CompoundTag t = list.getCompound(i);

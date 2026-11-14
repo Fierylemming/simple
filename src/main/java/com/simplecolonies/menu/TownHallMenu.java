@@ -35,7 +35,7 @@ public class TownHallMenu extends AbstractContainerMenu {
         return ColonyManager.getInstance().getAll().stream().filter(c -> c.getId() != colony.getId())
                 .sorted(java.util.Comparator.comparingDouble((Colony c) -> c.getCenter().distSqr(colony.getCenter()))
                         .thenComparingInt(Colony::getId))
-                .limit(100).map(c -> new DiplomacyTarget(c.getId(), c.getCulture().displayName)).toList();
+                .limit(500).map(c -> new DiplomacyTarget(c.getId(), c.getCulture().displayName)).toList();
     }
     public static net.minecraft.nbt.CompoundTag snapshotWithTargets(Colony colony, List<DiplomacyTarget> targets) {
         var snapshot = colony.save();
@@ -70,7 +70,7 @@ public class TownHallMenu extends AbstractContainerMenu {
     public static final int BTN_RESEARCH_BASE = 100; // + ordinal
     public static final int BTN_UPGRADE_BUILDING_BASE = 200;
     public static final int BTN_CREATE_SCHEMATIC = 300;
-    public static final int BTN_WAR_TARGET_BASE = 400, BTN_ALLY_TARGET_BASE = 500, BTN_PEACE_TARGET_BASE = 600;
+    public static final int BTN_WAR_TARGET_BASE = 400, BTN_ALLY_TARGET_BASE = 900, BTN_PEACE_TARGET_BASE = 1400, BTN_DECLINE_TARGET_BASE = 1900;
 
     public TownHallMenu(int containerId, Inventory inv, Colony colony, BlockPos pos) {
         this(containerId, inv, colony, pos, snapshotDiplomacyTargets(colony));
@@ -96,7 +96,7 @@ public class TownHallMenu extends AbstractContainerMenu {
         var targets = new ArrayList<DiplomacyTarget>();
         if (snapshot != null) {
             var list = snapshot.getList("menuDiplomacyTargets", net.minecraft.nbt.Tag.TAG_COMPOUND);
-            for (int i = 0; i < Math.min(100, list.size()); i++) {
+            for (int i = 0; i < Math.min(500, list.size()); i++) {
                 var entry = list.getCompound(i);
                 targets.add(new DiplomacyTarget(entry.getInt("id"), entry.getString("culture")));
             }
@@ -175,15 +175,15 @@ public class TownHallMenu extends AbstractContainerMenu {
                 return true;
             }
         }
-        if (id >= BTN_WAR_TARGET_BASE && id < BTN_PEACE_TARGET_BASE + 100) {
+        if (id >= BTN_WAR_TARGET_BASE && id < BTN_DECLINE_TARGET_BASE + 500) {
             if (!isLeader) { deny(player); return true; }
             if (level == null) return true;
             if (!com.simplecolonies.config.ColonyConfig.ENABLE_WARFARE.get()) {
                 player.displayClientMessage(net.minecraft.network.chat.Component.literal("Warfare and diplomacy are disabled."), true);
                 return true;
             }
-            int action = (id - BTN_WAR_TARGET_BASE) / 100;
-            int index = (id - BTN_WAR_TARGET_BASE) % 100;
+            int action = (id - BTN_WAR_TARGET_BASE) / 500;
+            int index = (id - BTN_WAR_TARGET_BASE) % 500;
             if (index >= diplomacyTargets.size()) return false;
             int targetId = diplomacyTargets.get(index).id();
             var other = diplomacyLookup.apply(targetId);
@@ -193,18 +193,26 @@ public class TownHallMenu extends AbstractContainerMenu {
             }
             long day = Math.floorDiv(level.getDayTime(), 24000L);
             if (action == 0) {
-                if (colony.getDiplomacy().getRelationAt(other.getId(), day) == com.simplecolonies.colony.Diplomacy.Relation.PEACE_TREATY) {
+                if (colony.getDiplomacy().getRelationAt(other.getId(), day) == com.simplecolonies.colony.Diplomacy.Relation.PEACE_TREATY
+                        || other.getDiplomacy().getRelationAt(colony.getId(), day) == com.simplecolonies.colony.Diplomacy.Relation.PEACE_TREATY) {
                     player.displayClientMessage(net.minecraft.network.chat.Component.literal("A peace treaty is still in force."), true);
                     return true;
                 }
                 colony.getDiplomacy().declareWar(colony, other, day);
                 player.displayClientMessage(net.minecraft.network.chat.Component.literal("Declared war on colony #" + other.getId()), false);
-            } else if (action == 1) {
-                colony.getDiplomacy().proposeAlliance(colony, other);
-                player.displayClientMessage(net.minecraft.network.chat.Component.literal("Allied with colony #" + other.getId()), false);
+            } else if (action == 3) {
+                boolean declined = colony.getDiplomacy().decline(colony, other.getId(), day);
+                player.displayClientMessage(net.minecraft.network.chat.Component.literal(declined ? "Declined offer from colony #" + other.getId() : "No current offer from that colony."), false);
             } else {
-                colony.getDiplomacy().makePeace(colony, other, day);
-                player.displayClientMessage(net.minecraft.network.chat.Component.literal("Made peace with colony #" + other.getId()), false);
+                var offer = action == 1 ? com.simplecolonies.colony.Diplomacy.Offer.ALLIANCE : com.simplecolonies.colony.Diplomacy.Offer.PEACE;
+                var result = colony.getDiplomacy().offer(colony, other, offer, day);
+                String message = switch (result) {
+                    case SENT -> "Offer sent to colony #" + other.getId() + "; expires in 7 world days.";
+                    case ACCEPTED -> "Agreement reached with colony #" + other.getId();
+                    case ALREADY_ACTIVE -> "That agreement is already active.";
+                    case INVALID -> "Invalid diplomacy target.";
+                };
+                player.displayClientMessage(net.minecraft.network.chat.Component.literal(message), false);
             }
             return true;
         }

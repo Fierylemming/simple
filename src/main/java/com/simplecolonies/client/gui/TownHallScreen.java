@@ -131,9 +131,10 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
                     addRenderableWidget(Button.builder(Component.literal("<"), b->{ diplomacyTarget=(diplomacyTarget+targets.size()-1)%targets.size(); rebuild(); }).bounds(btnX, btnY, 22, 16).build());
                     addRenderableWidget(Button.builder(Component.literal(">"), b->{ diplomacyTarget=(diplomacyTarget+1)%targets.size(); rebuild(); }).bounds(btnX+258, btnY, 22, 16).build());
                     final int selected = diplomacyTarget;
-                    addRenderableWidget(Button.builder(Component.literal("War"), b->send(TownHallMenu.BTN_WAR_TARGET_BASE+selected)).bounds(btnX, btnY+20, 85, 16).build());
-                    addRenderableWidget(Button.builder(Component.literal("Ally"), b->send(TownHallMenu.BTN_ALLY_TARGET_BASE+selected)).bounds(btnX+91, btnY+20, 85, 16).build());
-                    addRenderableWidget(Button.builder(Component.literal("Peace"), b->send(TownHallMenu.BTN_PEACE_TARGET_BASE+selected)).bounds(btnX+182, btnY+20, 85, 16).build());
+                    addRenderableWidget(Button.builder(Component.literal("War"), b->send(TownHallMenu.BTN_WAR_TARGET_BASE+selected)).bounds(btnX, btnY+20, 70, 16).build());
+                    addRenderableWidget(Button.builder(Component.literal("Ally"), b->send(TownHallMenu.BTN_ALLY_TARGET_BASE+selected)).bounds(btnX+74, btnY+20, 70, 16).build());
+                    addRenderableWidget(Button.builder(Component.literal("Peace"), b->send(TownHallMenu.BTN_PEACE_TARGET_BASE+selected)).bounds(btnX+148, btnY+20, 70, 16).build());
+                    addRenderableWidget(Button.builder(Component.literal("Decline"), b->send(TownHallMenu.BTN_DECLINE_TARGET_BASE+selected)).bounds(btnX+222, btnY+20, 70, 16).build());
                 }
             }
             case 5 -> {
@@ -209,7 +210,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
             case 1->"Shift+right-click villager to reassign job (if researched).";
             case 2->"Completed shelters count as capacity; beds are separate.";
             case 3->"Only explicitly shared storage is available to workers.";
-            case 4->"Select target first. Alliance and peace are immediate.";
+            case 4->"Offers expire after 7 days; leaderless colonies accept.";
             case 5->"Research auto-buys when warehouse has surplus mats.";
             default->"";
         };
@@ -337,7 +338,11 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
         g.drawString(font, "Target #"+target.id()+"  "+target.culture()+"  ("+(diplomacyTarget+1)+"/"+targets.size()+")", x+27,y-37,C_TEXT,false);
         var relation = c.getDiplomacy().getAll().stream().filter(r -> r.otherColonyId == target.id()).findFirst().orElse(null);
         g.drawString(font, "Relation: "+(relation == null ? "NEUTRAL" : relation.relation+(relation.daysRemaining>0?" ("+relation.daysRemaining+"d)":"")), x,y,C_TEXT,false); y+=18;
-        drawHintBox(g,x,y,"Actions are immediate; reopen to refresh relations.");
+        var incoming = c.getDiplomacy().incomingOffer(target.id(), Math.floorDiv(menu.player.level().getDayTime(), 24000L));
+        if (incoming != null) {
+            g.drawString(font, "Incoming "+incoming+" offer: choose matching action to accept.", x,y,C_GREEN,false); y+=18;
+        }
+        drawHintBox(g,x,y,"Offers to player leaders need acceptance; reopen to refresh.");
     }
 
     // ── Research ──

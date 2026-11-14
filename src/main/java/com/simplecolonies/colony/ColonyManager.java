@@ -602,6 +602,7 @@ public class ColonyManager {
 
     public void deleteColony(int id) {
         colonies.remove(id);
+        for (var colony : colonies.values()) colony.getDiplomacy().forgetColony(id);
         saveAll();
     }
 

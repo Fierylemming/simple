@@ -22,8 +22,8 @@ public class TownHallSafetyGameTests {
     public static void diplomacyUsesSelectedSnapshotTargetAndChecksLeader(GameTestHelper helper) {
         var center = helper.absolutePos(new BlockPos(8, 1, 8));
         var self = new Colony(40001, CultureType.ROMAN, center);
-        var first = new Colony(40002, CultureType.GREEK, center.east(20));
-        var second = new Colony(40003, CultureType.PERSIAN, center.east(40));
+        var first = new Colony(40002, CultureType.GREEK, center.east(2));
+        var second = new Colony(40003, CultureType.PERSIAN, center.east(4));
         var available = new java.util.HashMap<Integer, Colony>();
         available.put(first.getId(), first); available.put(second.getId(), second);
         helper.setBlock(new BlockPos(8, 1, 8), com.simplecolonies.block.ModBlocks.TOWN_HALL.get());
@@ -47,7 +47,25 @@ public class TownHallSafetyGameTests {
         menu.clickMenuButton(player, TownHallMenu.BTN_ALLY_TARGET_BASE);
         if (self.getDiplomacy().getRelation(second.getId()) != com.simplecolonies.colony.Diplomacy.Relation.WAR)
             helper.fail("Deleted target redirected action");
+        second.setLeader(player);
         menu.clickMenuButton(player, TownHallMenu.BTN_PEACE_TARGET_BASE+1);
+        long day = Math.floorDiv(helper.getLevel().getDayTime(), 24000L);
+        if (self.getDiplomacy().getRelation(second.getId()) != com.simplecolonies.colony.Diplomacy.Relation.WAR
+                || second.getDiplomacy().incomingOffer(self.getId(), day) != com.simplecolonies.colony.Diplomacy.Offer.PEACE)
+            helper.fail("Peace was imposed without an offer");
+        var restored = new com.simplecolonies.colony.Diplomacy();
+        restored.load(second.getDiplomacy().save());
+        if (restored.incomingOffer(self.getId(), day + 6) != com.simplecolonies.colony.Diplomacy.Offer.PEACE
+                || restored.incomingOffer(self.getId(), day + 7) != null)
+            helper.fail("Offer did not persist or expire");
+        var reverseTargets = java.util.List.of(new TownHallMenu.DiplomacyTarget(self.getId(), "self"));
+        var otherHall = second.getCenter();
+        helper.setBlock(new BlockPos(12, 1, 8), com.simplecolonies.block.ModBlocks.TOWN_HALL.get());
+        ((com.simplecolonies.block.entity.TownHallBlockEntity) helper.getBlockEntity(new BlockPos(12, 1, 8))).setColonyId(second.getId());
+        player.moveTo(otherHall.getX()+.5, otherHall.getY(), otherHall.getZ()+.5);
+        var reverse = new TownHallMenu(2, player.getInventory(), second, otherHall, reverseTargets, id -> id == self.getId() ? self : null);
+        reverse.clickMenuButton(player, TownHallMenu.BTN_PEACE_TARGET_BASE);
+        player.moveTo(center.getX()+.5, center.getY(), center.getZ()+.5);
         menu.clickMenuButton(player, TownHallMenu.BTN_WAR_TARGET_BASE+1);
         if (self.getDiplomacy().getRelation(second.getId()) != com.simplecolonies.colony.Diplomacy.Relation.PEACE_TREATY)
             helper.fail("Peace treaty failed to prevent war");
