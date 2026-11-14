@@ -564,7 +564,10 @@ public class ColonyVillager extends Villager {
                     && state.getValue(net.minecraft.world.level.block.DoorBlock.OPEN)
                     && level.getEntitiesOfClass(net.minecraft.world.entity.player.Player.class,
                             new net.minecraft.world.phys.AABB(p).expandTowards(0, 1, 0).inflate(4)).isEmpty())
-                shelterDoors.put(p.immutable(), now + 600);
+                // A blocked or circuitous route can take more than 600 ticks.
+                // Retain a single observed opening for at most two minutes;
+                // closures, replacement, redstone and nearby players still revoke it.
+                shelterDoors.put(p.immutable(), now + 2400);
         }
         if (shelterDoors.isEmpty() || !shelterInterior.contains(blockPosition())) return;
         boolean registered = colony.getBuildings().stream().anyMatch(b -> b.shelterSites().contains(shelterAnchor)

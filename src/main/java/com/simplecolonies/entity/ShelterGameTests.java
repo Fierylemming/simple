@@ -211,6 +211,47 @@ public class ShelterGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 1000)
+    public static void rememberedShelterDoorSurvivesSlowApproach(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos hall = new BlockPos(8, 1, 9), door = hall.north(3);
+        for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) {
+            for (int y = 0; y <= 2; y++) if ((Math.abs(x) == 3 || Math.abs(z) == 3) && !(x == 0 && z == -3 && y < 2))
+                helper.setBlock(hall.offset(x, y, z), Blocks.COBBLESTONE);
+            helper.setBlock(hall.offset(x, 3, z), Blocks.OAK_PLANKS);
+        }
+        var absDoor = helper.absolutePos(door);
+        var low = Blocks.OAK_DOOR.defaultBlockState().setValue(DoorBlock.FACING, Direction.NORTH);
+        helper.getLevel().setBlock(absDoor, low, 2);
+        helper.getLevel().setBlock(absDoor.above(), low.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3);
+        var colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(hall));
+        colony.registerPlayerBuilding(new Building(BuildingType.TOWN_HALL, colony.getCenter(), CultureType.ROMAN, true));
+        var villager = helper.spawn(ModEntities.COLONY_VILLAGER.get(), hall); villager.setNoAi(true);
+        helper.runAtTickTime(20, () -> {
+            villager.setOnGround(true); villager.seekShelter(helper.getLevel(), colony);
+            var outside = helper.absolutePos(new BlockPos(8, 1, 3));
+            villager.moveTo(outside.getX()+.5, outside.getY(), outside.getZ()+.5);
+            var opened = low.setValue(DoorBlock.OPEN, true);
+            helper.getLevel().setBlock(absDoor, opened, 2);
+            helper.getLevel().setBlock(absDoor.above(), opened.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3);
+            villager.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.DOORS_TO_CLOSE,
+                    new java.util.HashSet<>(java.util.Set.of(net.minecraft.core.GlobalPos.of(helper.getLevel().dimension(), absDoor))));
+            villager.seekShelter(helper.getLevel(), colony);
+            if (!villager.remembersShelterDoor(absDoor)) helper.fail("Did not remember opened door");
+        });
+        for (int tick = 21; tick < 750; tick++) helper.runAtTickTime(tick, () -> {
+            villager.setOnGround(true); villager.seekShelter(helper.getLevel(), colony);
+        });
+        helper.runAtTickTime(750, () -> {
+            if (!villager.remembersShelterDoor(absDoor)) helper.fail("Forgot the door during a slow approach");
+            var inside = helper.absolutePos(hall);
+            villager.moveTo(inside.getX()+.5, inside.getY(), inside.getZ()+.5);
+            villager.setOnGround(true); villager.seekShelter(helper.getLevel(), colony);
+            if (helper.getLevel().getBlockState(absDoor).getValue(DoorBlock.OPEN)) helper.fail("Did not close the door on arrival");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "empty", timeoutTicks = 200)
     public static void shelterSearchRetriesAfterLanding(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
