@@ -12,7 +12,7 @@ import net.minecraft.world.entity.animal.Pig;
 import com.simplecolonies.entity.ColonyVillager;
 import net.minecraft.world.phys.AABB;
 
-/** Butchers actual livestock near a designated butcher hut, leaving a breeding pair. */
+/** Works only in explicitly designated pastures, leaving a breeding pair. */
 public class ButcherJob extends AbstractJob {
     private final PhysicalJobCargo cargo;
     public ButcherJob(ColonyVillager villager, Colony colony) {
@@ -39,8 +39,26 @@ public class ButcherJob extends AbstractJob {
                 .filter(b -> level.isLoaded(b.getPos()))
                 .min(java.util.Comparator.comparingDouble(b -> b.getPos().distSqr(villager.blockPosition())))
                 .orElse(null);
-        if (hut == null) { state = JobState.STUCK; ticksUntilNextWork = 100; return; }
-        BlockPos center = hut.getPos();
+        // A generated hut is not permission to slaughter nearby player animals.
+        // Require a still-linked player-designated pasture near the hut; removing
+        // or changing the marker revokes permission immediately on the next action.
+        var pasture = hut == null ? null : colony.getBuildings().stream()
+                .filter(b -> b.isPlayerPlaced && b.getType() == BuildingType.PASTURE
+                        && b.getState() == BuildingState.COMPLETE && level.isLoaded(b.getPos())
+                        && colony.isInside(b.getPos()) && hut.distanceToOperationalSite(b.getPos()) <= 20 * 20)
+                .filter(b -> level.getBlockEntity(b.getPos()) instanceof com.simplecolonies.block.entity.BuildingMarkerBlockEntity marker
+                        && marker.getBuildingType() == BuildingType.PASTURE && b.getPos().equals(marker.getLinkedBuildingPos()))
+                .min(java.util.Comparator.comparingDouble(b -> b.getPos().distSqr(villager.blockPosition()))).orElse(null);
+        if (pasture == null) {
+            // Do not lose food already collected if the player revokes permission.
+            if (!worker().getWorkSupplies().isEmpty()) {
+                worker().setCourierCargo(worker().getWorkSupplies());
+                worker().setWorkSupplies(net.minecraft.world.item.ItemStack.EMPTY);
+                state = JobState.WORKING; ticksUntilNextWork = 10;
+            } else { state = JobState.STUCK; ticksUntilNextWork = 100; }
+            return;
+        }
+        BlockPos center = pasture.getPos();
         var animals = level.getEntitiesOfClass(Animal.class, new AABB(center).inflate(8, 4, 8),
                 a -> a.isAlive() && colony.isInside(a.blockPosition()) && !a.isBaby() && !a.hasCustomName()
                         && (a instanceof Cow || a instanceof Pig));

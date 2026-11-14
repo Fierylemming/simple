@@ -21,12 +21,21 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder("simplecolonies")
 @PrefixGameTestTemplate(false)
 public class ButcherGameTests {
+    private static void designatePasture(GameTestHelper helper, Colony colony, BlockPos center) {
+        BlockPos pos = center.north(2);
+        helper.getLevel().setBlock(pos, com.simplecolonies.block.ModBlocks.BUILDING_MARKER.get().defaultBlockState(), 3);
+        var marker = (com.simplecolonies.block.entity.BuildingMarkerBlockEntity) helper.getLevel().getBlockEntity(pos);
+        marker.setBuildingType(BuildingType.PASTURE); marker.setLinkedBuildingPos(pos);
+        colony.registerPlayerBuilding(new Building(BuildingType.PASTURE, pos, CultureType.ROMAN, true));
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 1200)
     public static void gathersOnlyOwnActualDropsAndLeavesBreedingPair(GameTestHelper helper) {
         for (int x = 40; x <= 72; x++) for (int z = 40; z <= 72; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
         BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
+        designatePasture(helper, colony, center);
         var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(54, 1, 56));
         BlockPos chest = new BlockPos(65, 1, 56);
         helper.setBlock(chest, Blocks.CHEST);
@@ -73,6 +82,7 @@ public class ButcherGameTests {
         BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
+        designatePasture(helper, colony, center);
         var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(54, 1, 56));
         var first = helper.spawn(EntityType.COW, new BlockPos(57, 1, 56));
         var second = helper.spawn(EntityType.COW, new BlockPos(58, 1, 56));
@@ -100,6 +110,7 @@ public class ButcherGameTests {
         BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
+        designatePasture(helper, colony, center);
         var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(56, 1, 56));
         worker.setNoAi(true);
         var cows = new java.util.ArrayList<Cow>();
@@ -123,6 +134,7 @@ public class ButcherGameTests {
         BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
+        designatePasture(helper, colony, center);
         BlockPos chest = new BlockPos(54, 1, 56);
         helper.setBlock(chest, Blocks.CHEST);
         ((net.minecraft.world.Container) helper.getBlockEntity(chest)).setItem(0, new ItemStack(Items.WHEAT, 4));
@@ -176,6 +188,7 @@ public class ButcherGameTests {
         BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
+        designatePasture(helper, colony, center);
         BlockPos chest = new BlockPos(52, 1, 54);
         helper.setBlock(chest, Blocks.CHEST);
         ((net.minecraft.world.Container) helper.getBlockEntity(chest)).setItem(0, new ItemStack(Items.WHEAT, 4));
@@ -230,6 +243,7 @@ public class ButcherGameTests {
         BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
+        designatePasture(helper, colony, center);
         BlockPos chest = new BlockPos(52, 1, 54);
         helper.setBlock(chest, Blocks.CHEST);
         ((net.minecraft.world.Container) helper.getBlockEntity(chest)).setItem(0, new ItemStack(Items.CARROT, 4));
@@ -261,6 +275,7 @@ public class ButcherGameTests {
         container.setItem(0, special);
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
+        designatePasture(helper, colony, center);
         colony.depositToWarehouse("minecraft:wheat", 20); // Cannot be physically collected.
         if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
         var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(7, 1, 9)); worker.setNoAi(true);
@@ -293,6 +308,7 @@ public class ButcherGameTests {
         inventory.setItem(0, new ItemStack(Items.WHEAT, 4));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
+        designatePasture(helper, colony, center);
         if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
         var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(6, 1, 8)); worker.setNoAi(true);
         var first = helper.spawn(EntityType.COW, new BlockPos(7, 1, 8)); first.setNoAi(true);
@@ -309,6 +325,30 @@ public class ButcherGameTests {
         helper.succeedWhen(() -> {
             if (!first.isInLove() || !second.isInLove() || inventory.countItem(Items.WHEAT) != 2)
                 helper.fail("Nearby pair not fed: " + job.getState());
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 500)
+    public static void butcherRequiresLivePasturePermission(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos center = helper.absolutePos(new BlockPos(8, 1, 8));
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        colony.registerPlayerBuilding(new Building(BuildingType.BUTCHER_HUT, center, CultureType.ROMAN, true));
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(7, 1, 8));
+        worker.setNoAi(true);
+        var cows = new java.util.ArrayList<Cow>();
+        for (int z = 7; z <= 9; z++) { var cow = helper.spawn(EntityType.COW, new BlockPos(9, 1, z)); cow.setNoAi(true); cows.add(cow); }
+        var job = new ButcherJob(worker, colony);
+        for (int tick = 1; tick < 500; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(160, () -> {
+            for (var cow : cows) if (cow.getHealth() != cow.getMaxHealth()) helper.fail("Attacked livestock without a pasture");
+            designatePasture(helper, colony, center);
+            // A stale record without its marker is not permission either.
+            helper.getLevel().setBlock(center.north(2), Blocks.AIR.defaultBlockState(), 3);
+        });
+        helper.runAtTickTime(450, () -> {
+            for (var cow : cows) if (cow.getHealth() != cow.getMaxHealth()) helper.fail("Attacked livestock after marker removal");
+            helper.succeed();
         });
     }
 

@@ -31,7 +31,7 @@ public enum BuildingType {
     HARBOR("Harbor", "Shore gathering worksite; trading is not implemented", 0, com.simplecolonies.villager.job.JobType.FISHERMAN, Map.of("minecraft:oak_planks", 48, "minecraft:oak_boat", 2)),
     BUTCHER_HUT("Butcher Hut", "Workplace for Butcher (wheat+furnace, Tier1)", 0, com.simplecolonies.villager.job.JobType.BUTCHER, Map.of("minecraft:cobblestone", 24, "minecraft:furnace", 1)),
     LEATHER_SHOP("Leather Shop", "Workplace for Leatherworker (leather+planks, Tier2 from Butcher)", 0, com.simplecolonies.villager.job.JobType.LEATHERWORKER, Map.of("minecraft:leather", 8, "minecraft:oak_planks", 16)),
-    PASTURE("Pasture", "Player-designated area for shearing sheep; requires a loom and shears", 0, com.simplecolonies.villager.job.JobType.SHEPHERD, Map.of());
+    PASTURE("Pasture", "Player-designated livestock work area for shepherds and butchers", 0, com.simplecolonies.villager.job.JobType.SHEPHERD, Map.of());
 
     public final String displayName;
     public final String description;
