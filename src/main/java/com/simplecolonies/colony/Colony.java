@@ -401,7 +401,7 @@ public class Colony {
 
     /** Validate an unchanged five-by-five plot, optionally allowing the central workstation. */
     public boolean isClearWorksite(ServerLevel level, BlockPos station, boolean allowStation) {
-        if (buildings.stream().anyMatch(b -> b.getPos().distSqr(station) < 144)) return false;
+        if (buildings.stream().anyMatch(b -> b.footprintSites().stream().anyMatch(p -> p.distSqr(station) < 144))) return false;
         if (!clearEntrance(level, station.north(3))) return false;
         for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
             BlockPos ground = station.offset(x, -1, z);
@@ -505,7 +505,7 @@ public class Colony {
     }
 
     public boolean isClearBuildSite(ServerLevel level, BlockPos pos) {
-        if (buildings.stream().anyMatch(b -> b.getPos().distSqr(pos) < 144)) return false;
+        if (buildings.stream().anyMatch(b -> b.footprintSites().stream().anyMatch(p -> p.distSqr(pos) < 144))) return false;
         int variant = Building.houseVariantAt(pos);
         if (!clearEntrance(level, pos.north(variant == 2 ? 4 : 3))) return false;
         for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) {

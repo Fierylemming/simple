@@ -84,6 +84,20 @@ public class Building {
         return List.copyOf(sites);
     }
     public boolean isOperational() { return state == BuildingState.COMPLETE || isUpgrading(); }
+    /** All physical footprints, including an unfinished wing, for spatial safety checks. */
+    public List<BlockPos> footprintSites() {
+        var sites = new ArrayList<BlockPos>();
+        sites.add(pos);
+        sites.addAll(previousWings);
+        if (upgradeSite != null && !sites.contains(upgradeSite)) sites.add(upgradeSite);
+        return List.copyOf(sites);
+    }
+    /** Distance to the nearest completed workplace, not just the original building. */
+    public double distanceToOperationalSite(BlockPos target) {
+        double nearest = pos.distSqr(target);
+        for (var wing : completedWingSites()) nearest = Math.min(nearest, wing.distSqr(target));
+        return nearest;
+    }
     public List<BlockPos> shelterSites() {
         if (type != BuildingType.HOUSE) return List.of(pos);
         var sites = new ArrayList<BlockPos>(); sites.add(pos); sites.addAll(completedWingSites());
@@ -269,7 +283,7 @@ public class Building {
     public boolean cancelUpgrade() {
         if (!isUpgrading()) return false;
         upgradeSite = previousWings.isEmpty() ? null : previousWings.remove(previousWings.size() - 1);
-        upgradePlanVersion = upgradeSite == null ? 0 : 2;
+        upgradePlanVersion = upgradeSite == null ? 0 : (type == BuildingType.HOUSE ? 3 : 2);
         placements.clear(); completed.clear(); requiredResources.clear();
         state = BuildingState.COMPLETE;
         return true;

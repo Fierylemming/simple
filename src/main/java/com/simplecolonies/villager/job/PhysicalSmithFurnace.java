@@ -27,7 +27,7 @@ final class PhysicalSmithFurnace {
     boolean hasInputs() { return materials.countPrepared(RAW) > 0 || materials.countPrepared(COAL) > 0; }
     Result work(ServerLevel level, BlockPos station) {
         boolean designated = colony.getBuildings().stream().anyMatch(b -> b.getType() == BuildingType.BLACKSMITH
-                && b.isOperational() && b.getPos().distSqr(station) <= 144);
+                && b.isOperational() && b.distanceToOperationalSite(station) <= 144);
         if (!designated) return hasInputs() ? Result.RETURN_INPUTS : Result.UNAVAILABLE;
         BlockPos owned = null, available = null;
         for (var direction : Direction.Plane.HORIZONTAL) {

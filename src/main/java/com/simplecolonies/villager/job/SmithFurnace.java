@@ -20,7 +20,7 @@ final class SmithFurnace {
 
     static Result work(ServerLevel level, Colony colony, Villager worker, BlockPos station) {
         boolean designated = colony.getBuildings().stream().anyMatch(b -> b.getType() == BuildingType.BLACKSMITH
-                && b.isOperational() && b.getPos().distSqr(station) <= 144);
+                && b.isOperational() && b.distanceToOperationalSite(station) <= 144);
         if (!designated) return Result.UNAVAILABLE;
         // Finish an existing batch before starting another, even if another furnace
         // appears earlier in the scan or a different smith takes over the station.

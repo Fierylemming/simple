@@ -125,12 +125,27 @@ public class BuildingUpgrade {
         int[][] offsets = {{gap,0},{-gap,0},{0,-gap},{0,gap},{gap*2,0},{-gap*2,0},{0,-gap*2},{0,gap*2}, {gap,-gap},{-gap,-gap},{gap,gap},{-gap,gap}};
         for (var offset : offsets) {
             var site = building.getPos().offset(offset[0], 0, offset[1]);
-            if (colony.getBuildings().stream().anyMatch(b -> b != building && b.getPos().distSqr(site) < 144)) continue;
-            if (building.completedWingSites().stream().anyMatch(p -> Math.abs(p.getX()-site.getX()) < gap && Math.abs(p.getZ()-site.getZ()) < gap)) continue;
+            if (colony.getBuildings().stream().anyMatch(b -> b != building
+                    && b.footprintSites().stream().anyMatch(p -> p.distSqr(site) < 144))) continue;
+            // Do not wall off an existing north-facing entrance, or put the new
+            // entrance inside an existing footprint. Touching edges are fine.
+            int radius = house ? 3 : 2;
+            var entrance = site.north(radius + 1);
+            if (building.footprintSites().stream().anyMatch(p ->
+                    overlaps(site, radius, p, radius)
+                    || inside(p.north(radius + 1), site, radius)
+                    || inside(entrance, p, radius))) continue;
             if (!clearWing(level, colony, site, house)) continue;
             if (ConstructionCrafting.canBuild(stock, building.previewWorksiteWing(site))) return site;
         }
         return null;
+    }
+
+    private static boolean inside(net.minecraft.core.BlockPos point, net.minecraft.core.BlockPos center, int radius) {
+        return Math.abs(point.getX() - center.getX()) <= radius && Math.abs(point.getZ() - center.getZ()) <= radius;
+    }
+    private static boolean overlaps(net.minecraft.core.BlockPos a, int ar, net.minecraft.core.BlockPos b, int br) {
+        return Math.abs(a.getX() - b.getX()) <= ar + br && Math.abs(a.getZ() - b.getZ()) <= ar + br;
     }
 
     private static boolean clearWing(net.minecraft.server.level.ServerLevel level, Colony colony, net.minecraft.core.BlockPos site, boolean house) {

@@ -127,8 +127,9 @@ public class ConstructionGameTests {
         var level = helper.getLevel();
         if (com.simplecolonies.building.BuildingUpgrade.canUpgrade(colony, smithy, level)) helper.fail("No spare smithing table: should not queue");
         colony.depositToWarehouse("minecraft:smithing_table", 1);
-        helper.setBlock(relative.east(5), Blocks.OBSIDIAN);
-        helper.setBlock(relative.west(5), Blocks.OBSIDIAN);
+        // Block every adjacent candidate; the expanded search also considers diagonals.
+        for (int x : new int[]{-5, 0, 5}) for (int z : new int[]{-5, 0, 5})
+            if (x != 0 || z != 0) helper.setBlock(relative.offset(x, 0, z), Blocks.OBSIDIAN);
         if (com.simplecolonies.building.BuildingUpgrade.canUpgrade(colony, smithy, level)) helper.fail("Blocked plots should not queue");
         helper.setBlock(relative.east(5), Blocks.AIR);
         if (!com.simplecolonies.building.BuildingUpgrade.tryUpgrade(colony, smithy, level, null)) helper.fail("Clear, stocked wing should queue");

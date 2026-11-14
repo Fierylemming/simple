@@ -454,7 +454,7 @@ public class WoodcutterJob extends AbstractJob {
             if (near(pos, colony.getCenter(), 9)) return true;
             for (var building : colony.getBuildings()) {
                 int margin = Math.max(building.getType() == BuildingType.FARM ? 10 : 8, building.getSize() / 2 + 5);
-                if (near(pos, building.getPos(), margin)) return true;
+                for (BlockPos site : building.footprintSites()) if (near(pos, site, margin)) return true;
             }
             // Generated structures may not be registered as colony buildings.
             for (var structure : level.structureManager().getAllStructuresAt(pos).keySet()) {

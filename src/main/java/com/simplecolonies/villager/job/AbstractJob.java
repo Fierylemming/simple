@@ -61,8 +61,8 @@ public abstract class AbstractJob {
         // Prefer the nearest matching completed building to this villager's own POI.
         return colony.getBuildings().stream()
                 .filter(b -> b.getType().job == type && b.isOperational())
-                .filter(b -> b.getPos().distSqr(claimedSite) <= 144)
-                .min(java.util.Comparator.comparingDouble(b -> b.getPos().distSqr(claimedSite)))
+                .filter(b -> b.distanceToOperationalSite(claimedSite) <= 144)
+                .min(java.util.Comparator.comparingDouble(b -> b.distanceToOperationalSite(claimedSite)))
                 .map(com.simplecolonies.building.Building::getPos).orElse(claimedSite);
     }
 

@@ -233,4 +233,24 @@ class WorksitePlanTest {
         assertEquals(java.util.List.of(BlockPos.ZERO, first), Building.load(house.save()).shelterSites());
     }
 
+    @Test void incompleteWingIsProtectedButNotAnOperationalWorkplace() {
+        var smithy = new Building(BuildingType.BLACKSMITH, BlockPos.ZERO, CultureType.ROMAN);
+        smithy.setState(BuildingState.COMPLETE);
+        var first = BlockPos.ZERO.east(10);
+        assertTrue(smithy.beginWorksiteWing(first));
+        assertTrue(smithy.footprintSites().contains(first));
+        assertEquals(100.0, smithy.distanceToOperationalSite(first));
+        while (smithy.getNextPlacement() != null) smithy.markPlaced(smithy.getNextPlacement());
+        smithy.finishConstruction();
+        var second = BlockPos.ZERO.west(10);
+        assertTrue(smithy.beginWorksiteWing(second));
+        var restored = Building.load(smithy.save());
+        assertEquals(0.0, restored.distanceToOperationalSite(first));
+        assertEquals(100.0, restored.distanceToOperationalSite(second));
+        assertTrue(restored.footprintSites().contains(second));
+        assertTrue(restored.cancelUpgrade());
+        assertFalse(restored.footprintSites().contains(second));
+        assertEquals(0.0, restored.distanceToOperationalSite(first));
+    }
+
 }
