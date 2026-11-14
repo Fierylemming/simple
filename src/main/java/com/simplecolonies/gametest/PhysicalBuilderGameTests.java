@@ -131,7 +131,9 @@ public class PhysicalBuilderGameTests {
         var base = new BlockPos(8, 1, 8); var chest = new BlockPos(6, 1, 8);
         helper.setBlock(chest, Blocks.CHEST);
         var center = helper.absolutePos(base);
-        var colony = new Colony(0, CultureType.ROMAN, center);
+        // Other concurrently running GameTests often use colony id 0; give this
+        // shared chest a unique owner so their workers cannot take its stock.
+        var colony = new Colony(-1400000032, CultureType.ROMAN, center);
         colony.addCitizen(new com.simplecolonies.colony.CitizenData(java.util.UUID.randomUUID(), "Builder", com.simplecolonies.villager.job.JobType.BUILDER));
         if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
         var container = (Container) helper.getBlockEntity(chest);
