@@ -1,10 +1,10 @@
 # Overhaul preview: installation and test checklist
 
-This is an **unfinished test build**, not the completed overhaul. Back up any existing world and preferably use a new disposable Overworld; do not use it on a valued world or server. Construction, farming, mining and tree cutting change blocks, and natural-block heuristics cannot reliably distinguish all player-built structures from terrain.
+This is an **unfinished test build**, not the completed overhaul. Back up any existing world and preferably use a new disposable Overworld; do not use it on a valued world or server. Construction, farming, mining and tree cutting change blocks, and natural-block heuristics cannot reliably distinguish all player-built structures from terrain. Entries below the initial checklist also record historical changes and may be superseded by later entries; see [OVERHAUL-WIP.md](OVERHAUL-WIP.md) for current limitations.
 
 ## Get the build
 
-1. Open [CI run 43489006475](https://github.com/Fierylemming/simple/actions/runs/43489006475) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `8006a7d`, version `0.1.29`. The build and GameTests passed, but navigation and animal integration have failed intermittently in other runs and still need in-game verification. Extract the zip.
+1. Open [CI run 43634704446](https://github.com/Fierylemming/simple/actions/runs/43634704446) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `fd3bddf`. The build and both standard and Create-enabled GameTests passed, but navigation and animal integration have failed intermittently in other runs and still need in-game verification. Extract the zip.
 2. In Prism Launcher, create a **Minecraft 1.21.1, NeoForge 21.1.265, Java 21** instance. Place the extracted SimpleColonies jar in that instance's `mods` folder; remove any older SimpleColonies jar first. Do not install it alongside another copy. For a server, install the same version on both client and server.
 3. Start a new world with cheats enabled, in the Overworld. No public overhaul release has been made.
 
