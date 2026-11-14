@@ -121,19 +121,30 @@ public class ConstructionGameTests {
         Building smithy = new Building(BuildingType.BLACKSMITH, origin, CultureType.ROMAN, com.simplecolonies.building.HouseTimber.SPRUCE);
         smithy.setState(BuildingState.COMPLETE);
         colony.registerPlayerBuilding(smithy);
+        // Virtual stock alone must not make a physical construction plan appear affordable.
         colony.depositToWarehouse("minecraft:spruce_log", 300);
         colony.depositToWarehouse("minecraft:cobblestone", 300);
         colony.depositToWarehouse("minecraft:coal", 10);
-        var level = helper.getLevel();
-        if (com.simplecolonies.building.BuildingUpgrade.canUpgrade(colony, smithy, level)) helper.fail("No spare smithing table: should not queue");
         colony.depositToWarehouse("minecraft:smithing_table", 1);
+        var level = helper.getLevel();
+        if (com.simplecolonies.building.BuildingUpgrade.canUpgrade(colony, smithy, level)) helper.fail("Virtual supplies cannot fund a wing");
+        var chest = relative.offset(-6, 0, -6);
+        helper.setBlock(chest, Blocks.CHEST);
+        var storage = helper.absolutePos(chest);
+        if (!colony.getWarehouseManager().registerStorage(level, storage)) helper.fail("Could not share building supplies");
+        var wm = colony.getWarehouseManager();
+        wm.deposit(level, storage, "minecraft:spruce_log", 300);
+        wm.deposit(level, storage, "minecraft:cobblestone", 300);
+        wm.deposit(level, storage, "minecraft:coal", 10);
+        if (com.simplecolonies.building.BuildingUpgrade.canUpgrade(colony, smithy, level)) helper.fail("No physical spare smithing table: should not queue");
+        wm.deposit(level, storage, "minecraft:smithing_table", 1);
         // Block every adjacent candidate; the expanded search also considers diagonals.
         for (int x : new int[]{-5, 0, 5}) for (int z : new int[]{-5, 0, 5})
             if (x != 0 || z != 0) helper.setBlock(relative.offset(x, 0, z), Blocks.OBSIDIAN);
         if (com.simplecolonies.building.BuildingUpgrade.canUpgrade(colony, smithy, level)) helper.fail("Blocked plots should not queue");
         helper.setBlock(relative.east(5), Blocks.AIR);
         if (!com.simplecolonies.building.BuildingUpgrade.tryUpgrade(colony, smithy, level, null)) helper.fail("Clear, stocked wing should queue");
-        if (smithy.getLevel() != 1 || colony.getWarehouseCount(level, "minecraft:smithing_table") != 1) helper.fail("Queueing prematurely awarded tier or spent stock");
+        if (smithy.getLevel() != 1 || ((net.minecraft.world.Container) helper.getBlockEntity(chest)).countItem(net.minecraft.world.item.Items.SMITHING_TABLE) != 1) helper.fail("Queueing prematurely awarded tier or spent stock");
         var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(13, 1, 2));
         BuilderJob job = new BuilderJob(worker, colony);
         for (int tick = 1; tick < 2400; tick++) helper.runAtTickTime(tick, () -> job.tick(level));
@@ -142,7 +153,8 @@ public class ConstructionGameTests {
                     || !level.getBlockState(origin).is(Blocks.SMITHING_TABLE)
                     || !level.getBlockState(origin.east(5)).is(Blocks.SMITHING_TABLE)
                     || !level.getBlockState(origin.east(6)).is(Blocks.FURNACE)
-                    || colony.getWarehouseCount(level, "minecraft:smithing_table") != 0)
+                    || ((net.minecraft.world.Container) helper.getBlockEntity(chest)).countItem(net.minecraft.world.item.Items.SMITHING_TABLE) != 0
+                    || colony.getWarehouseCount("minecraft:smithing_table") != 1)
                 helper.fail("Wing incomplete: " + smithy.getState() + " worker=" + job.getState()
                         + " next=" + (smithy.getNextPlacement() == null ? "none" : smithy.getNextPlacement().pos));
         });

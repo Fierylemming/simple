@@ -28,7 +28,14 @@ public class HousingGrowthGameTests {
         BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.TOWN_HALL, center, CultureType.ROMAN, true));
+        BlockPos storage = center.offset(2, 0, 2);
+        helper.getLevel().setBlock(storage, Blocks.CHEST.defaultBlockState(), 3);
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), storage)) helper.fail("Could not share construction stock");
         return colony;
+    }
+    private static void supply(GameTestHelper helper, Colony colony, String id, int amount) {
+        if (colony.getWarehouseManager().deposit(helper.getLevel(), colony.getCenter(), id, amount) != amount)
+            helper.fail("Could not store fixture supply " + id);
     }
     private static void citizen(Colony colony, JobType job) {
         colony.addCitizen(new CitizenData(UUID.randomUUID(), "Test citizen", job));
@@ -51,9 +58,9 @@ public class HousingGrowthGameTests {
             colony.tick(helper.getLevel());
             if (plans(colony) != 0 || !colony.getExpansionStatus().contains("Not enough materials"))
                 helper.fail("Housing queued without materials: " + colony.getExpansionStatus());
-            colony.depositToWarehouse("minecraft:oak_log", 300);
-            colony.depositToWarehouse("minecraft:cobblestone", 300);
-            colony.depositToWarehouse("minecraft:coal", 10);
+            supply(helper, colony, "minecraft:oak_log", 300);
+            supply(helper, colony, "minecraft:cobblestone", 300);
+            supply(helper, colony, "minecraft:coal", 10);
         });
         helper.runAtTickTime(600, () -> {
             var before = colony.getWarehouseSnapshot(helper.getLevel());
@@ -80,9 +87,9 @@ public class HousingGrowthGameTests {
         Colony colony = setup(helper);
         citizen(colony, JobType.BUILDER);
         for (int i = 0; i < 3; i++) citizen(colony, JobType.UNEMPLOYED);
-        colony.depositToWarehouse("minecraft:birch_log", 300);
-        colony.depositToWarehouse("minecraft:cobblestone", 300);
-        colony.depositToWarehouse("minecraft:coal", 10);
+        supply(helper, colony, "minecraft:birch_log", 300);
+        supply(helper, colony, "minecraft:cobblestone", 300);
+        supply(helper, colony, "minecraft:coal", 10);
         var stock = colony.getWarehouseSnapshot(helper.getLevel());
         helper.runAtTickTime(200, () -> {
             colony.tick(helper.getLevel());
@@ -108,9 +115,9 @@ public class HousingGrowthGameTests {
         tag.putInt("level", 2);
         tag.putInt("radius", 64);
         Colony colony = Colony.load(tag);
-        colony.depositToWarehouse("minecraft:oak_log", 200);
-        colony.depositToWarehouse("minecraft:cobblestone", 200);
-        colony.depositToWarehouse("minecraft:coal", 10);
+        supply(helper, colony, "minecraft:oak_log", 200);
+        supply(helper, colony, "minecraft:cobblestone", 200);
+        supply(helper, colony, "minecraft:coal", 10);
         var before = colony.getWarehouseSnapshot(helper.getLevel());
         helper.runAtTickTime(200, () -> {
             colony.tick(helper.getLevel());
@@ -132,9 +139,9 @@ public class HousingGrowthGameTests {
         var tag = original.save();
         tag.putInt("level", 2); tag.putInt("radius", 64);
         Colony colony = Colony.load(tag);
-        colony.depositToWarehouse("minecraft:spruce_log", 200);
-        colony.depositToWarehouse("minecraft:cobblestone", 200);
-        colony.depositToWarehouse("minecraft:coal", 10);
+        supply(helper, colony, "minecraft:spruce_log", 200);
+        supply(helper, colony, "minecraft:cobblestone", 200);
+        supply(helper, colony, "minecraft:coal", 10);
         helper.runAtTickTime(200, () -> {
             colony.tick(helper.getLevel());
             var hall = colony.getBuildings().stream().filter(b -> b.getType() == BuildingType.MARKET && b.hasSupportedPlan()).findFirst().orElse(null);
@@ -156,14 +163,14 @@ public class HousingGrowthGameTests {
         original.registerPlayerBuilding(Building.load(legacy));
         var saved = original.save(); saved.putInt("level", 3); saved.putInt("radius", 80);
         Colony colony = Colony.load(saved);
-        colony.depositToWarehouse("minecraft:birch_log", 200);
-        colony.depositToWarehouse("minecraft:cobblestone", 200);
-        colony.depositToWarehouse("minecraft:coal", 10);
+        supply(helper, colony, "minecraft:birch_log", 200);
+        supply(helper, colony, "minecraft:cobblestone", 200);
+        supply(helper, colony, "minecraft:coal", 10);
         helper.runAtTickTime(200, () -> {
             colony.tick(helper.getLevel());
             if (colony.getBuildings().stream().anyMatch(b -> b.getType() == BuildingType.LIBRARY && b.hasSupportedPlan()))
                 helper.fail("Queued library without bookshelves");
-            colony.depositToWarehouse("minecraft:bookshelf", 2);
+            supply(helper, colony, "minecraft:bookshelf", 2);
         });
         helper.runAtTickTime(400, () -> {
             var before = colony.getWarehouseSnapshot(helper.getLevel());
@@ -219,7 +226,7 @@ public class HousingGrowthGameTests {
             if (sample.getHouseVariant() != 0 && ConstructionCrafting.canBuild(stock, sample.getRemainingPlacements()))
                 helper.fail("Fixture must only afford the compact variant");
         }
-        stock.forEach(colony::depositToWarehouse);
+        stock.forEach((id, amount) -> supply(helper, colony, id, amount));
         helper.runAtTickTime(200, () -> {
             colony.tick(helper.getLevel());
             var house = colony.getBuildings().stream().filter(b -> b.getType() == BuildingType.HOUSE && b.hasSupportedPlan()).findFirst().orElse(null);
@@ -230,4 +237,20 @@ public class HousingGrowthGameTests {
             helper.succeed();
         });
     }
+    @GameTest(template = "isolated", timeoutTicks = 400)
+    public static void virtualSuppliesDoNotQueuePhysicalConstruction(GameTestHelper helper) {
+        Colony colony = setup(helper);
+        citizen(colony, JobType.BUILDER);
+        for (int i = 0; i < 3; i++) citizen(colony, JobType.UNEMPLOYED);
+        colony.depositToWarehouse("minecraft:oak_log", 300);
+        colony.depositToWarehouse("minecraft:cobblestone", 300);
+        colony.depositToWarehouse("minecraft:coal", 10);
+        helper.runAtTickTime(200, () -> {
+            colony.tick(helper.getLevel());
+            if (plans(colony) != 0 || !colony.getExpansionStatus().contains("Not enough materials"))
+                helper.fail("Queued physical house from inaccessible virtual stock");
+            helper.succeed();
+        });
+    }
+
 }

@@ -281,7 +281,10 @@ public class Colony {
         if (buildings.stream().anyMatch(b -> b.hasSupportedPlan() && b.getState() != com.simplecolonies.building.BuildingState.COMPLETE)) {
             expansionStatus = "Construction already queued"; return;
         }
-        var stock = getWarehouseSnapshot(level);
+        // Physical builders cannot use legacy virtual stock; do not queue a
+        // project based on supplies that no worker can actually collect.
+        warehouseManager.scan(level);
+        var stock = warehouseManager.snapshot();
         String housingReason = "Housing capacity sufficient";
         boolean housingNeeded = HousingNeeds.needsHouse(citizens.size(), shelterCapacity(),
                 com.simplecolonies.config.ColonyConfig.MAX_CITIZENS_PER_COLONY.get());

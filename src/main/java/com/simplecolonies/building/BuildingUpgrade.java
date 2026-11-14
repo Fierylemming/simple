@@ -120,7 +120,10 @@ public class BuildingUpgrade {
                     && !level.getBlockState(building.getPos()).is(Building.wingStation(building.getType()).getBlock()))
                 || colony.getCitizens().stream().noneMatch(c -> !c.isChild && c.job == com.simplecolonies.villager.job.JobType.BUILDER)
                 || colony.getBuildings().stream().anyMatch(b -> b != building && b.hasSupportedPlan() && b.getState() != BuildingState.COMPLETE)) return null;
-        var stock = colony.getWarehouseSnapshot(level);
+        // Colony builders cannot collect legacy virtual stock, so only count
+        // plain items in loaded shared storage when deciding to queue a wing.
+        colony.getWarehouseManager().scan(level);
+        var stock = colony.getWarehouseManager().snapshot();
         boolean house = building.getType() == BuildingType.HOUSE;
         int gap = house ? 7 : 5;
         int[][] offsets = {{gap,0},{-gap,0},{0,-gap},{0,gap},{gap*2,0},{-gap*2,0},{0,-gap*2},{0,gap*2}, {gap,-gap},{-gap,-gap},{gap,gap},{-gap,gap}};

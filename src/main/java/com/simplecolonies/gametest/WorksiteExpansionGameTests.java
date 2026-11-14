@@ -54,6 +54,9 @@ public class WorksiteExpansionGameTests {
         var barrel = (net.minecraft.world.Container) helper.getBlockEntity(site);
         barrel.setItem(0, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 3));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
+        BlockPos stock = center.offset(-1, 0, -2);
+        helper.getLevel().setBlock(stock, Blocks.CHEST.defaultBlockState(), 3);
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), stock)) helper.fail("Could not share building supplies");
         colony.registerPlayerBuilding(new Building(BuildingType.TOWN_HALL, center, CultureType.ROMAN, true));
         colony.registerPlayerBuilding(new Building(BuildingType.HOUSE, center.north(16), CultureType.ROMAN, true));
         colony.addCitizen(new CitizenData(UUID.randomUUID(), "Builder", JobType.BUILDER));
@@ -63,9 +66,9 @@ public class WorksiteExpansionGameTests {
         worker.setJob(JobType.FISHERMAN);
         colony.getCitizens().stream().filter(c -> c.uuid.equals(worker.getUUID())).findFirst().orElseThrow().job = JobType.FISHERMAN;
         worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), absSite));
-        colony.depositToWarehouse("minecraft:oak_log", 300);
-        colony.depositToWarehouse("minecraft:cobblestone", 300);
-        colony.depositToWarehouse("minecraft:coal", 10);
+        colony.getWarehouseManager().deposit(helper.getLevel(), center, "minecraft:oak_log", 300);
+        colony.getWarehouseManager().deposit(helper.getLevel(), center, "minecraft:cobblestone", 300);
+        colony.getWarehouseManager().deposit(helper.getLevel(), center, "minecraft:coal", 10);
         var tag = new Building(BuildingType.HARBOR, center.south(14), CultureType.ROMAN).save();
         tag.putInt("planVersion", 7);
         var legacy = Building.load(tag);
@@ -138,6 +141,9 @@ public class WorksiteExpansionGameTests {
         BlockPos site = new BlockPos(56, 1, 56), absSite = helper.absolutePos(site);
         helper.setBlock(site, stationBlock);
         Colony colony = new Colony(0, CultureType.ROMAN, center);
+        BlockPos stock = center.offset(-1, 0, -2);
+        helper.getLevel().setBlock(stock, Blocks.CHEST.defaultBlockState(), 3);
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), stock)) helper.fail("Could not share building supplies");
         if (buildingType == BuildingType.WAREHOUSE) colony.getWarehouseManager().registerStorage(helper.getLevel(), absSite);
         colony.registerPlayerBuilding(new Building(BuildingType.TOWN_HALL, center, CultureType.ROMAN, true));
         colony.registerPlayerBuilding(new Building(BuildingType.HOUSE, center.north(16), CultureType.ROMAN, true));
@@ -148,9 +154,9 @@ public class WorksiteExpansionGameTests {
         worker.setJob(type);
         colony.getCitizens().stream().filter(c -> c.uuid.equals(worker.getUUID())).findFirst().orElseThrow().job = type;
         worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), absSite));
-        colony.depositToWarehouse("minecraft:oak_log", 300);
-        colony.depositToWarehouse("minecraft:cobblestone", 300);
-        colony.depositToWarehouse("minecraft:coal", 10);
+        colony.getWarehouseManager().deposit(helper.getLevel(), center, "minecraft:oak_log", 300);
+        colony.getWarehouseManager().deposit(helper.getLevel(), center, "minecraft:cobblestone", 300);
+        colony.getWarehouseManager().deposit(helper.getLevel(), center, "minecraft:coal", 10);
         // An existing worksite elsewhere must not suppress a second worker's site.
         colony.registerPlayerBuilding(new Building(buildingType, center.south(18), CultureType.ROMAN, true));
         // Unsupported old placeholders must remain untouched and not prevent new work.
