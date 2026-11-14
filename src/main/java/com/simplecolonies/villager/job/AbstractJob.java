@@ -142,6 +142,11 @@ public abstract class AbstractJob {
                 state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
             }
         }
+        // Ground navigation cannot calculate paths during a jump. Retrying only
+        // after a long backoff can repeatedly land on the same airborne phase.
+        if (!villager.onGround() && !villager.isInLiquid() && !villager.isPassenger()) {
+            state = JobState.GOING_TO_WORK; ticksUntilNextWork = 0; return;
+        }
         var stands = new java.util.ArrayList<BlockPos>();
         BlockPos center = first.blockPosition();
         for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) for (int y = -1; y <= 1; y++) {

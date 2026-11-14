@@ -99,6 +99,9 @@ public final class ShepherdJob extends AbstractJob {
                 .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
         if (target == null) { breedSheep(level, sheep, storage); return; }
         if (villager.distanceToSqr(target) > 6.25 || !villager.hasLineOfSight(target)) {
+            if (!villager.onGround() && !villager.isInLiquid() && !villager.isPassenger()) {
+                state = JobState.GOING_TO_WORK; ticksUntilNextWork = 0; return;
+            }
             var path = villager.getNavigation().createPath(target, 1);
             if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
             villager.getNavigation().moveTo(path, 0.7); state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
@@ -192,6 +195,9 @@ public final class ShepherdJob extends AbstractJob {
         }
         if (partnerWaiting) {
             if (villager.distanceToSqr(target) > 6.25 || !villager.hasLineOfSight(target)) {
+                if (!villager.onGround() && !villager.isInLiquid() && !villager.isPassenger()) {
+                    state = JobState.GOING_TO_WORK; ticksUntilNextWork = 0; return;
+                }
                 var path = villager.getNavigation().createPath(target, 1);
                 if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
                 villager.getNavigation().moveTo(path, 0.7); state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
@@ -227,6 +233,9 @@ public final class ShepherdJob extends AbstractJob {
 
     private boolean walkTo(BlockPos pos) {
         if (villager.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) <= 9) return true;
+        if (!villager.onGround() && !villager.isInLiquid() && !villager.isPassenger()) {
+            state = JobState.GOING_TO_WORK; ticksUntilNextWork = 0; return false;
+        }
         var path = villager.getNavigation().createPath(pos, 1);
         if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return false; }
         villager.getNavigation().moveTo(path, 0.7); state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return false;

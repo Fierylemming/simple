@@ -58,6 +58,20 @@ public class WoodcutterGameTests {
         return count;
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 100)
+    public static void forestryDiscoveryRetriesWhileAirborne(GameTestHelper helper) {
+        makeCrookedAcacia(helper);
+        Colony colony = colony(helper);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56));
+        worker.setOnGround(false);
+        var job = new WoodcutterJob(worker, colony);
+        job.tick(helper.getLevel());
+        if (job.getState() != com.simplecolonies.villager.job.AbstractJob.JobState.GOING_TO_WORK
+                || !worker.getWoodcutterMemory().isEmpty())
+            helper.fail("Airborne pathfinding classified the tree as unreachable");
+        helper.succeed();
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 600)
     public static void blockedForestryPathIsRetriedWithoutRemoteCutting(GameTestHelper helper) {
         makeTree(helper);

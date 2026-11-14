@@ -144,6 +144,12 @@ public class WoodcutterJob extends AbstractJob {
             }
         }
         if (treeBase == null) {
+            // Discovery verifies every branch with actual path requests. A ground
+            // navigator cannot compute these while jumping; don't classify an
+            // otherwise safe tree as unreachable based on an airborne sample.
+            if (!villager.onGround() && !villager.isInLiquid() && !villager.isPassenger()) {
+                state = JobState.GOING_TO_WORK; ticksUntilNextWork = 0; return;
+            }
             BlockPos center = villager.blockPosition();
             for (BlockPos mutable : BlockPos.betweenClosed(center.offset(-16, -4, -16), center.offset(16, 8, 16))) {
                 BlockPos base = mutable.immutable();

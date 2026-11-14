@@ -67,6 +67,9 @@ public class ButcherJob extends AbstractJob {
                 .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
         if (target == null) { breedLivestock(level, center); return; }
         if (villager.distanceToSqr(target) > 6.25 || !villager.hasLineOfSight(target)) {
+            if (!villager.onGround() && !villager.isInLiquid() && !villager.isPassenger()) {
+                state = JobState.GOING_TO_WORK; ticksUntilNextWork = 0; return;
+            }
             var path = villager.getNavigation().createPath(target, 1);
             if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
             villager.getNavigation().moveTo(path, 0.7);
@@ -128,6 +131,9 @@ public class ButcherJob extends AbstractJob {
             Animal partner = null;
             if (partnerWaiting) {
                 if (villager.distanceToSqr(candidate) > 6.25 || !villager.hasLineOfSight(candidate)) {
+                    if (!villager.onGround() && !villager.isInLiquid() && !villager.isPassenger()) {
+                        state = JobState.GOING_TO_WORK; ticksUntilNextWork = 0; return;
+                    }
                     var path = villager.getNavigation().createPath(candidate, 1);
                     if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
                     villager.getNavigation().moveTo(path, .7);
@@ -201,6 +207,9 @@ public class ButcherJob extends AbstractJob {
         }).sorted(java.util.Comparator.comparingDouble(p -> p.distSqr(villager.blockPosition()))).toList();
         for (var pos : positions) {
             if (villager.distanceToSqr(pos.getX()+.5, pos.getY()+.5, pos.getZ()+.5) > 9) {
+                if (!villager.onGround() && !villager.isInLiquid() && !villager.isPassenger()) {
+                    state = JobState.GOING_TO_WORK; ticksUntilNextWork = 0; return true;
+                }
                 var path = villager.getNavigation().createPath(pos, 1);
                 if (path == null || !path.canReach()) continue;
                 villager.getNavigation().moveTo(path, .7);
