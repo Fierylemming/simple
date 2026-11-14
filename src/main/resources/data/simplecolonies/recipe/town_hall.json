@@ -1,0 +1,6 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": ["WWW", "WCW", "SSS"],
+  "key": { "W": { "item": "minecraft:oak_planks" }, "C": { "item": "minecraft:crafting_table" }, "S": { "item": "minecraft:cobblestone" } },
+  "result": { "id": "simplecolonies:town_hall", "count": 1 }
+}

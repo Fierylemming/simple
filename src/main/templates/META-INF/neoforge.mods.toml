@@ -1,0 +1,52 @@
+# neoforge.mods.toml - templated via build.gradle generateModMetadata
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="${mod_license}"
+issueTrackerURL="https://github.com/Fierylemming/simple/issues"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+displayURL="${mod_display_url}"
+logoFile="simplecolonies.png"
+credits="Inspired by MineColonies, built for Create Aeronautics 1.21.1"
+authors="${mod_authors}"
+description='''${mod_description}
+
+Features:
+ - Self-sufficient villages: farmers feed everyone, woodcutters replant, miners quarry, builders expand
+ - Five ancient cultures: Egyptian, Roman, Greek, Persian, Mesopotamian - each spawns in correct climate & builds in its style
+ - Reputation system: trade and defend to become leader, then command expansion and armies
+ - Diplomacy & warfare: alliances, wars, soldier villagers who follow you into battle
+ - Hardcore but fair: housing required, starvation & sickness if supply chains break
+'''
+
+[[dependencies.simplecolonies]]
+    modId="neoforge"
+    type="required"
+    versionRange="[${neo_version},)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.simplecolonies]]
+    modId="minecraft"
+    type="required"
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+# Optional - Create Aeronautics presence detected at runtime for airship logistics
+[[dependencies.simplecolonies]]
+    modId="create"
+    type="optional"
+    versionRange="[6.0,)"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.simplecolonies]]
+    modId="create_aeronautics"
+    type="optional"
+    versionRange="[1.0,)"
+    ordering="AFTER"
+    side="BOTH"

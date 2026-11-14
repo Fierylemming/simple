@@ -1,0 +1,229 @@
+package com.simplecolonies.villager.job;
+
+import com.simplecolonies.building.Building;
+import com.simplecolonies.building.BuildingState;
+import com.simplecolonies.building.ConstructionCrafting;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import com.simplecolonies.colony.Colony;
+import com.simplecolonies.colony.ColonyManager;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.npc.Villager;
+
+/** Constructs implemented plans one block at a time, using real resources. */
+public class BuilderJob extends AbstractJob {
+    private Building currentJob;
+    // Real colony villagers carry all inputs; the legacy path below remains for
+    // isolated vanilla-villager construction fixtures, not in-game workers.
+    private final PhysicalBuilderMaterials physical;
+    // Per-worker, transient retry times. Never discard a plan just because it
+    // is obstructed, unloaded, unreachable, or waiting for materials.
+    private final java.util.Map<Building, Long> retryAfter = new java.util.IdentityHashMap<>();
+    private void deferCurrent(ServerLevel level, int ticks) {
+        if (currentJob == null) return;
+        // With no other unfinished plan, retain the normal prompt retry. Long
+        // backoffs on a lone project slow ordinary construction dramatically.
+        boolean alternative = colony.getBuildings().stream().anyMatch(b -> b != currentJob && b.hasSupportedPlan()
+                && b.getState() != BuildingState.COMPLETE
+                && retryAfter.getOrDefault(b, Long.MIN_VALUE) <= level.getGameTime());
+        if (!alternative) return;
+        retryAfter.put(currentJob, level.getGameTime() + ticks);
+        currentJob = null;
+    }
+    public BuilderJob(Villager villager, Colony colony) {
+        super(villager, colony, JobType.BUILDER);
+        physical = villager instanceof com.simplecolonies.entity.ColonyVillager worker
+                ? new PhysicalBuilderMaterials(worker, colony) : null;
+    }
+
+    /** Find an actual standing position in reach, on either side of a wall. */
+    private net.minecraft.world.level.pathfinder.Path findApproach(ServerLevel level, BlockPos target) {
+        var candidates = new java.util.ArrayList<BlockPos>();
+        int groundY = currentJob.getType() == com.simplecolonies.building.BuildingType.SCHEMATIC
+                ? target.getY() : currentJob.constructionWalkY();
+        for (int dx = -4; dx <= 4; dx++) for (int dz = -4; dz <= 4; dz++) for (int dy = -2; dy <= 2; dy++) {
+            BlockPos stand = new BlockPos(target.getX() + dx, groundY + dy, target.getZ() + dz);
+            double vertical = target.getY() + 0.5 - stand.getY();
+            if (dx * dx + dz * dz + vertical * vertical > 20.25) continue;
+            if (!level.isLoaded(stand) || !level.isLoaded(stand.below()) || !level.isLoaded(stand.above())) continue;
+            if (!level.getBlockState(stand).getCollisionShape(level, stand).isEmpty()
+                    || !level.getBlockState(stand.above()).getCollisionShape(level, stand.above()).isEmpty()
+                    || !level.getBlockState(stand.below()).isFaceSturdy(level, stand.below(), net.minecraft.core.Direction.UP)) continue;
+            candidates.add(stand);
+        }
+        candidates.sort(java.util.Comparator.comparingDouble(p -> villager.distanceToSqr(p.getX() + 0.5, p.getY(), p.getZ() + 0.5)));
+        int attempts = 0;
+        for (BlockPos stand : candidates) {
+            if (++attempts > 24) break;
+            var path = villager.getNavigation().createPath(stand, 0);
+            if (path != null && path.canReach()) return path;
+        }
+        return null;
+    }
+
+    @Override protected void doWork(ServerLevel level) {
+        if (currentJob == null || currentJob.getState() == BuildingState.COMPLETE
+                || !colony.getBuildings().contains(currentJob)) {
+            retryAfter.keySet().removeIf(b -> !colony.getBuildings().contains(b));
+            currentJob = colony.getBuildings().stream()
+                .filter(b -> retryAfter.getOrDefault(b, Long.MIN_VALUE) <= level.getGameTime())
+                .filter(Building::hasSupportedPlan)
+                .filter(b -> b.getState() == BuildingState.BLUEPRINT || b.getState() == BuildingState.UNDER_CONSTRUCTION || b.getState() == BuildingState.NEEDS_RESOURCES || b.getState() == BuildingState.BLOCKED)
+                .findFirst().orElse(null);
+        }
+        if (currentJob == null) {
+            if (physical != null) {
+                var result = physical.returnSurplus(level);
+                if (result != PhysicalBuilderMaterials.Result.READY) {
+                    state = result == PhysicalBuilderMaterials.Result.MOVING ? JobState.GOING_TO_WORK
+                            : result == PhysicalBuilderMaterials.Result.WORKING ? JobState.WORKING : JobState.WAITING_FOR_CHEST;
+                    ticksUntilNextWork = result == PhysicalBuilderMaterials.Result.MOVING ? 10 : 40;
+                    return;
+                }
+            }
+            state = JobState.IDLE; return;
+        }
+        state = JobState.WORKING;
+        ConstructionCrafting.Stock stock = new ConstructionCrafting.Stock() {
+            public int count(String id) { return colony.getWarehouseCount(level, id); }
+            public boolean consume(String id, int amount) { return colony.consumeStock(level, id, amount); }
+            public void add(String id, int amount) { colony.depositToWarehouse(id, amount); }
+        };
+        for (int i = 0; i < com.simplecolonies.config.ColonyConfig.MAX_BUILDER_BLOCKS_PER_TICK.get(); i++) {
+            Building.BlockPlacement next = currentJob.getNextPlacement();
+            if (next == null) {
+                currentJob.finishConstruction();
+                // A constructed warehouse may become the courier hub only if the
+                // player explicitly designated its barrel as colony storage.
+                if (currentJob.getType() == com.simplecolonies.building.BuildingType.WAREHOUSE
+                        && colony.getWarehouseManager().getConfiguredWarehouseCenter() == null
+                        && colony.getWarehouseManager().isRegisteredStorage(level, currentJob.getPos()))
+                    colony.setWarehouseCenter(currentJob.getPos());
+                colony.broadcast(net.minecraft.network.chat.Component.literal("Builder completed " + currentJob.getType().displayName));
+                ColonyManager.getInstance().markDirty(colony);
+                currentJob = null;
+                return;
+            }
+            if (!level.isLoaded(next.pos)) { state = JobState.STUCK; deferCurrent(level, 200); return; }
+            if (currentJob.getType() == com.simplecolonies.building.BuildingType.SCHEMATIC
+                    && (!colony.isInside(next.pos) || !level.getWorldBorder().isWithinBounds(next.pos)
+                        || colony.getBuildings().stream().filter(b -> b != currentJob).anyMatch(b ->
+                            b.importedFootprintNear(next.pos, 8) || b.footprintSites().stream().anyMatch(p ->
+                                Math.abs((long) p.getX() - next.pos.getX()) <= 8 && Math.abs((long) p.getZ() - next.pos.getZ()) <= 8)))) {
+                currentJob.setState(BuildingState.BLOCKED); state = JobState.STUCK;
+                ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 200); return;
+            }
+            var before = level.getBlockState(next.pos);
+            boolean imported = currentJob.getType() == com.simplecolonies.building.BuildingType.SCHEMATIC;
+            if (!before.equals(next.state) && (level.getBlockEntity(next.pos) != null || !before.getFluidState().isEmpty()
+                    || (imported ? !before.isAir() : !com.simplecolonies.building.ConstructionSafety.clearable(before)))) {
+                currentJob.setState(BuildingState.BLOCKED); state = JobState.STUCK;
+                ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 200); return;
+            }
+            if (physical != null && !before.equals(next.state) && before.getFluidState().isEmpty()
+                    && (before.isAir() || before.canBeReplaced())) {
+                var result = physical.prepare(level, next.itemId);
+                if (result != PhysicalBuilderMaterials.Result.READY) {
+                    if (result == PhysicalBuilderMaterials.Result.MISSING) {
+                        currentJob.setState(BuildingState.NEEDS_RESOURCES); state = JobState.NEEDS_RESOURCE;
+                        ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 100); ticksUntilNextWork = 60;
+                    } else if (result == PhysicalBuilderMaterials.Result.BLOCKED) {
+                        currentJob.setState(BuildingState.BLOCKED); state = JobState.STUCK;
+                        ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 100); ticksUntilNextWork = 40;
+                    } else {
+                        currentJob.setState(BuildingState.UNDER_CONSTRUCTION);
+                        ColonyManager.getInstance().markDirty(colony);
+                        state = result == PhysicalBuilderMaterials.Result.MOVING ? JobState.GOING_TO_WORK : JobState.WORKING;
+                        ticksUntilNextWork = 10;
+                    }
+                    return;
+                }
+            }
+            if (villager.distanceToSqr(next.pos.getX() + 0.5, next.pos.getY() + 0.5, next.pos.getZ() + 0.5) > 25.0) {
+                var path = findApproach(level, next.pos);
+                if (path == null) { state = JobState.STUCK; deferCurrent(level, 200); ticksUntilNextWork = 40; return; }
+                villager.getNavigation().moveTo(path, 0.7);
+                state = JobState.GOING_TO_WORK;
+                ticksUntilNextWork = 10;
+                return;
+            }
+            boolean door = next.state.getBlock() instanceof DoorBlock && next.state.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER;
+            if (door) {
+                BlockPos upper = next.pos.above();
+                if (!level.isLoaded(upper)) { state = JobState.STUCK; deferCurrent(level, 200); return; }
+                var above = level.getBlockState(upper);
+                var expected = next.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER);
+                if (level.getBlockEntity(upper) != null || (!above.equals(expected) && (!above.getFluidState().isEmpty()
+                        || (imported ? !above.isAir() : !com.simplecolonies.building.ConstructionSafety.clearable(above))))) {
+                    currentJob.setState(BuildingState.BLOCKED); state = JobState.STUCK;
+                    ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 200); return;
+                }
+            }
+            var existing = level.getBlockState(next.pos);
+            if (existing.equals(next.state)) {
+                if (door && !level.getBlockState(next.pos.above()).equals(next.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER))) {
+                    level.setBlock(next.pos.above(), next.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3);
+                }
+                currentJob.markPlaced(next); // already present, do not charge twice
+            } else {
+                // Never demolish somebody's building or a solid obstruction.
+                if (level.getBlockEntity(next.pos) != null || !existing.getFluidState().isEmpty()
+                        || (imported ? !existing.isAir() : !com.simplecolonies.building.ConstructionSafety.clearable(existing))) {
+                    currentJob.setState(BuildingState.BLOCKED);
+                    ColonyManager.getInstance().markDirty(colony);
+                    state = JobState.STUCK;
+                    deferCurrent(level, 200);
+                    return;
+                }
+                // Never place a solid block into a person or animal. If the builder
+                // occupies the space, ask it to leave the plot before retrying.
+                var box = new net.minecraft.world.phys.AABB(next.pos);
+                if (door) box = box.expandTowards(0, 1, 0);
+                if (!level.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class, box,
+                        net.minecraft.world.entity.LivingEntity::isAlive).isEmpty()) {
+                    if (villager.getBoundingBox().intersects(box)) {
+                        BlockPos outside = currentJob.getPos().offset(0, 0, -5);
+                        var escape = villager.getNavigation().createPath(outside, 1);
+                        if (escape != null && escape.canReach()) villager.getNavigation().moveTo(escape, 0.7);
+                    }
+                    state = JobState.STUCK;
+                    deferCurrent(level, 40);
+                    ticksUntilNextWork = 20;
+                    return;
+                }
+                if (!(physical != null ? physical.takePrepared(next.itemId) : ConstructionCrafting.take(stock, next.itemId))) {
+                    currentJob.setState(BuildingState.NEEDS_RESOURCES);
+                    ColonyManager.getInstance().markDirty(colony);
+                    state = JobState.NEEDS_RESOURCE;
+                    deferCurrent(level, 100);
+                    return;
+                }
+                boolean placed;
+                if (door) {
+                    var originalAbove = level.getBlockState(next.pos.above());
+                    placed = level.setBlock(next.pos, next.state, 2);
+                    if (placed && !level.setBlock(next.pos.above(), next.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3)) {
+                        level.setBlock(next.pos, existing, 3);
+                        level.setBlock(next.pos.above(), originalAbove, 3);
+                        placed = false;
+                    }
+                } else placed = level.setBlock(next.pos, next.state, 3);
+                if (!placed) {
+                    // Crafting may have made a batch; restore the one output that was taken.
+                    if (physical != null) physical.refund(next.itemId);
+                    else stock.add(next.itemId, 1);
+                    currentJob.setState(BuildingState.BLOCKED);
+                    ColonyManager.getInstance().markDirty(colony);
+                    state = JobState.STUCK;
+                    deferCurrent(level, 200);
+                    return;
+                }
+                villager.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+                currentJob.markPlaced(next);
+            }
+            currentJob.setState(BuildingState.UNDER_CONSTRUCTION);
+            ColonyManager.getInstance().markDirty(colony);
+        }
+    }
+}
