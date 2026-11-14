@@ -26,6 +26,8 @@ jobs:
           test ${PIPESTATUS[0]} -eq 0
       - name: Run Create compatibility GameTests
         if: ${{ !cancelled() && steps.jar.outcome == 'success' }}
+        env:
+          SIMPLECOLONIES_REQUIRE_CREATE: 'true'
         run: |
           timeout 420s ./gradlew runGameTestServer -PwithCreateTest --info 2>&1 | tee create-gametest.log
           test ${PIPESTATUS[0]} -eq 0

@@ -24,6 +24,14 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder("simplecolonies")
 @PrefixGameTestTemplate(false)
 public class CreateIntegrationGameTests {
+    private static boolean createAvailable(GameTestHelper helper) {
+        if (CreateSchematicIntegration.isCreateLoaded()) return true;
+        if ("true".equals(System.getenv("SIMPLECOLONIES_REQUIRE_CREATE")))
+            helper.fail("Create compatibility run did not load Create");
+        else helper.succeed();
+        return false;
+    }
+
     @SuppressWarnings("unchecked")
     private static ItemStack schematic(GameTestHelper helper, BlockPos source, Vec3i size, BlockPos destination) throws Exception {
         var owner = "simplecolonies-test-" + java.util.UUID.randomUUID();
@@ -46,7 +54,7 @@ public class CreateIntegrationGameTests {
 
     @GameTest(template = "empty", timeoutTicks = 300)
     public static void deployedCreateSchematicQueuesOnceAndPreservesBlueprint(GameTestHelper helper) throws Exception {
-        if (!CreateSchematicIntegration.isCreateLoaded()) { helper.succeed(); return; }
+        if (!createAvailable(helper)) return;
         var src = new BlockPos(2, 1, 2);
         helper.setBlock(src, Blocks.OAK_PLANKS); helper.setBlock(src.east(), Blocks.COBBLESTONE);
         var blueprint = schematic(helper, src, new Vec3i(2, 1, 1), new BlockPos(10, 1, 10));
@@ -73,7 +81,7 @@ public class CreateIntegrationGameTests {
 
     @GameTest(template = "empty", timeoutTicks = 300)
     public static void unsupportedCreateSchematicDoesNotConsumeOrQueue(GameTestHelper helper) throws Exception {
-        if (!CreateSchematicIntegration.isCreateLoaded()) { helper.succeed(); return; }
+        if (!createAvailable(helper)) return;
         var src = new BlockPos(2, 1, 2); helper.setBlock(src, Blocks.CHEST);
         var blueprint = schematic(helper, src, new Vec3i(1, 1, 1), new BlockPos(10, 1, 10));
         var chest = new BlockPos(6, 1, 6); helper.setBlock(chest, Blocks.CHEST);
