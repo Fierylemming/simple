@@ -23,9 +23,11 @@ public class Building {
     private int planVersion = 13;
     private HouseTimber houseTimber = HouseTimber.OAK;
     private int houseVariant;
-    // Versioned, resumable tier-two smithy wing. Null for all other plans.
+    // The current/most recently completed wing, plus prior completed wings.
+    // Version 1 is the original smithy plan; version 2 supports other worksites.
     private BlockPos upgradeSite;
     private int upgradePlanVersion;
+    private final List<BlockPos> previousWings = new ArrayList<>();
     private final Map<String, Integer> requiredResources = new HashMap<>();
     private final Queue<BlockPlacement> placements = new ArrayDeque<>();
     private final List<BlockPlacement> completed = new ArrayList<>();
@@ -70,6 +72,37 @@ public class Building {
         return !isPlayerPlaced && type == BuildingType.BLACKSMITH && planVersion >= 7
                 && level == 1 && state == BuildingState.COMPLETE && upgradeSite == null;
     }
+    /** Generated worksite upgrades add a separate real workstation wing. */
+    public boolean canBuildWorksiteWing() {
+        return !isPlayerPlaced && state == BuildingState.COMPLETE && level < 5
+                && (type == BuildingType.HOUSE && planVersion >= 5
+                    || LevelOneWorksites.supports(type, planVersion) && wingStation(type) != null);
+    }
+    public List<BlockPos> completedWingSites() {
+        var sites = new ArrayList<>(previousWings);
+        if (!isUpgrading() && upgradeSite != null && !sites.contains(upgradeSite)) sites.add(upgradeSite);
+        return List.copyOf(sites);
+    }
+    public boolean isOperational() { return state == BuildingState.COMPLETE || isUpgrading(); }
+    public List<BlockPos> shelterSites() {
+        if (type != BuildingType.HOUSE) return List.of(pos);
+        var sites = new ArrayList<BlockPos>(); sites.add(pos); sites.addAll(completedWingSites());
+        return List.copyOf(sites);
+    }
+    public static BlockState wingStation(BuildingType type) {
+        return switch (type) {
+            case BUILDER_HUT -> net.minecraft.world.level.block.Blocks.ANVIL.defaultBlockState();
+            case LUMBERJACK_HUT -> net.minecraft.world.level.block.Blocks.CAMPFIRE.defaultBlockState()
+                    .setValue(net.minecraft.world.level.block.CampfireBlock.LIT, false);
+            case MINE -> net.minecraft.world.level.block.Blocks.FURNACE.defaultBlockState();
+            case BLACKSMITH -> net.minecraft.world.level.block.Blocks.SMITHING_TABLE.defaultBlockState();
+            case BUTCHER_HUT, BAKERY -> net.minecraft.world.level.block.Blocks.SMOKER.defaultBlockState();
+            case LEATHER_SHOP -> net.minecraft.world.level.block.Blocks.CAULDRON.defaultBlockState();
+            case HARBOR, WAREHOUSE -> net.minecraft.world.level.block.Blocks.BARREL.defaultBlockState();
+            case BARRACKS -> net.minecraft.world.level.block.Blocks.GRINDSTONE.defaultBlockState();
+            default -> null;
+        };
+    }
     public int getHouseVariant() { return houseVariant; }
     public static int houseVariantAt(BlockPos pos) { return LevelOneHouses.variant(pos); }
     /** Footprint for newly queued houses; legacy saved plans remain unchanged. */
@@ -89,11 +122,20 @@ public class Building {
         placements.clear();
         requiredResources.clear();
         if (upgradeSite != null) {
-            if (upgradePlanVersion != 1) return; // Unknown future plan: never replace it with an old one.
+            if (upgradePlanVersion != 1 && upgradePlanVersion != 2 && upgradePlanVersion != 3) return;
             var plan = new ArrayList<BlockPlacement>();
-            LevelOneWorksites.generate(BuildingType.BLACKSMITH, upgradeSite, culture, (at, block) ->
+            if (upgradePlanVersion == 3 && type == BuildingType.HOUSE) {
+                CulturalHousePlans.generate(upgradeSite, culture, houseVariant, (at, block) ->
+                        plan.add(placement(at, planVersion >= 12 ? houseTimber.replaceOak(block) : block)));
+                addPlan(plan, true);
+                return;
+            }
+            BuildingType wingType = upgradePlanVersion == 1 ? BuildingType.BLACKSMITH : type;
+            BlockState station = wingStation(wingType);
+            if (upgradePlanVersion == 3 || !LevelOneWorksites.supports(wingType) || station == null) return;
+            LevelOneWorksites.generate(wingType, upgradeSite, culture, (at, block) ->
                     plan.add(placement(at, planVersion >= 12 ? houseTimber.replaceOak(block) : block)));
-            plan.add(placement(upgradeSite, net.minecraft.world.level.block.Blocks.SMITHING_TABLE.defaultBlockState()));
+            plan.add(placement(upgradeSite, station));
             addPlan(plan, false);
             return;
         }
@@ -164,7 +206,7 @@ public class Building {
     }
 
     public boolean hasSupportedPlan() {
-        return !isPlayerPlaced && (upgradeSite == null || upgradePlanVersion == 1)
+        return !isPlayerPlaced && (upgradeSite == null || upgradePlanVersion == 1 || upgradePlanVersion == 2 || upgradePlanVersion == 3)
                 && (type == BuildingType.HOUSE || (planVersion >= 4 && LevelOneWorksites.supports(type, planVersion)));
     }
 
@@ -185,6 +227,36 @@ public class Building {
         return List.copyOf(plan);
     }
 
+    /** Preview a wing without consuming resources or changing the current plan. */
+    public List<BlockPlacement> previewWorksiteWing(BlockPos site) {
+        if (!canBuildWorksiteWing() || site == null) return List.of();
+        var plan = new ArrayList<BlockPlacement>();
+        if (type == BuildingType.HOUSE) {
+            CulturalHousePlans.generate(site, culture, houseVariant, (at, block) ->
+                    plan.add(placement(at, planVersion >= 12 ? houseTimber.replaceOak(block) : block)));
+        } else {
+            LevelOneWorksites.generate(type, site, culture, (at, block) ->
+                    plan.add(placement(at, planVersion >= 12 ? houseTimber.replaceOak(block) : block)));
+            plan.add(placement(site, wingStation(type)));
+        }
+        plan.sort(Comparator.comparingInt(p -> {
+            int y = p.pos.getY() - pos.getY();
+            if (type == BuildingType.HOUSE && y == 0) return 0;
+            if (y >= (type == BuildingType.HOUSE ? 4 : 3)) return 1;
+            if (p.state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock) return 3;
+            return 2;
+        }));
+        return List.copyOf(plan);
+    }
+
+    public boolean beginWorksiteWing(BlockPos site) {
+        if (!canBuildWorksiteWing() || site == null) return false;
+        if (upgradeSite != null && !previousWings.contains(upgradeSite)) previousWings.add(upgradeSite);
+        upgradeSite = site.immutable(); upgradePlanVersion = type == BuildingType.HOUSE ? 3 : 2;
+        completed.clear(); loadSchematicPlacements(); state = BuildingState.UNDER_CONSTRUCTION;
+        return true;
+    }
+
     public boolean beginSmithyWing(BlockPos site) {
         if (!canBuildSmithyWing() || site == null) return false;
         upgradeSite = site.immutable(); upgradePlanVersion = 1;
@@ -196,7 +268,8 @@ public class Building {
     /** Upgrade cancellation preserves the completed parent and all placed blocks. */
     public boolean cancelUpgrade() {
         if (!isUpgrading()) return false;
-        upgradeSite = null; upgradePlanVersion = 0;
+        upgradeSite = previousWings.isEmpty() ? null : previousWings.remove(previousWings.size() - 1);
+        upgradePlanVersion = upgradeSite == null ? 0 : 2;
         placements.clear(); completed.clear(); requiredResources.clear();
         state = BuildingState.COMPLETE;
         return true;
@@ -205,7 +278,7 @@ public class Building {
     /** Only award the tier after the builder has installed every real block. */
     public void finishConstruction() {
         if (!placements.isEmpty()) return;
-        if (upgradeSite != null) level = 2;
+        if (isUpgrading()) level = Math.min(5, level + 1);
         state = BuildingState.COMPLETE;
     }
 
@@ -270,6 +343,7 @@ public class Building {
         tag.putInt("houseVariant", houseVariant);
         if (planVersion >= 12) tag.putString("houseTimber", houseTimber.id);
         tag.putBoolean("isPlayerPlaced", isPlayerPlaced);
+        if (!previousWings.isEmpty()) tag.putLongArray("previousWings", previousWings.stream().mapToLong(BlockPos::asLong).toArray());
         if (upgradeSite != null) {
             tag.putLong("upgradeSite", upgradeSite.asLong());
             tag.putInt("upgradePlanVersion", upgradePlanVersion);
@@ -293,7 +367,8 @@ public class Building {
         b.houseVariant = tag.contains("houseVariant") ? Math.floorMod(tag.getInt("houseVariant"), LevelOneHouses.VARIANTS) : LevelOneHouses.variant(pos);
         b.state = BuildingState.valueOf(tag.getString("state"));
         b.level = tag.getInt("level");
-        if (!isPlayer && type == BuildingType.BLACKSMITH && tag.contains("upgradeSite")) {
+        if (!isPlayer) for (long p : tag.getLongArray("previousWings")) b.previousWings.add(BlockPos.of(p));
+        if (!isPlayer && tag.contains("upgradeSite")) {
             b.upgradeSite = BlockPos.of(tag.getLong("upgradeSite"));
             b.upgradePlanVersion = tag.getInt("upgradePlanVersion");
         }

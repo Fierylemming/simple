@@ -35,7 +35,7 @@ public class ButcherJob extends AbstractJob {
             return;
         }
         var hut = colony.getBuildings().stream()
-                .filter(b -> b.getType() == BuildingType.BUTCHER_HUT && b.getState() == BuildingState.COMPLETE)
+                .filter(b -> b.getType() == BuildingType.BUTCHER_HUT && b.isOperational())
                 .filter(b -> level.isLoaded(b.getPos()))
                 .min(java.util.Comparator.comparingDouble(b -> b.getPos().distSqr(villager.blockPosition())))
                 .orElse(null);

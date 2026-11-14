@@ -60,7 +60,7 @@ public abstract class AbstractJob {
         // A farm's registered center can be several blocks from its composter.
         // Prefer the nearest matching completed building to this villager's own POI.
         return colony.getBuildings().stream()
-                .filter(b -> b.getType().job == type && b.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
+                .filter(b -> b.getType().job == type && b.isOperational())
                 .filter(b -> b.getPos().distSqr(claimedSite) <= 144)
                 .min(java.util.Comparator.comparingDouble(b -> b.getPos().distSqr(claimedSite)))
                 .map(com.simplecolonies.building.Building::getPos).orElse(claimedSite);

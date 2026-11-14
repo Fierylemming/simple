@@ -230,7 +230,7 @@ public class Colony {
     }
 
     private int shelterCapacity() {
-        return buildings.stream().filter(b -> b.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
+        return buildings.stream().filter(Building::isOperational)
                 .mapToInt(b -> b.getType() == BuildingType.TOWN_HALL ? 4
                         : b.getType() == BuildingType.HOUSE ? houseShelterCapacity(b) : 0).sum();
     }
@@ -241,8 +241,13 @@ public class Colony {
         var spaces = new TreeMap<BlockPos, Integer>(Comparator.comparingInt((BlockPos p) -> p.getX())
                 .thenComparingInt(p -> p.getY()).thenComparingInt(p -> p.getZ()));
         for (Building building : buildings) {
-            if (building.getType() == BuildingType.HOUSE && building.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
-                spaces.putIfAbsent(building.getPos(), Math.max(0, houseShelterCapacity(building)));
+            if (building.getType() == BuildingType.HOUSE && building.isOperational()) {
+                var sites = building.shelterSites();
+                int total = Math.max(0, houseShelterCapacity(building));
+                int wingCapacity = Math.min(total, Math.max(0, sites.size() - 1) * building.getType().housingCapacity);
+                spaces.putIfAbsent(building.getPos(), total - wingCapacity);
+                for (int i = 1; i < sites.size(); i++) spaces.putIfAbsent(sites.get(i), building.getType().housingCapacity);
+            }
         }
         var ordered = citizens.values().stream().sorted(Comparator.comparing((CitizenData c) -> c.uuid)).toList();
         boolean changed = false;

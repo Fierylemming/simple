@@ -94,7 +94,7 @@ public class FishermanJob extends AbstractJob {
             clearJobPath(); state = JobState.STUCK; ticksUntilNextWork = 100; return;
         }
         var harbor = colony.getBuildings().stream()
-                .filter(b -> b.getType() == BuildingType.HARBOR && b.getState() == BuildingState.COMPLETE)
+                .filter(b -> b.getType() == BuildingType.HARBOR && b.isOperational())
                 .filter(b -> level.isLoaded(b.getPos()) && b.getPos().distSqr(site.get().pos()) <= 144)
                 .min(Comparator.comparingDouble(b -> b.getPos().distSqr(site.get().pos()))).orElse(null);
         if (harbor == null) { lastSearch = "no loaded completed harbor near " + site.get().pos().toShortString(); clearJobPath(); state = JobState.STUCK; ticksUntilNextWork = 100; return; }

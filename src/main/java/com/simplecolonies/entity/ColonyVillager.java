@@ -7,6 +7,7 @@ import com.simplecolonies.menu.VillagerInteractionMenu;
 import com.simplecolonies.villager.job.*;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.core.GlobalPos;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.VillagerData;
 import com.simplecolonies.villager.ColonyProfessions;
@@ -441,19 +442,22 @@ public class ColonyVillager extends Villager {
         var record = colony.getCitizens().stream().filter(c -> c.uuid.equals(getUUID())).findFirst().orElse(null);
         var home = record == null ? null : record.home;
         var shelters = colony.getBuildings().stream()
-                .filter(b -> b.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
+                .filter(com.simplecolonies.building.Building::isOperational)
                 .filter(b -> b.getType() == com.simplecolonies.building.BuildingType.TOWN_HALL
                         || b.getType() == com.simplecolonies.building.BuildingType.HOUSE)
-                .filter(b -> level.isLoaded(b.getPos()))
-                .sorted(java.util.Comparator.<com.simplecolonies.building.Building>comparingInt(b -> b.getPos().equals(home) ? 0 : 1)
-                        .thenComparingDouble(b -> b.getPos().distSqr(blockPosition())))
+                .flatMap(b -> b.shelterSites().stream().map(site -> java.util.Map.entry(b, site)))
+                .filter(entry -> level.isLoaded(entry.getValue()))
+                .sorted(java.util.Comparator.<java.util.Map.Entry<com.simplecolonies.building.Building, BlockPos>>comparingInt(entry -> entry.getValue().equals(home) ? 0 : 1)
+                        .thenComparingDouble(entry -> entry.getValue().distSqr(blockPosition())))
                 .toList();
-        for (var shelter : shelters) {
-            int y = shelter.isPlayerPlaced ? shelter.getPos().getY() : shelter.constructionWalkY();
+        for (var entry : shelters) {
+            var shelter = entry.getKey();
+            var anchor = entry.getValue();
+            int y = shelter.isPlayerPlaced ? anchor.getY() : anchor.getY() + shelter.constructionWalkY() - shelter.getPos().getY();
             var candidates = new java.util.ArrayList<net.minecraft.core.BlockPos>();
             // The central 3x3 is inside all generated shells, including old houses.
             for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++) {
-                var pos = new net.minecraft.core.BlockPos(shelter.getPos().getX() + x, y, shelter.getPos().getZ() + z);
+                var pos = new net.minecraft.core.BlockPos(anchor.getX() + x, y, anchor.getZ() + z);
                 if (usableShelterSpot(level, pos) && ShelterSafety.enclosed(level, pos)) candidates.add(pos);
             }
             candidates.sort(java.util.Comparator.comparingDouble(p -> p.distSqr(blockPosition())));
@@ -462,7 +466,7 @@ public class ColonyVillager extends Villager {
             var existing = getBrain().getMemory(MemoryModuleType.WALK_TARGET);
             if (existing.isPresent() && candidates.contains(existing.get().getTarget().currentBlockPosition())
                     && !getNavigation().isDone()) {
-                setShelterCache(shelter.getPos(), candidates);
+                setShelterCache(anchor, candidates);
                 return;
             }
             boolean alreadySheltered = candidates.contains(blockPosition());
@@ -473,21 +477,21 @@ public class ColonyVillager extends Villager {
                 // the current position as proof that this walk will stay safe.
                 if (blockPosition().equals(target)) {
                     if (!leaving) {
-                        setShelterCache(shelter.getPos(), candidates);
+                        setShelterCache(anchor, candidates);
                         return;
                     }
                     continue;
                 }
                 var path = getNavigation().createPath(target, 0);
                 if (path != null && path.canReach()) {
-                    setShelterCache(shelter.getPos(), candidates);
+                    setShelterCache(anchor, candidates);
                     getBrain().setMemory(MemoryModuleType.WALK_TARGET,
                             new net.minecraft.world.entity.ai.memory.WalkTarget(target, 0.7f, 0));
                     return;
                 }
             }
             if (alreadySheltered && leaving) {
-                setShelterCache(shelter.getPos(), candidates);
+                setShelterCache(anchor, candidates);
                 // If no alternative indoor path exists, ask the vanilla brain
                 // to stop at the current safe spot rather than leave the shelter.
                 getBrain().setMemory(MemoryModuleType.WALK_TARGET,
@@ -553,8 +557,8 @@ public class ColonyVillager extends Villager {
                 shelterDoors.put(p.immutable(), now + 600);
         }
         if (shelterDoors.isEmpty() || !shelterInterior.contains(blockPosition())) return;
-        boolean registered = colony.getBuildings().stream().anyMatch(b -> b.getPos().equals(shelterAnchor)
-                && b.getState() == com.simplecolonies.building.BuildingState.COMPLETE
+        boolean registered = colony.getBuildings().stream().anyMatch(b -> b.shelterSites().contains(shelterAnchor)
+                && b.isOperational()
                 && (b.getType() == com.simplecolonies.building.BuildingType.HOUSE
                     || b.getType() == com.simplecolonies.building.BuildingType.TOWN_HALL));
         if (!registered || !usableShelterSpot(level, blockPosition()) || !ShelterSafety.enclosed(level, blockPosition())) return;
@@ -584,8 +588,8 @@ public class ColonyVillager extends Villager {
         if (shelterAnchor == null || !shelterInterior.contains(here)) return;
         var walk = getBrain().getMemory(MemoryModuleType.WALK_TARGET);
         if (walk.isEmpty() || shelterInterior.contains(walk.get().getTarget().currentBlockPosition())) return;
-        boolean registered = colony.getBuildings().stream().anyMatch(b -> b.getPos().equals(shelterAnchor)
-                && b.getState() == com.simplecolonies.building.BuildingState.COMPLETE
+        boolean registered = colony.getBuildings().stream().anyMatch(b -> b.shelterSites().contains(shelterAnchor)
+                && b.isOperational()
                 && (b.getType() == com.simplecolonies.building.BuildingType.HOUSE
                     || b.getType() == com.simplecolonies.building.BuildingType.TOWN_HALL));
         if (!registered || !usableShelterSpot(level, here) || !ShelterSafety.enclosed(level, here)) return;

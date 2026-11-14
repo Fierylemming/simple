@@ -113,7 +113,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
                 }
                 for (int i=buildingScroll; i<Math.min(buildingScroll+4, Math.min(100, buildings.size())); i++) {
                     var building = buildings.get(i);
-                    if (building.canBuildSmithyWing() || (building.isPlayerPlaced && building.getType()==BuildingType.HOUSE && building.getLevel()<5)) {
+                    if (building.canBuildWorksiteWing() || (building.isPlayerPlaced && building.getType()==BuildingType.HOUSE && building.getLevel()<5)) {
                         final int index=i;
                         addRenderableWidget(Button.builder(Component.literal("Upgrade"), b->send(TownHallMenu.BTN_UPGRADE_BUILDING_BASE+index))
                                 .bounds(x+244, y+78+(i-buildingScroll)*32, 58, 16).build());
@@ -287,7 +287,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
         g.drawString(font, b.getType().displayName+" Lv"+b.getLevel()+"  ["+b.getState()+"]", x+24,y+2, done?C_GREEN: C_TEXT,false);
         g.drawString(font, b.getPos().toShortString(), x+24,y+13, C_TEXT_MUTED,false);
         // upgrade hint
-        String up = b.isPlayerPlaced ? (b.getType()==BuildingType.HOUSE ? "Marker: "+menu.colony.houseShelterCapacity(b)+" shelter slots; no beds" : "Player-designated building") : (b.getType()==BuildingType.BLACKSMITH ? (b.isUpgrading()?"Smithy wing under construction":b.getLevel()==1?"Lv2: build a second workshop":"Lv2 workshop wing") : "Generated plan; no upgrade yet");
+        String up = b.isPlayerPlaced ? (b.getType()==BuildingType.HOUSE ? "Marker: "+menu.colony.houseShelterCapacity(b)+" shelter slots; no beds" : "Player-designated building") : (b.isUpgrading()?"Wing under construction":b.canBuildWorksiteWing()?"Upgrade: build an additional wing":"Generated plan; no upgrade available");
         g.drawString(font, up, x+24,y+22, b.getLevel()>=5?C_GOLD:C_TEXT_MID,false);
     }
     private String BuildingIcon(BuildingType t){ return switch(t){ case HOUSE->"⌂"; case FARM->"⚘"; case LUMBERJACK_HUT->"♠"; case MINE->"⛏"; case WAREHOUSE->"▣"; case BARRACKS->"⚔"; case BLACKSMITH->"⚒"; case BAKERY->"◯"; default->"⬢"; }; }

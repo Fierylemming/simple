@@ -186,4 +186,51 @@ class WorksitePlanTest {
         assertEquals(99, loaded.save().getInt("upgradePlanVersion"));
     }
 
+    @Test void generatedHousesAndWorksitesPersistPhysicalWingsThroughFiveTiers() {
+        for (var type : java.util.List.of(BuildingType.HOUSE, BuildingType.BLACKSMITH, BuildingType.BAKERY,
+                BuildingType.BUILDER_HUT, BuildingType.LUMBERJACK_HUT, BuildingType.MINE, BuildingType.BUTCHER_HUT,
+                BuildingType.LEATHER_SHOP, BuildingType.HARBOR, BuildingType.WAREHOUSE, BuildingType.BARRACKS)) {
+            var building = new Building(type, BlockPos.ZERO, CultureType.GREEK, HouseTimber.BIRCH);
+            building.setState(BuildingState.COMPLETE);
+            for (int target = 2; target <= 5; target++) {
+                assertTrue(building.canBuildWorksiteWing(), type + " at " + target);
+                BlockPos wing = BlockPos.ZERO.east(target * 8);
+                var preview = building.previewWorksiteWing(wing);
+                assertFalse(preview.isEmpty(), type.toString());
+                assertTrue(building.beginWorksiteWing(wing));
+                assertEquals(target - 1, building.getLevel());
+                assertTrue(building.isOperational());
+                assertEquals(target - 2, building.completedWingSites().size());
+                assertEquals(preview.get(0).pos, building.getNextPlacement().pos);
+                building.markPlaced(building.getNextPlacement());
+                var restored = Building.load(building.save());
+                assertEquals(building.getNextPlacement().pos, restored.getNextPlacement().pos);
+                assertEquals(building.getNextPlacement().state, restored.getNextPlacement().state);
+                assertEquals(target - 2, restored.completedWingSites().size());
+                while (restored.getNextPlacement() != null) restored.markPlaced(restored.getNextPlacement());
+                restored.finishConstruction();
+                assertEquals(target, restored.getLevel());
+                assertEquals(target - 1, restored.completedWingSites().size());
+                if (type == BuildingType.HOUSE) assertEquals(target, restored.shelterSites().size());
+                assertEquals(restored.completedWingSites(), Building.load(restored.save()).completedWingSites());
+                building = restored;
+            }
+            assertFalse(building.canBuildWorksiteWing());
+        }
+    }
+
+    @Test void cancellationOfLaterWingRetainsEarlierCompletedShelters() {
+        var house = new Building(BuildingType.HOUSE, BlockPos.ZERO, CultureType.ROMAN);
+        house.setState(BuildingState.COMPLETE);
+        var first = BlockPos.ZERO.east(7);
+        assertTrue(house.beginWorksiteWing(first));
+        while (house.getNextPlacement() != null) house.markPlaced(house.getNextPlacement());
+        house.finishConstruction();
+        assertTrue(house.beginWorksiteWing(BlockPos.ZERO.west(7)));
+        assertEquals(java.util.List.of(BlockPos.ZERO, first), house.shelterSites());
+        assertTrue(house.cancelUpgrade());
+        assertEquals(2, house.getLevel());
+        assertEquals(java.util.List.of(BlockPos.ZERO, first), Building.load(house.save()).shelterSites());
+    }
+
 }
