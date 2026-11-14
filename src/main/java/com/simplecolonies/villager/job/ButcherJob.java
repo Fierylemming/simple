@@ -34,18 +34,17 @@ public class ButcherJob extends AbstractJob {
                     : delivery == PhysicalJobCargo.Delivery.DELIVERED ? 40 : 100;
             return;
         }
-        var hut = colony.getBuildings().stream()
+        var huts = colony.getBuildings().stream()
                 .filter(b -> b.getType() == BuildingType.BUTCHER_HUT && b.isOperational())
-                .filter(b -> level.isLoaded(b.getPos()))
-                .min(java.util.Comparator.comparingDouble(b -> b.getPos().distSqr(villager.blockPosition())))
-                .orElse(null);
+                .filter(b -> level.isLoaded(b.getPos())).toList();
         // A generated hut is not permission to slaughter nearby player animals.
         // Require a still-linked player-designated pasture near the hut; removing
         // or changing the marker revokes permission immediately on the next action.
-        var pasture = hut == null ? null : colony.getBuildings().stream()
+        var pasture = colony.getBuildings().stream()
                 .filter(b -> b.isPlayerPlaced && b.getType() == BuildingType.PASTURE
                         && b.getState() == BuildingState.COMPLETE && level.isLoaded(b.getPos())
-                        && colony.isInside(b.getPos()) && hut.distanceToOperationalSite(b.getPos()) <= 20 * 20)
+                        && colony.isInside(b.getPos())
+                        && huts.stream().anyMatch(hut -> hut.distanceToOperationalSite(b.getPos()) <= 20 * 20))
                 .filter(b -> level.getBlockEntity(b.getPos()) instanceof com.simplecolonies.block.entity.BuildingMarkerBlockEntity marker
                         && marker.getBuildingType() == BuildingType.PASTURE && b.getPos().equals(marker.getLinkedBuildingPos()))
                 .min(java.util.Comparator.comparingDouble(b -> b.getPos().distSqr(villager.blockPosition()))).orElse(null);
