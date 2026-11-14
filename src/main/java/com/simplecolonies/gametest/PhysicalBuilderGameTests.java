@@ -143,7 +143,13 @@ public class PhysicalBuilderGameTests {
             helper.fail("Could not queue and protect the site");
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(7, 1, 9)); worker.setNoAi(true);
         var job = new BuilderJob(worker, colony);
-        for (int tick = 1; tick < 900; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        if (container.countItem(Items.OAK_PLANKS) != 1) helper.fail("Fixture chest was not stocked");
+        for (int tick = 1; tick < 900; tick++) helper.runAtTickTime(tick, () -> {
+            if (colony.isProtectedPlot(center) && container.countItem(Items.OAK_PLANKS) != 1)
+                helper.fail("Stock disappeared while protected, before job tick: carried=" + worker.getBuilderMaterials().countItem(Items.OAK_PLANKS)
+                        + " plan=" + plan.getState() + " job=" + job.getState());
+            job.tick(helper.getLevel());
+        });
         boolean[] unprotected = {false};
         helper.runAtTickTime(150, () -> {
             if (!helper.getBlockState(base).isAir() || container.countItem(Items.OAK_PLANKS) != 1
