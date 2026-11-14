@@ -223,7 +223,7 @@ public class ButcherGameTests {
         });
         helper.runAtTickTime(2100, () -> {
             var herd = helper.getLevel().getEntitiesOfClass(Cow.class, new AABB(center).inflate(8, 4, 8), Cow::isAlive);
-            if (!collected[0] || !fed[0] || !fed[1] || herd.stream().noneMatch(Cow::isBaby)
+            if (!collected[0] || !fed[0] || !fed[1] || fedAt[0] != fedAt[1] || herd.stream().noneMatch(Cow::isBaby)
                     || !first.isAlive() || !second.isAlive() || colony.getWarehouseCount(helper.getLevel(), "minecraft:wheat") != 2)
                 helper.fail("Breeding incomplete: fed=" + fed[0] + "," + fed[1] + " herd=" + herd.size()
                         + " wheat=" + colony.getWarehouseCount(helper.getLevel(), "minecraft:wheat") + " state=" + job.getState()
