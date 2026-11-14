@@ -222,11 +222,14 @@ public class SmithFurnaceGameTests {
                 machine.setItem(0, new ItemStack(Items.GOLD_ORE, 2)); altered[0] = true;
             }
         });
-        helper.runAtTickTime(550, () -> {
+        // Check after the next smith action but before vanilla smelts the player's gold.
+        helper.runAtTickTime(220, () -> {
             if (!altered[0] || !machine.getItem(0).is(Items.GOLD_ORE) || machine.getItem(0).getCount() != 2
                     || helper.getBlockEntity(furnacePos).getPersistentData().contains("simplecolonies_smith_batch")
                     || !worker.getCourierCargo().isEmpty() || storage.countItem(Items.IRON_INGOT) != 0)
-                helper.fail("Physical smith touched a player-modified furnace or invented iron: " + job.getState());
+                helper.fail("Physical smith touched a player-modified furnace or invented iron: " + job.getState()
+                        + " altered=" + altered[0] + " input=" + machine.getItem(0) + " output=" + machine.getItem(2)
+                        + " cargo=" + worker.getCourierCargo() + " tag=" + helper.getBlockEntity(furnacePos).getPersistentData());
             helper.succeed();
         });
     }
