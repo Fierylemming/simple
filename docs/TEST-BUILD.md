@@ -119,3 +119,7 @@ The smithy wing and stock-access notes above describe earlier milestones: genera
 ### Follow orders and missing workstations
 
 A loaded guard or soldier's leader-follow order is saved across entity reload. The leader must be online in the same dimension for the defender to follow; the order does not load or teleport anyone. A leadership change, job reassignment or transfer to a different colony clears the order. The staff rally still commands loaded defenders only. If a non-combat worker loses its workstation, it attempts to return carried output and reserved inputs to reachable shared storage, retaining them if storage is unavailable; it does not continue producing without a valid workstation. These behaviors have automated coverage but still need live-world testing.
+
+### Diplomacy preview
+
+The town hall's diplomacy actions target the nearest other colony, not a selected target. War and peace last 14 and 30 world days respectively and survive reloads and time skips; peace prevents another war declaration while the treaty remains active. Alliance and peace change both colonies immediately and do **not** require the other leader's acceptance. With warfare enabled, defenders attack nearby adult enemy defenders during mutual war inside their colony, or while following a valid commander; civilians and children are excluded. This is preliminary combat, not complete warfare or alliance negotiation. Reopen the menu to refresh its snapshot.

@@ -316,7 +316,8 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
         }
         int need=(int)Math.ceil(c.citizenCount()*com.simplecolonies.config.ColonyConfig.FOOD_CONSUMPTION_MULTIPLIER.get());
         g.fill(x,y,x+316,y+12, need<=bread(c)?C_GREEN_BG:C_RED_BG); g.fill(x,y,x+2,y+12, need<=bread(c)?C_GREEN:C_RED);
-        g.drawString(font, "Need "+need+" food/day  •  bread "+bread(c)+"  •  courier 9 stacks", x+6,y+2, need<=bread(c)?C_GREEN:C_RED,false);
+        int courierStacks = c.getResearch().isUnlocked(ColonyUpgrade.WAREHOUSE_CAPACITY) ? 2 : 1;
+        g.drawString(font, "Need "+need+" food/day  •  bread "+bread(c)+"  •  courier "+courierStacks+" stack"+(courierStacks == 1 ? "" : "s"), x+6,y+2, need<=bread(c)?C_GREEN:C_RED,false);
     }
 
     // ── Diplomacy ──

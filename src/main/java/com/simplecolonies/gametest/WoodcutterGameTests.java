@@ -58,15 +58,12 @@ public class WoodcutterGameTests {
         return count;
     }
 
-    @GameTest(template = "empty", timeoutTicks = 600)
+    @GameTest(template = "isolated", timeoutTicks = 600)
     public static void blockedForestryPathIsRetriedWithoutRemoteCutting(GameTestHelper helper) {
-        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
-        var root = new BlockPos(10, 1, 8);
-        for (int y = 0; y < 4; y++) helper.setBlock(root.above(y), Blocks.OAK_LOG);
-        for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++)
-            if (x != 0 || z != 0) helper.setBlock(root.offset(x, 3, z), Blocks.OAK_LEAVES);
-        var colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
-        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(3, 1, 8)); worker.setNoAi(true);
+        makeTree(helper);
+        var root = ROOT;
+        var colony = colony(helper);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56)); worker.setNoAi(true);
         worker.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.STONE_AXE));
         var job = new WoodcutterJob(worker, colony);
         net.minecraft.world.level.pathfinder.Path[] first = {null};
@@ -80,7 +77,8 @@ public class WoodcutterGameTests {
         helper.runAtTickTime(500, () -> {
             if (first[0] == null || !retried[0] || !helper.getBlockState(root.above(3)).is(Blocks.OAK_LOG)
                     || worker.getMainHandItem().getDamageValue() != 0)
-                helper.fail("Stalled forestry path was not retried safely: " + job.getState());
+                helper.fail("Stalled forestry path was not retried safely: " + job.getState()
+                        + " first=" + (first[0] != null) + " retried=" + retried[0] + " memory=" + worker.getWoodcutterMemory());
             helper.succeed();
         });
     }
