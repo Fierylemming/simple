@@ -31,7 +31,7 @@ public class PhysicalBuilderGameTests {
         BlockPos station = new BlockPos(11, 1, 10), chest = new BlockPos(4, 1, 4), table = new BlockPos(3, 1, 4);
         helper.setBlock(station, Blocks.FURNACE); helper.setBlock(chest, Blocks.CHEST); helper.setBlock(table, Blocks.CRAFTING_TABLE);
         BlockPos origin = helper.absolutePos(station), absChest = helper.absolutePos(chest), absTable = helper.absolutePos(table);
-        Colony colony = new Colony(0, CultureType.ROMAN, origin);
+        Colony colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, origin);
         colony.registerPlayerBuilding(new Building(BuildingType.TOWN_HALL, absTable, CultureType.ROMAN, true));
         var building = new Building(BuildingType.MINE, origin, CultureType.ROMAN);
         colony.registerPlayerBuilding(building);
@@ -92,7 +92,7 @@ public class PhysicalBuilderGameTests {
         BlockPos base = new BlockPos(8, 1, 8), chest = new BlockPos(6, 1, 8);
         helper.setBlock(base, Blocks.OBSIDIAN); helper.setBlock(chest, Blocks.CHEST);
         var center = helper.absolutePos(base);
-        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        Colony colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, center);
         colony.addCitizen(new com.simplecolonies.colony.CitizenData(java.util.UUID.randomUUID(), "Builder", com.simplecolonies.villager.job.JobType.BUILDER));
         if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
         var container = (Container) helper.getBlockEntity(chest);
@@ -131,9 +131,7 @@ public class PhysicalBuilderGameTests {
         var base = new BlockPos(8, 1, 8); var chest = new BlockPos(6, 1, 8);
         helper.setBlock(chest, Blocks.CHEST);
         var center = helper.absolutePos(base);
-        // Other concurrently running GameTests often use colony id 0; give this
-        // shared chest a unique owner so their workers cannot take its stock.
-        var colony = new Colony(-1400000032, CultureType.ROMAN, center);
+        var colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, center);
         colony.addCitizen(new com.simplecolonies.colony.CitizenData(java.util.UUID.randomUUID(), "Builder", com.simplecolonies.villager.job.JobType.BUILDER));
         if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
         var container = (Container) helper.getBlockEntity(chest);
@@ -174,7 +172,7 @@ public class PhysicalBuilderGameTests {
     @GameTest(template = "empty")
     public static void cancellingImportedPlanSuppressesAutomaticRetryAcrossReload(GameTestHelper helper) {
         var center = helper.absolutePos(new BlockPos(8, 1, 8));
-        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        Colony colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, center);
         colony.addCitizen(new com.simplecolonies.colony.CitizenData(java.util.UUID.randomUUID(), "Builder", com.simplecolonies.villager.job.JobType.BUILDER));
         var source = new CompoundTag(); source.putString("source", "cancel-fixture");
         var blocks = java.util.List.of(new Building.BlockPlacement(center.east(10), Blocks.OAK_PLANKS.defaultBlockState(), "minecraft:oak_planks"));

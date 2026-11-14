@@ -44,7 +44,7 @@ public class PhysicalProductionGameTests {
         BlockPos site = new BlockPos(4, 1, 8), chest = new BlockPos(13, 1, 8);
         helper.setBlock(site, Blocks.SMITHING_TABLE); helper.setBlock(chest, Blocks.CHEST);
         var station = helper.absolutePos(site); var storage = helper.absolutePos(chest);
-        var colony = new Colony(0, CultureType.ROMAN, station);
+        var colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, station);
         colony.addCitizen(new com.simplecolonies.colony.CitizenData(java.util.UUID.randomUUID(), "Worker", shears ? JobType.SHEPHERD : JobType.GUARD));
         colony.depositToWarehouse("minecraft:iron_ingot", 4);
         colony.depositToWarehouse("minecraft:stick", 2);
@@ -102,7 +102,7 @@ public class PhysicalProductionGameTests {
         BlockPos site = new BlockPos(4, 1, 8), chest = new BlockPos(13, 1, 8);
         helper.setBlock(site, leather ? Blocks.CAULDRON : Blocks.SMOKER); helper.setBlock(chest, Blocks.CHEST);
         BlockPos station = helper.absolutePos(site), storage = helper.absolutePos(chest);
-        var colony = new Colony(0, CultureType.ROMAN, station);
+        var colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, station);
         if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), storage)) helper.fail("Could not share production storage");
         Item input = leather ? Items.LEATHER : Items.WHEAT, output = leather ? Items.LEATHER_CHESTPLATE : Items.BREAD;
         int amount = leather ? 8 : 3;

@@ -35,7 +35,7 @@ public class ShepherdGameTests {
         helper.setBlock(loom, Blocks.LOOM);
         helper.setBlock(chest, Blocks.CHEST);
         var absMarker = helper.absolutePos(marker);
-        Colony colony = new Colony(0, CultureType.ROMAN, absMarker);
+        Colony colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, absMarker);
         colony.registerPlayerBuilding(new Building(BuildingType.PASTURE, absMarker, CultureType.ROMAN, true));
         var markerEntity = (BuildingMarkerBlockEntity) helper.getBlockEntity(marker);
         markerEntity.setBuildingType(BuildingType.PASTURE); markerEntity.setLinkedBuildingPos(absMarker);
@@ -92,7 +92,7 @@ public class ShepherdGameTests {
         BlockPos center = helper.absolutePos(pasture), absChest = helper.absolutePos(chest);
         var marker = (BuildingMarkerBlockEntity) helper.getBlockEntity(pasture);
         marker.setBuildingType(BuildingType.PASTURE); marker.setLinkedBuildingPos(center);
-        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        Colony colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.PASTURE, center, CultureType.ROMAN, true));
         var container = (Container) helper.getBlockEntity(chest);
         ItemStack shears = new ItemStack(Items.SHEARS); shears.setDamageValue(12); container.setItem(0, shears);
@@ -131,7 +131,7 @@ public class ShepherdGameTests {
         BlockPos center = helper.absolutePos(pasture), absChest = helper.absolutePos(chest);
         var marker = (BuildingMarkerBlockEntity) helper.getBlockEntity(pasture);
         marker.setBuildingType(BuildingType.PASTURE); marker.setLinkedBuildingPos(center);
-        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        Colony colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.PASTURE, center, CultureType.ROMAN, true));
         var container = (Container) helper.getBlockEntity(chest); container.setItem(0, new ItemStack(Items.WHEAT, 4));
         if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), absChest)) helper.fail("Could not share wheat chest");
@@ -181,7 +181,7 @@ public class ShepherdGameTests {
         BlockPos center = helper.absolutePos(pasture);
         var marker = (BuildingMarkerBlockEntity) helper.getBlockEntity(pasture);
         marker.setBuildingType(BuildingType.PASTURE); marker.setLinkedBuildingPos(center);
-        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        Colony colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.PASTURE, center, CultureType.ROMAN, true));
         var container = (Container) helper.getBlockEntity(chest); container.setItem(0, new ItemStack(Items.WHEAT, 4));
         if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
@@ -213,7 +213,7 @@ public class ShepherdGameTests {
         BlockPos center = helper.absolutePos(pasture);
         var marker = (BuildingMarkerBlockEntity) helper.getBlockEntity(pasture);
         marker.setBuildingType(BuildingType.PASTURE); marker.setLinkedBuildingPos(center);
-        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        Colony colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.PASTURE, center, CultureType.ROMAN, true));
         if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(5, 1, 10));
@@ -239,7 +239,7 @@ public class ShepherdGameTests {
         var center = helper.absolutePos(pasture); var absChest = helper.absolutePos(chest);
         var marker = (BuildingMarkerBlockEntity) helper.getBlockEntity(pasture);
         marker.setBuildingType(BuildingType.PASTURE); marker.setLinkedBuildingPos(center);
-        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        Colony colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.PASTURE, center, CultureType.ROMAN, true));
         var container = (Container) helper.getBlockEntity(chest);
         ItemStack special = new ItemStack(Items.WHEAT, 4);
@@ -280,7 +280,7 @@ public class ShepherdGameTests {
         var center = helper.absolutePos(pasture); var absChest = helper.absolutePos(chest);
         var marker = (BuildingMarkerBlockEntity) helper.getBlockEntity(pasture);
         marker.setBuildingType(BuildingType.PASTURE); marker.setLinkedBuildingPos(center);
-        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        Colony colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, center);
         colony.registerPlayerBuilding(new Building(BuildingType.PASTURE, center, CultureType.ROMAN, true));
         var container = (Container) helper.getBlockEntity(chest); container.setItem(0, new ItemStack(Items.WHEAT, 4));
         if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), absChest)) helper.fail("Could not share chest");
@@ -316,7 +316,7 @@ public class ShepherdGameTests {
         BlockPos pasture = new BlockPos(8, 1, 8), loom = new BlockPos(7, 1, 8), chest = new BlockPos(5, 1, 8);
         helper.setBlock(loom, Blocks.LOOM); helper.setBlock(chest, Blocks.CHEST);
         ((Container) helper.getBlockEntity(chest)).setItem(0, new ItemStack(Items.SHEARS));
-        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(pasture));
+        Colony colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, helper.absolutePos(pasture));
         // A stale building record is not enough: its marker has been removed.
         if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share test chest");
         colony.registerPlayerBuilding(new Building(BuildingType.PASTURE, colony.getCenter(), CultureType.ROMAN, true));

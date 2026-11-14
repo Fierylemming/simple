@@ -37,7 +37,7 @@ public class WoodcutterGameTests {
     }
     private static final BlockPos STORAGE = new BlockPos(47, 1, 60);
     private static Colony colony(GameTestHelper helper) {
-        var colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(45, 1, 56)));
+        var colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, helper.absolutePos(new BlockPos(45, 1, 56)));
         helper.setBlock(STORAGE, Blocks.CHEST);
         if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(STORAGE))) helper.fail("Could not share forestry chest");
         return colony;
