@@ -178,6 +178,7 @@ public final class CreateSchematicIntegration {
             BlockPos pos = placement.pos;
             if (!colony.isInside(pos) || !level.isLoaded(pos) || level.isOutsideBuildHeight(pos) || !level.getWorldBorder().isWithinBounds(pos))
                 return "Schematic extends outside the loaded colony or world boundary";
+            if (colony.isProtectedPlot(pos)) return "Schematic overlaps a protected plot";
             for (var building : colony.getBuildings()) {
                 if (building.importedFootprintNear(pos, 8)) return "Schematic overlaps an existing colony building";
                 for (BlockPos footprint : building.footprintSites())

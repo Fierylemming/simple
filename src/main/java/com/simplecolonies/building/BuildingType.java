@@ -32,7 +32,8 @@ public enum BuildingType {
     BUTCHER_HUT("Butcher Hut", "Workplace for Butcher (wheat+furnace, Tier1)", 0, com.simplecolonies.villager.job.JobType.BUTCHER, Map.of("minecraft:cobblestone", 24, "minecraft:furnace", 1)),
     LEATHER_SHOP("Leather Shop", "Workplace for Leatherworker (leather+planks, Tier2 from Butcher)", 0, com.simplecolonies.villager.job.JobType.LEATHERWORKER, Map.of("minecraft:leather", 8, "minecraft:oak_planks", 16)),
     PASTURE("Pasture", "Player-designated livestock work area for shepherds and butchers", 0, com.simplecolonies.villager.job.JobType.SHEPHERD, Map.of()),
-    SCHEMATIC("Schematic", "Imported player-supplied construction plan", 0, null, Map.of());
+    SCHEMATIC("Schematic", "Imported player-supplied construction plan", 0, null, Map.of()),
+    PROTECTED_PLOT("Protected Plot", "Protect terrain and animals in a 17 by 17 area", 0, null, Map.of());
 
     public final String displayName;
     public final String description;

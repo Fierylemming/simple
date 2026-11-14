@@ -59,7 +59,7 @@ public final class ShepherdJob extends AbstractJob {
         var sheep = level.getEntitiesOfClass(Sheep.class, new AABB(center).inflate(6, 3, 6),
                 animal -> animal.isAlive() && colony.isInside(animal.blockPosition()));
         // Breeding already-sheared sheep does not require a pair of shears.
-        if (sheep.stream().noneMatch(a -> !com.simplecolonies.entity.AnimalProtection.protectedFromWorkers(a) && !a.isBaby() && !a.isSheared())) {
+        if (sheep.stream().noneMatch(a -> !protectedAnimal(a) && !a.isBaby() && !a.isSheared())) {
             breedSheep(level, sheep, storage); return;
         }
         if (!villager.getMainHandItem().is(Items.SHEARS)) {
@@ -94,7 +94,7 @@ public final class ShepherdJob extends AbstractJob {
             }
         }
         var shears = villager.getMainHandItem();
-        var target = sheep.stream().filter(animal -> !com.simplecolonies.entity.AnimalProtection.protectedFromWorkers(animal)
+        var target = sheep.stream().filter(animal -> !protectedAnimal(animal)
                         && animal.isShearable(null, shears, level, animal.blockPosition()))
                 .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
         if (target == null) { breedSheep(level, sheep, storage); return; }
@@ -106,7 +106,7 @@ public final class ShepherdJob extends AbstractJob {
             if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
             villager.getNavigation().moveTo(path, 0.7); state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return;
         }
-        if (com.simplecolonies.entity.AnimalProtection.protectedFromWorkers(target)
+        if (protectedAnimal(target)
                 || !target.isShearable(null, shears, level, target.blockPosition())) return;
         var drops = target.onSheared(null, shears, level, target.blockPosition());
         // Preserve all returned stack components. If an unusual modded sheep
@@ -135,7 +135,7 @@ public final class ShepherdJob extends AbstractJob {
      * but are never fed. Keep at least two wheat in storage as a reserve. */
     private void breedSheep(ServerLevel level, java.util.List<Sheep> flock, java.util.List<BlockPos> storage) {
         if (flock.size() >= 4) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
-        var adults = flock.stream().filter(a -> !com.simplecolonies.entity.AnimalProtection.protectedFromWorkers(a) && a.getAge() == 0).toList();
+        var adults = flock.stream().filter(a -> !protectedAnimal(a) && a.getAge() == 0).toList();
         var target = adults.stream().filter(a -> !a.isInLove() && a.canFallInLove())
                 // Do not spend two wheat on sheep that are too far apart to
                 // find each other before vanilla's love timer expires. The
@@ -212,13 +212,17 @@ public final class ShepherdJob extends AbstractJob {
                 return;
             }
         }
-        if (!target.isAlive() || com.simplecolonies.entity.AnimalProtection.protectedFromWorkers(target) || target.getAge() != 0 || target.isInLove() || !target.canFallInLove()) return;
+        if (!target.isAlive() || protectedAnimal(target) || target.getAge() != 0 || target.isInLove() || !target.canFallInLove()) return;
         supplies.shrink(1);
         if (supplies.isEmpty()) worker().setWorkSupplies(ItemStack.EMPTY);
         target.setInLove(null);
         villager.getLookControl().setLookAt(target); villager.swing(InteractionHand.MAIN_HAND);
         // Approach the second parent promptly, while the first is still in love.
         state = JobState.WORKING; ticksUntilNextWork = 5;
+    }
+
+    private boolean protectedAnimal(Sheep animal) {
+        return colony.isProtectedPlot(animal.blockPosition()) || com.simplecolonies.entity.AnimalProtection.protectedFromWorkers(animal);
     }
 
     private static boolean plainWheat(ItemStack stack) {

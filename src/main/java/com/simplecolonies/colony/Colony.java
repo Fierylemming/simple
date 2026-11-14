@@ -112,6 +112,24 @@ public class Colony {
         return center.distSqr(pos) <= (long) radius * radius;
     }
 
+    /** A designated plot protects a 17x17 column at every height. It remains
+     * protected while its marker chunk is unloaded; changing or breaking the
+     * marker removes its persisted record. */
+    public boolean isProtectedPlot(BlockPos pos) {
+        return protectsPlotLocally(pos) || ColonyManager.getInstance().isProtectedPlot(pos);
+    }
+
+    boolean protectsPlotLocally(BlockPos pos) {
+        for (var building : buildings) {
+            if (!building.isPlayerPlaced || building.getType() != BuildingType.PROTECTED_PLOT
+                    || building.getState() != com.simplecolonies.building.BuildingState.COMPLETE) continue;
+            BlockPos origin = building.getPos();
+            if (Math.abs((long) pos.getX() - origin.getX()) <= 8
+                    && Math.abs((long) pos.getZ() - origin.getZ()) <= 8) return true;
+        }
+        return false;
+    }
+
     /** Called every ColonyConfig.TICKS_BETWEEN_COLONY_TICK */
     public void tick(ServerLevel level) {
         long gameTime = level.getGameTime();
@@ -446,7 +464,7 @@ public class Colony {
         if (!clearEntrance(level, station.north(3))) return false;
         for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
             BlockPos ground = station.offset(x, -1, z);
-            if (!level.isLoaded(ground) || !isInside(ground)) return false;
+            if (!level.isLoaded(ground) || !isInside(ground) || isProtectedPlot(ground)) return false;
             var soil = level.getBlockState(ground);
             if (!NaturalGround.supportsConstruction(soil)) return false;
             for (int y = 0; y <= 3; y++) {
@@ -553,7 +571,7 @@ public class Colony {
             // Leave unused terrain and structures untouched instead of rejecting it.
             if (!Building.newHouseFootprint(pos, x, z)) continue;
             BlockPos ground = pos.offset(x, -1, z);
-            if (!level.isLoaded(ground) || !isInside(ground)) return false;
+            if (!level.isLoaded(ground) || !isInside(ground) || isProtectedPlot(ground)) return false;
             var soil = level.getBlockState(ground);
             if (!NaturalGround.supportsConstruction(soil)) return false;
             for (int y = 0; y <= 5; y++) {

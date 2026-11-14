@@ -30,6 +30,10 @@ public class FarmReplantGameTests {
         if (job.plantCarriedSeed(helper.getLevel(), pos) || farmer.getPlantingSeeds().getCount() != 1)
             helper.fail("Replanting overwrote an obstacle or spent a seed");
         helper.setBlock(plot, Blocks.AIR);
+        colony.updateMarkerBuilding(pos.offset(8, 0, 0), false, com.simplecolonies.building.BuildingType.PROTECTED_PLOT);
+        if (job.plantCarriedSeed(helper.getLevel(), pos) || farmer.getPlantingSeeds().getCount() != 1
+                || !helper.getBlockState(plot).isAir()) helper.fail("Farmer planted inside a protected plot");
+        colony.updateMarkerBuilding(pos.offset(8, 0, 0), true, null);
         if (!job.plantCarriedSeed(helper.getLevel(), pos)
                 || !helper.getBlockState(plot).is(Blocks.WHEAT)
                 || helper.getBlockState(plot).getValue(CropBlock.AGE) != 0

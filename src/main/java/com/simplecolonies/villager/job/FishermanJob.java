@@ -103,7 +103,7 @@ public class FishermanJob extends AbstractJob {
             clearJobPath(); state = JobState.IDLE; ticksUntilNextWork = 200; return;
         }
         var fish = level.getEntitiesOfClass(AbstractFish.class, new AABB(site.get().pos()).inflate(10, 4, 10),
-                f -> f.isAlive() && f.isInWater() && colony.isInside(f.blockPosition())
+                f -> f.isAlive() && f.isInWater() && colony.isInside(f.blockPosition()) && !colony.isProtectedPlot(f.blockPosition())
                         && (f.getType() == EntityType.COD || f.getType() == EntityType.SALMON)
                         && !f.hasCustomName() && !f.fromBucket() && !f.isPersistenceRequired() && !f.requiresCustomPersistence());
         var candidates = fish.stream().filter(f -> fish.stream().filter(other -> other.getType() == f.getType()).count() > MIN_SCHOOL)

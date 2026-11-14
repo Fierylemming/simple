@@ -347,6 +347,7 @@ public class ColonyManager {
         int y = origin.getY();
         for (int dx = -halfSize; dx <= halfSize; dx++) for (int dz = -halfSize; dz <= halfSize; dz++) {
             BlockPos column = origin.offset(dx, 0, dz);
+            if (isProtectedPlot(column)) return false;
             BlockPos surface = allowTownHall && dx == 0 && dz == 0
                     && level.getBlockState(column).is(ModBlocks.TOWN_HALL.get()) && isNaturalGround(level.getBlockState(column.below()))
                     ? column : naturalSurface(level, column.getX(), column.getZ());
@@ -599,6 +600,17 @@ public class ColonyManager {
     }
 
     public Collection<Colony> getAll() { return Collections.unmodifiableCollection(colonies.values()); }
+
+    /** Protected plots also apply to overlapping colonies and starter searches. */
+    public boolean isProtectedPlot(BlockPos pos) {
+        for (var colony : colonies.values()) {
+            long radius = (long) colony.getRadius() + 8;
+            if (Math.abs((long) pos.getX() - colony.getCenter().getX()) <= radius
+                    && Math.abs((long) pos.getZ() - colony.getCenter().getZ()) <= radius
+                    && colony.protectsPlotLocally(pos)) return true;
+        }
+        return false;
+    }
 
     public void deleteColony(int id) {
         colonies.remove(id);

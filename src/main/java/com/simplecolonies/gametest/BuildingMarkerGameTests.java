@@ -81,7 +81,13 @@ public class BuildingMarkerGameTests {
         var savedPasture = Colony.load(colony.save());
         if (savedPasture.getBuildings().getFirst().getType() != BuildingType.PASTURE)
             helper.fail("Pasture designation did not survive reload");
+        menu.clickMenuButton(player, BuildingMarkerMenu.BTN_SET_PROTECTED_PLOT);
+        if (marker.getBuildingType() != BuildingType.PROTECTED_PLOT || !colony.isProtectedPlot(absolute.offset(8, 100, -8))
+                || colony.isProtectedPlot(absolute.offset(9, 0, 0))) helper.fail("Protected plot boundaries are incorrect");
+        var savedProtection = Colony.load(colony.save());
+        if (!savedProtection.isProtectedPlot(absolute.offset(-8, -100, 8))) helper.fail("Protected plot did not survive reload");
         menu.clickMenuButton(player, BuildingMarkerMenu.BTN_CLEAR);
+        if (colony.isProtectedPlot(absolute)) helper.fail("Clearing marker left plot protection");
         if (!colony.getBuildings().isEmpty() || marker.getBuildingType() != null || marker.getLinkedBuildingPos() != null)
             helper.fail("Clear left a phantom building");
         var generated = new Building(BuildingType.HOUSE, absolute, CultureType.ROMAN);

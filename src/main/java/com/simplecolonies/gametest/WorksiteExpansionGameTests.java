@@ -36,6 +36,12 @@ public class WorksiteExpansionGameTests {
         helper.setBlock(site.east(), Blocks.SHORT_GRASS);
         if (!colony.isClearWorksite(helper.getLevel(), absolute, false) || !colony.isClearBuildSite(helper.getLevel(), absolute))
             helper.fail("Ordinary grass should not prevent generated construction");
+        colony.updateMarkerBuilding(absolute.offset(8, 0, 0), false, BuildingType.PROTECTED_PLOT);
+        if (colony.isClearWorksite(helper.getLevel(), absolute, false) || colony.isClearBuildSite(helper.getLevel(), absolute))
+            helper.fail("Construction planning entered a protected plot");
+        colony.updateMarkerBuilding(absolute.offset(8, 0, 0), true, null);
+        if (!colony.isClearWorksite(helper.getLevel(), absolute, false) || !colony.isClearBuildSite(helper.getLevel(), absolute))
+            helper.fail("Cleared protection still blocked construction planning");
         helper.succeed();
     }
 

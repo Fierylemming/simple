@@ -40,6 +40,7 @@ public class BuildingMarkerMenu extends AbstractContainerMenu {
     public static final int BTN_SET_TEMPLE = 20;
     public static final int BTN_SET_MARKET = 21;
     public static final int BTN_SET_PASTURE = 22;
+    public static final int BTN_SET_PROTECTED_PLOT = 23;
     public static final int BTN_CLEAR = 30;
 
     public BuildingMarkerMenu(int containerId, Inventory inv, Colony colony, BlockPos markerPos, BuildingType current) {
@@ -81,6 +82,7 @@ public class BuildingMarkerMenu extends AbstractContainerMenu {
             case BTN_SET_TEMPLE -> BuildingType.TEMPLE;
             case BTN_SET_MARKET -> BuildingType.MARKET;
             case BTN_SET_PASTURE -> BuildingType.PASTURE;
+            case BTN_SET_PROTECTED_PLOT -> BuildingType.PROTECTED_PLOT;
             case BTN_CLEAR -> null;
             default -> null;
         };

@@ -470,6 +470,7 @@ public class WoodcutterJob extends AbstractJob {
             return state.is(species.leaves()) && !state.getValue(LeavesBlock.PERSISTENT);
         }
         public boolean clearOrNatural(BlockPos pos, boolean belowBase) {
+            if (colony.isProtectedPlot(pos)) return false;
             BlockState state = level.getBlockState(pos);
             if (!state.getFluidState().isEmpty() || level.getBlockEntity(pos) != null) return false;
             if (state.is(BlockTags.LEAVES)) return state.hasProperty(LeavesBlock.PERSISTENT) && !state.getValue(LeavesBlock.PERSISTENT);
@@ -479,7 +480,7 @@ public class WoodcutterJob extends AbstractJob {
                     || (belowBase && state.is(BlockTags.BASE_STONE_OVERWORLD));
         }
         public boolean protectedPosition(BlockPos pos) {
-            if (!colony.isInside(pos)) return true;
+            if (!colony.isInside(pos) || colony.isProtectedPlot(pos)) return true;
             // Use a generous horizontal buffer, including incomplete buildings and the larger starter farm.
             if (near(pos, colony.getCenter(), 9)) return true;
             for (var building : colony.getBuildings()) {

@@ -157,7 +157,7 @@ public class BuildingUpgrade {
         int radius = house ? 3 : 2;
         for (int x = -radius; x <= radius; x++) for (int z = -radius; z <= radius; z++) {
             var ground = site.offset(x, -1, z);
-            if (!colony.isInside(ground) || !level.isLoaded(ground)) return false;
+            if (!colony.isInside(ground) || !level.isLoaded(ground) || colony.isProtectedPlot(ground)) return false;
             var soil = level.getBlockState(ground);
             if (!soil.isFaceSturdy(level, ground, net.minecraft.core.Direction.UP)
                     || !(soil.is(net.minecraft.tags.BlockTags.DIRT) || soil.is(net.minecraft.tags.BlockTags.BASE_STONE_OVERWORLD)
