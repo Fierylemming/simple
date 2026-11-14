@@ -21,6 +21,24 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder("simplecolonies")
 @PrefixGameTestTemplate(false)
 public class WorksiteExpansionGameTests {
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void planningAvoidsFlowersAndSaplings(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        var site = new BlockPos(8, 1, 8);
+        var colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(site));
+        var absolute = helper.absolutePos(site);
+        helper.setBlock(site.east(), Blocks.DANDELION);
+        if (colony.isClearWorksite(helper.getLevel(), absolute, false) || colony.isClearBuildSite(helper.getLevel(), absolute))
+            helper.fail("Construction planning accepted a flower");
+        helper.setBlock(site.east(), Blocks.OAK_SAPLING);
+        if (colony.isClearWorksite(helper.getLevel(), absolute, false) || colony.isClearBuildSite(helper.getLevel(), absolute))
+            helper.fail("Construction planning accepted a sapling");
+        helper.setBlock(site.east(), Blocks.SHORT_GRASS);
+        if (!colony.isClearWorksite(helper.getLevel(), absolute, false) || !colony.isClearBuildSite(helper.getLevel(), absolute))
+            helper.fail("Ordinary grass should not prevent generated construction");
+        helper.succeed();
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 600)
     public static void smithyExpansionUsesAssignedStationAndPreservesLegacy(GameTestHelper helper) {
         testExpansion(helper, JobType.BLACKSMITH, BuildingType.BLACKSMITH, Blocks.SMITHING_TABLE);

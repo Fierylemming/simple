@@ -318,7 +318,7 @@ public class ColonyManager {
             return state.hasProperty(net.minecraft.world.level.block.LeavesBlock.PERSISTENT)
                     && !state.getValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT);
         }
-        return state.isAir() || state.canBeReplaced();
+        return com.simplecolonies.building.ConstructionSafety.clearable(state);
     }
 
     /** Find actual soil below foliage, but never search through timber or buildings. */

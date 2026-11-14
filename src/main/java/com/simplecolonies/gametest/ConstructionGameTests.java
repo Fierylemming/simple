@@ -196,6 +196,33 @@ public class ConstructionGameTests {
     @GameTest(template = "empty", timeoutTicks = 2400)
     public static void harborWorksite(GameTestHelper helper) { runBuilder(helper, BuildingType.HARBOR, Blocks.BARREL, CultureType.ROMAN, -1); }
 
+    @GameTest(template = "empty", timeoutTicks = 400)
+    public static void generatedBuilderLeavesPlayerPlantsAlone(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos origin = helper.absolutePos(new BlockPos(8, 1, 9));
+        var colony = new Colony(0, CultureType.ROMAN, origin);
+        colony.depositToWarehouse("minecraft:oak_log", 200);
+        var building = new Building(BuildingType.MINE, origin, CultureType.ROMAN);
+        colony.registerPlayerBuilding(building);
+        var target = building.getNextPlacement().pos;
+        helper.getLevel().setBlock(target, Blocks.DANDELION.defaultBlockState(), 3);
+        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(5, 1, 6));
+        var job = new BuilderJob(worker, colony);
+        for (int tick = 1; tick < 400; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(100, () -> {
+            if (building.getState() != BuildingState.BLOCKED || !helper.getLevel().getBlockState(target).is(Blocks.DANDELION)
+                    || colony.getWarehouseCount("minecraft:oak_log") != 200)
+                helper.fail("Builder removed a flower or consumed supplies");
+            helper.getLevel().setBlock(target, Blocks.OAK_SAPLING.defaultBlockState(), 3);
+        });
+        helper.runAtTickTime(200, () -> {
+            if (building.getState() != BuildingState.BLOCKED || !helper.getLevel().getBlockState(target).is(Blocks.OAK_SAPLING)
+                    || colony.getWarehouseCount("minecraft:oak_log") != 200)
+                helper.fail("Builder removed a sapling or consumed supplies");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "empty", timeoutTicks = 200)
     public static void blockedPlacementDoesNotConsume(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);

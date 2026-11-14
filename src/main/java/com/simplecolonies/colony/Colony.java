@@ -443,8 +443,7 @@ public class Colony {
                 if (!level.isLoaded(p)) return false;
                 if (allowStation && x == 0 && y == 0 && z == 0) continue;
                 var block = level.getBlockState(p);
-                if (level.getBlockEntity(p) != null || (!block.isAir() && !block.canBeReplaced())
-                        || !block.getFluidState().isEmpty()) return false;
+                if (level.getBlockEntity(p) != null || !com.simplecolonies.building.ConstructionSafety.clearable(block)) return false;
             }
         }
         return true;
@@ -547,9 +546,10 @@ public class Colony {
             var soil = level.getBlockState(ground);
             if (!NaturalGround.supportsConstruction(soil)) return false;
             for (int y = 0; y <= 5; y++) {
-                if (!level.isLoaded(pos.offset(x, y, z))) return false;
-                var block = level.getBlockState(pos.offset(x, y, z));
-                if ((!block.isAir() && !block.canBeReplaced()) || !block.getFluidState().isEmpty()) return false;
+                BlockPos p = pos.offset(x, y, z);
+                if (!level.isLoaded(p)) return false;
+                var block = level.getBlockState(p);
+                if (level.getBlockEntity(p) != null || !com.simplecolonies.building.ConstructionSafety.clearable(block)) return false;
             }
         }
         return true;

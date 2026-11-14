@@ -115,9 +115,9 @@ public class BuilderJob extends AbstractJob {
                 ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 200); return;
             }
             var before = level.getBlockState(next.pos);
-            if (currentJob.getType() == com.simplecolonies.building.BuildingType.SCHEMATIC
-                    && (level.getBlockEntity(next.pos) != null || !before.getFluidState().isEmpty()
-                        || (!before.isAir() && !before.equals(next.state)))) {
+            boolean imported = currentJob.getType() == com.simplecolonies.building.BuildingType.SCHEMATIC;
+            if (!before.equals(next.state) && (level.getBlockEntity(next.pos) != null || !before.getFluidState().isEmpty()
+                    || (imported ? !before.isAir() : !com.simplecolonies.building.ConstructionSafety.clearable(before)))) {
                 currentJob.setState(BuildingState.BLOCKED); state = JobState.STUCK;
                 ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 200); return;
             }
@@ -155,8 +155,7 @@ public class BuilderJob extends AbstractJob {
                 var above = level.getBlockState(upper);
                 var expected = next.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER);
                 if (level.getBlockEntity(upper) != null || (!above.equals(expected) && (!above.getFluidState().isEmpty()
-                        || (!above.isAir() && (currentJob.getType() == com.simplecolonies.building.BuildingType.SCHEMATIC
-                            || !above.canBeReplaced()))))) {
+                        || (imported ? !above.isAir() : !com.simplecolonies.building.ConstructionSafety.clearable(above))))) {
                     currentJob.setState(BuildingState.BLOCKED); state = JobState.STUCK;
                     ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 200); return;
                 }
@@ -169,7 +168,8 @@ public class BuilderJob extends AbstractJob {
                 currentJob.markPlaced(next); // already present, do not charge twice
             } else {
                 // Never demolish somebody's building or a solid obstruction.
-                if (!existing.getFluidState().isEmpty() || (!existing.isAir() && !existing.canBeReplaced())) {
+                if (level.getBlockEntity(next.pos) != null || !existing.getFluidState().isEmpty()
+                        || (imported ? !existing.isAir() : !com.simplecolonies.building.ConstructionSafety.clearable(existing))) {
                     currentJob.setState(BuildingState.BLOCKED);
                     ColonyManager.getInstance().markDirty(colony);
                     state = JobState.STUCK;
