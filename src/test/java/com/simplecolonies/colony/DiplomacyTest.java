@@ -37,6 +37,25 @@ class DiplomacyTest {
         assertEquals(Diplomacy.Relation.ALLIED, b.getDiplomacy().getRelationAt(1, 1000));
     }
 
+    @Test void legacyPairsMigrateTogetherAndPartiallyMigratedPairDoesNotExtend() {
+        var a = new Colony(1, CultureType.ROMAN, BlockPos.ZERO);
+        var b = new Colony(2, CultureType.GREEK, new BlockPos(100, 0, 0));
+        var left = new CompoundTag(); var right = new CompoundTag();
+        var l = new ListTag(); var r = new ListTag();
+        var le = new CompoundTag(); le.putInt("other", 2); le.putString("relation", "WAR"); le.putInt("days", 5); l.add(le);
+        var re = new CompoundTag(); re.putInt("other", 1); re.putString("relation", "WAR"); re.putInt("days", 3); r.add(re);
+        left.put("relations", l); right.put("relations", r);
+        a.getDiplomacy().load(left); b.getDiplomacy().load(right);
+        Diplomacy.migrateLegacyRelations(java.util.List.of(a, b), 20);
+        assertEquals(Diplomacy.Relation.WAR, a.getDiplomacy().getRelationAt(2, 22));
+        assertEquals(Diplomacy.Relation.NEUTRAL, a.getDiplomacy().getRelationAt(2, 23));
+        assertEquals(Diplomacy.Relation.NEUTRAL, b.getDiplomacy().getRelationAt(1, 23));
+        // Simulate one side having already been upgraded, while the other is old.
+        b.getDiplomacy().load(right);
+        Diplomacy.migrateLegacyRelations(java.util.List.of(a, b), 22);
+        assertEquals(Diplomacy.Relation.NEUTRAL, b.getDiplomacy().getRelationAt(1, 23));
+    }
+
     @Test void oldTimedRelationsMigrateWithoutDiscardingRemainingDays() {
         var root = new CompoundTag(); var list = new ListTag(); var entry = new CompoundTag();
         entry.putInt("other", 2); entry.putString("relation", "WAR"); entry.putInt("days", 3);

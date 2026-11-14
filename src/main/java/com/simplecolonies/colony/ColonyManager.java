@@ -50,6 +50,10 @@ public class ColonyManager {
             colonies.clear();
             colonies.putAll(holder.colonies);
             nextId = holder.nextId;
+            // Relations are world data, even when neither colony's chunks are loaded.
+            // Anchor legacy durations together at load and persist the migration.
+            Diplomacy.migrateLegacyRelations(colonies.values(), Math.floorDiv(overworld.getDayTime(), 24000L));
+            saveAll();
         }
     }
 

@@ -62,8 +62,29 @@ public class Diplomacy {
 
     public void tick(Colony self, ServerLevel level) { updateDay(Math.floorDiv(level.getDayTime(), 24000L)); }
 
-    /** Legacy timed relations had no absolute deadline; preserve their remaining
-     * duration starting when they are first observed after the upgrade. */
+    /** Migrate all colonies together at server load, including unloaded ones.
+     * A partially migrated pair inherits the existing earlier deadline rather
+     * than extending its treaty when the second colony is finally observed. */
+    static void migrateLegacyRelations(Collection<Colony> colonies, long day) {
+        Map<Integer, Colony> byId = new HashMap<>();
+        for (var colony : colonies) byId.put(colony.getId(), colony);
+        for (var colony : colonies) for (var rd : colony.getDiplomacy().relations.values()) {
+            if ((rd.relation != Relation.WAR && rd.relation != Relation.PEACE_TREATY) || rd.expiresDay != NO_DEADLINE) continue;
+            var other = byId.get(rd.otherColonyId);
+            var reverse = other == null ? null : other.getDiplomacy().relations.get(colony.getId());
+            if (reverse != null && reverse.relation == rd.relation && reverse.expiresDay != NO_DEADLINE) {
+                rd.expiresDay = reverse.expiresDay;
+            } else if (reverse != null && reverse.relation == rd.relation && reverse.expiresDay == NO_DEADLINE) {
+                int days = Math.max(0, Math.min(rd.daysRemaining, reverse.daysRemaining));
+                long deadline;
+                try { deadline = Math.addExact(day, days); } catch (ArithmeticException e) { deadline = Long.MAX_VALUE; }
+                rd.expiresDay = reverse.expiresDay = deadline;
+            }
+        }
+        for (var colony : colonies) colony.getDiplomacy().updateDay(day);
+    }
+
+    /** Legacy unpaired relations retain their remaining duration from the migration day. */
     void updateDay(long day) {
         for (var rd : relations.values()) {
             if (rd.relation != Relation.WAR && rd.relation != Relation.PEACE_TREATY) continue;
