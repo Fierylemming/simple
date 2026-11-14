@@ -17,7 +17,7 @@ public enum JobType {
     LUMBERJACK("Woodcutter", "Plants saplings nearby, harvests logs, replants", false, List.of(Items.OAK_LOG, Items.SPRUCE_LOG, Items.BIRCH_LOG, Items.ACACIA_LOG)),
     MINER("Miner", "Digs quarry/mine for stone, coal, ores for blacksmith", false, List.of(Items.COBBLESTONE, Items.COAL, Items.IRON_ORE, Items.COPPER_ORE)),
     BUILDER("Builder", "Constructs buildings from blueprints using colony stockpile", false, List.of()),
-    BUTCHER("Butcher", "Raises cows/pigs, provides meat + leather to leatherworker", false, List.of(Items.BEEF, Items.PORKCHOP, Items.LEATHER)),
+    BUTCHER("Butcher", "Raises cows and pigs at a designated pasture; provides meat and leather", false, List.of(Items.BEEF, Items.PORKCHOP, Items.LEATHER)),
     LEATHERWORKER("Leatherworker", "Makes a spare leather chestplate from butcher's leather", false, List.of(Items.LEATHER_CHESTPLATE)),
     BLACKSMITH("Blacksmith", "Smelts ores, makes tools & weapons for workers/soldiers", false, List.of(Items.IRON_INGOT, Items.IRON_SWORD, Items.IRON_PICKAXE, Items.IRON_AXE)),
     SOLDIER("Soldier", "Defends colony and follows leader into war", true, List.of()),
