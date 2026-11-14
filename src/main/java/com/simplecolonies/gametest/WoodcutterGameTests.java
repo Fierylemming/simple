@@ -35,8 +35,27 @@ public class WoodcutterGameTests {
         for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++)
             if (x != 0 || z != 0) helper.setBlock(ROOT.offset(x, 3, z), Blocks.OAK_LEAVES);
     }
+    private static final BlockPos STORAGE = new BlockPos(47, 1, 60);
     private static Colony colony(GameTestHelper helper) {
-        return new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(45, 1, 56)));
+        var colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(45, 1, 56)));
+        helper.setBlock(STORAGE, Blocks.CHEST);
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(STORAGE))) helper.fail("Could not share forestry chest");
+        return colony;
+    }
+    private static void stock(GameTestHelper helper, String id, int count) {
+        var container = (Container) helper.getBlockEntity(STORAGE);
+        var item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getOptional(net.minecraft.resources.ResourceLocation.parse(id)).orElseThrow();
+        for (int i = 0; i < container.getContainerSize(); i++) if (container.getItem(i).isEmpty()) {
+            container.setItem(i, new ItemStack(item, count)); return;
+        }
+        helper.fail("Forestry test chest full");
+    }
+    private static int harvested(GameTestHelper helper, Colony colony, ColonyVillager worker, String id) {
+        int count = colony.getWarehouseCount(helper.getLevel(), id);
+        var item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getOptional(net.minecraft.resources.ResourceLocation.parse(id)).orElseThrow();
+        if (worker.getCourierCargo().is(item)) count += worker.getCourierCargo().getCount();
+        if (worker.getCourierCargoExtra().is(item)) count += worker.getCourierCargoExtra().getCount();
+        return count;
     }
 
     @GameTest(template = "isolated", timeoutTicks = 1800)
@@ -46,8 +65,8 @@ public class WoodcutterGameTests {
         for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++)
             if (x != 0 || z != 0) helper.setBlock(ROOT.offset(x, 5, z), Blocks.BIRCH_LEAVES);
         Colony colony = colony(helper);
-        colony.depositToWarehouse("minecraft:stone_axe", 1);
-        colony.depositToWarehouse("minecraft:birch_sapling", 1);
+        stock(helper, "minecraft:stone_axe", 1);
+        stock(helper, "minecraft:birch_sapling", 1);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(48, 1, 56));
         var job = new WoodcutterJob(worker, colony);
         int[] cuts = {0};
@@ -89,8 +108,8 @@ public class WoodcutterGameTests {
             helper.setBlock(ROOT.offset(-1, 1, z), Blocks.DIRT);
         }
         Colony colony = colony(helper);
-        colony.depositToWarehouse("minecraft:stone_axe", 1);
-        colony.depositToWarehouse("minecraft:birch_sapling", 1);
+        stock(helper, "minecraft:stone_axe", 1);
+        stock(helper, "minecraft:birch_sapling", 1);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(49, 1, 56));
         var job = new WoodcutterJob(worker, colony);
         int[] cuts = {0};
@@ -127,7 +146,7 @@ public class WoodcutterGameTests {
             helper.setBlock(ROOT.offset(x, 7, z), Blocks.BIRCH_LEAVES);
         }
         Colony colony = colony(helper);
-        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        stock(helper, "minecraft:stone_axe", 1);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56));
         var job = new WoodcutterJob(worker, colony);
         for (int tick = 1; tick < 500; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
@@ -167,8 +186,8 @@ public class WoodcutterGameTests {
     public static void harvestsReachableCrookedAcaciaAfterReload(GameTestHelper helper) {
         var logs = makeCrookedAcacia(helper);
         Colony colony = colony(helper);
-        colony.depositToWarehouse("minecraft:stone_axe", 1);
-        colony.depositToWarehouse("minecraft:acacia_sapling", 1);
+        stock(helper, "minecraft:stone_axe", 1);
+        stock(helper, "minecraft:acacia_sapling", 1);
         ColonyVillager[] worker = {helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56))};
         WoodcutterJob[] job = {new WoodcutterJob(worker[0], colony)};
         boolean[] reloaded = {false};
@@ -236,14 +255,14 @@ public class WoodcutterGameTests {
             helper.setBlock(p, log.defaultBlockState().setValue(net.minecraft.world.level.block.RotatedPillarBlock.AXIS,
                     net.minecraft.core.Direction.Axis.X));
         Colony colony = colony(helper);
-        colony.depositToWarehouse("minecraft:stone_axe", 1);
-        colony.depositToWarehouse("minecraft:" + name + "_sapling", 1);
+        stock(helper, "minecraft:stone_axe", 1);
+        stock(helper, "minecraft:" + name + "_sapling", 1);
         ColonyVillager[] worker = {helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56))};
         WoodcutterJob[] job = {new WoodcutterJob(worker[0], colony)};
         boolean[] reloaded = {!sideways};
         for (int tick = 1; tick < 1800; tick++) helper.runAtTickTime(tick, () -> {
             job[0].tick(helper.getLevel());
-            if (!reloaded[0] && colony.getWarehouseCount(helper.getLevel(), "minecraft:" + name + "_log") == 1) {
+            if (!reloaded[0] && harvested(helper, colony, worker[0], "minecraft:" + name + "_log") == 1) {
                 CompoundTag saved = new CompoundTag(); worker[0].saveWithoutId(saved);
                 int[] axes = saved.getCompound("woodcutterMemory").getIntArray("branchAxes");
                 if (axes.length != logs.size() || java.util.Arrays.stream(axes).filter(a -> a == 1).count() != 2)
@@ -279,7 +298,7 @@ public class WoodcutterGameTests {
         }
         for (int y = 6; y <= 8; y++) helper.setBlock(ROOT.offset(2, y, 0), Blocks.ACACIA_LOG);
         Colony colony = colony(helper);
-        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        stock(helper, "minecraft:stone_axe", 1);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56));
         var job = new WoodcutterJob(worker, colony);
         for (int tick = 1; tick < 700; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
@@ -298,14 +317,14 @@ public class WoodcutterGameTests {
     public static void crookedAcaciaStopsIfConstructionAppears(GameTestHelper helper) {
         makeCrookedAcacia(helper);
         Colony colony = colony(helper);
-        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        stock(helper, "minecraft:stone_axe", 1);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56));
         var job = new WoodcutterJob(worker, colony);
         boolean[] blocked = {false};
         long[] blockedAt = {0};
         for (int tick = 1; tick < 1800; tick++) helper.runAtTickTime(tick, () -> {
             job.tick(helper.getLevel());
-            if (!blocked[0] && colony.getWarehouseCount(helper.getLevel(), "minecraft:acacia_log") == 1) {
+            if (!blocked[0] && harvested(helper, colony, worker, "minecraft:acacia_log") == 1) {
                 helper.setBlock(ROOT.offset(-4, 0, 0), Blocks.OAK_PLANKS); blocked[0] = true;
                 blockedAt[0] = helper.getLevel().getGameTime();
             }
@@ -335,8 +354,8 @@ public class WoodcutterGameTests {
     public static void harvestsSquareDarkOakAndReplantsFourRealSaplings(GameTestHelper helper) {
         makeSquareDarkOak(helper);
         Colony colony = colony(helper);
-        colony.depositToWarehouse("minecraft:stone_axe", 1);
-        colony.depositToWarehouse("minecraft:dark_oak_sapling", 4);
+        stock(helper, "minecraft:stone_axe", 1);
+        stock(helper, "minecraft:dark_oak_sapling", 4);
         ColonyVillager[] worker = {helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56))};
         WoodcutterJob[] job = {new WoodcutterJob(worker[0], colony)};
         boolean[] reloaded = {false};
@@ -396,8 +415,8 @@ public class WoodcutterGameTests {
         for (int x = 0; x < 2; x++) for (int z = 0; z < 2; z++) for (int y = 0; y < 4; y++)
             helper.setBlock(ROOT.offset(x, y, z), log);
         Colony colony = colony(helper);
-        colony.depositToWarehouse("minecraft:stone_axe", 1);
-        colony.depositToWarehouse("minecraft:" + species + "_sapling", 4);
+        stock(helper, "minecraft:stone_axe", 1);
+        stock(helper, "minecraft:" + species + "_sapling", 4);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(52, 1, 56));
         var job = new WoodcutterJob(worker, colony);
         for (int tick = 1; tick < 2200; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
@@ -415,8 +434,8 @@ public class WoodcutterGameTests {
     public static void squareTreeDoesNotWasteThreeSaplings(GameTestHelper helper) {
         makeSquareDarkOak(helper);
         Colony colony = colony(helper);
-        colony.depositToWarehouse("minecraft:stone_axe", 1);
-        colony.depositToWarehouse("minecraft:dark_oak_sapling", 3);
+        stock(helper, "minecraft:stone_axe", 1);
+        stock(helper, "minecraft:dark_oak_sapling", 3);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(52, 1, 56));
         var job = new WoodcutterJob(worker, colony);
         for (int tick = 1; tick < 2200; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
@@ -435,7 +454,7 @@ public class WoodcutterGameTests {
         for (int x = 0; x < 2; x++) for (int z = 0; z < 2; z++) for (int y = 4; y < 7; y++)
             helper.setBlock(ROOT.offset(x, y, z), Blocks.DARK_OAK_LOG);
         Colony colony = colony(helper);
-        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        stock(helper, "minecraft:stone_axe", 1);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(53, 1, 56));
         var job = new WoodcutterJob(worker, colony);
         for (int tick = 1; tick < 500; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
@@ -452,13 +471,13 @@ public class WoodcutterGameTests {
     public static void squareTreeStopsWhenNewConstructionAppears(GameTestHelper helper) {
         makeSquareDarkOak(helper);
         Colony colony = colony(helper);
-        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        stock(helper, "minecraft:stone_axe", 1);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(53, 1, 56));
         var job = new WoodcutterJob(worker, colony);
         boolean[] blocked = {false};
         for (int tick = 1; tick < 800; tick++) helper.runAtTickTime(tick, () -> {
             job.tick(helper.getLevel());
-            if (!blocked[0] && colony.getWarehouseCount(helper.getLevel(), "minecraft:dark_oak_log") > 0) {
+            if (!blocked[0] && harvested(helper, colony, worker, "minecraft:dark_oak_log") > 0) {
                 helper.setBlock(ROOT.offset(3, 0, 0), Blocks.OAK_PLANKS);
                 blocked[0] = true;
             }
@@ -489,8 +508,8 @@ public class WoodcutterGameTests {
         for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++)
             if (x != 0 || z != 0) helper.setBlock(ROOT.offset(x, 3, z), leaves);
         Colony colony = colony(helper);
-        colony.depositToWarehouse("minecraft:" + name + "_sapling", 1);
-        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        stock(helper, "minecraft:" + name + "_sapling", 1);
+        stock(helper, "minecraft:stone_axe", 1);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(48, 1, 56));
         var job = new WoodcutterJob(worker, colony);
         for (int tick = 1; tick < 1400; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
@@ -505,7 +524,7 @@ public class WoodcutterGameTests {
     public static void resumesPartialTreeAndWearsActualStockAxe(GameTestHelper helper) {
         makeTree(helper);
         Colony colony = colony(helper);
-        colony.depositToWarehouse("minecraft:oak_sapling", 1);
+        stock(helper, "minecraft:oak_sapling", 1);
         // A damaged tool in a real chest must not turn into a new axe on withdrawal.
         BlockPos chest = new BlockPos(43, 1, 56);
         helper.setBlock(chest, Blocks.CHEST);
@@ -561,8 +580,8 @@ public class WoodcutterGameTests {
                 colony.getCenter(), CultureType.ROMAN, true));
         BlockPos table = new BlockPos(47, 1, 56);
         helper.setBlock(table, Blocks.CRAFTING_TABLE);
-        colony.depositToWarehouse("minecraft:cobblestone", 3);
-        colony.depositToWarehouse("minecraft:stick", 2);
+        stock(helper, "minecraft:cobblestone", 3);
+        stock(helper, "minecraft:stick", 2);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(48, 1, 56));
         var job = new WoodcutterJob(worker, colony);
         boolean[] craftedAtTable = {false};
@@ -592,8 +611,8 @@ public class WoodcutterGameTests {
                 colony.getCenter(), CultureType.ROMAN, true));
         BlockPos table = new BlockPos(47, 1, 56);
         helper.setBlock(table, Blocks.CRAFTING_TABLE);
-        colony.depositToWarehouse("minecraft:cobblestone", 3);
-        colony.depositToWarehouse("minecraft:birch_log", 1);
+        stock(helper, "minecraft:cobblestone", 3);
+        stock(helper, "minecraft:birch_log", 1);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(48, 1, 56));
         var job = new WoodcutterJob(worker, colony);
         boolean[] craftedAtTable = {false};
@@ -627,7 +646,7 @@ public class WoodcutterGameTests {
         helper.runAtTickTime(200, () -> {
             if (!helper.getBlockState(ROOT.above(3)).is(Blocks.OAK_LOG) || job.getState() != com.simplecolonies.villager.job.AbstractJob.JobState.NEEDS_TOOL)
                 helper.fail("Woodcutter harvested without an axe or failed to report a missing tool");
-            colony.depositToWarehouse("minecraft:stone_axe", 1);
+            stock(helper, "minecraft:stone_axe", 1);
         });
         helper.succeedWhen(() -> {
             if (helper.getBlockState(ROOT).is(Blocks.OAK_LOG) || !worker.getMainHandItem().is(Items.STONE_AXE))
@@ -668,4 +687,57 @@ public class WoodcutterGameTests {
             helper.succeed();
         });
     }
+    @GameTest(template = "isolated", timeoutTicks = 2600)
+    public static void foresterFetchesAndCarriesActualSuppliesAndLogs(GameTestHelper helper) {
+        makeTree(helper);
+        var colony = colony(helper);
+        colony.depositToWarehouse("minecraft:stone_axe", 1);
+        colony.depositToWarehouse("minecraft:oak_sapling", 1);
+        var container = (Container) helper.getBlockEntity(STORAGE);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(50, 1, 56));
+        var job = new WoodcutterJob(worker, colony);
+        boolean[] ready = {false}, tool = {false}, sapling = {false}, log = {false};
+        var absChest = helper.absolutePos(STORAGE);
+        for (int tick = 1; tick < 2600; tick++) helper.runAtTickTime(tick, () -> {
+            job.tick(helper.getLevel());
+            if (ready[0] && !tool[0] && worker.getMainHandItem().is(Items.STONE_AXE)) {
+                if (worker.distanceToSqr(absChest.getX()+.5, absChest.getY()+.5, absChest.getZ()+.5) > 9
+                        || worker.getMainHandItem().getDamageValue() != 7 || !container.getItem(0).isEmpty())
+                    helper.fail("Forester equipped a remote or altered axe");
+                tool[0] = true;
+            }
+            if (ready[0] && !sapling[0] && worker.getBuilderMaterials().countItem(Items.OAK_SAPLING) > 0) {
+                if (worker.distanceToSqr(absChest.getX()+.5, absChest.getY()+.5, absChest.getZ()+.5) > 9)
+                    helper.fail("Forester collected a sapling remotely");
+                CompoundTag saved = new CompoundTag(); worker.addAdditionalSaveData(saved);
+                var inventory = new net.minecraft.world.SimpleContainer(18);
+                inventory.fromTag(saved.getList("builderMaterials", net.minecraft.nbt.Tag.TAG_COMPOUND), helper.getLevel().registryAccess());
+                if (inventory.countItem(Items.OAK_SAPLING) != 1) helper.fail("Carried sapling did not persist");
+                sapling[0] = true;
+            }
+            if (!log[0] && worker.getCourierCargo().is(Items.OAK_LOG)) {
+                if (!sapling[0] || worker.distanceToSqr(absChest.getX()+.5, absChest.getY()+.5, absChest.getZ()+.5) <= 9)
+                    helper.fail("Forester did not carry its own cut logs");
+                CompoundTag saved = new CompoundTag(); worker.addAdditionalSaveData(saved);
+                if (!ItemStack.parseOptional(helper.getLevel().registryAccess(), saved.getCompound("courierCargo")).is(Items.OAK_LOG))
+                    helper.fail("Cut logs did not persist on the worker");
+                log[0] = true;
+            }
+        });
+        helper.runAtTickTime(180, () -> {
+            if (!worker.getMainHandItem().isEmpty() || !helper.getBlockState(ROOT.above(3)).is(Blocks.OAK_LOG))
+                helper.fail("Forester used virtual supplies");
+            var axe = new ItemStack(Items.STONE_AXE); axe.setDamageValue(7);
+            container.setItem(0, axe); container.setItem(1, new ItemStack(Items.OAK_SAPLING, 1)); ready[0] = true;
+        });
+        helper.succeedWhen(() -> {
+            if (!ready[0] || !tool[0] || !sapling[0] || !log[0] || !helper.getBlockState(ROOT).is(Blocks.OAK_SAPLING)
+                    || colony.getWarehouseCount(helper.getLevel(), "minecraft:oak_log") != 4 || !worker.getCourierCargo().isEmpty())
+                helper.fail("Physical forestry incomplete: " + job.getState() + " " + worker.blockPosition().toShortString());
+            if (colony.getWarehouseCount("minecraft:stone_axe") != 1 || colony.getWarehouseCount("minecraft:oak_sapling") != 1
+                    || worker.getMainHandItem().getDamageValue() != 11)
+                helper.fail("Forester altered virtual stock or failed to wear its actual axe");
+        });
+    }
+
 }

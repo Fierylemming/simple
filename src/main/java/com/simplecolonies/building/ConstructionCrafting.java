@@ -21,7 +21,7 @@ public final class ConstructionCrafting {
     public static boolean take(Stock stock, String id) {
         if (id == null || id.isEmpty()) return true;
         if (stock.count(id) > 0) return stock.consume(id, 1);
-        if (id.equals("minecraft:stone_pickaxe")) {
+        if (id.equals("minecraft:stone_pickaxe") || id.equals("minecraft:stone_axe")) {
             if (stock.count("minecraft:cobblestone") < 3) return false;
             if (stock.count(STICK) < 2) {
                 HouseTimber source = null;

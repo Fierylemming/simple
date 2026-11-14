@@ -54,14 +54,40 @@ public class WoodcutterJob extends AbstractJob {
     private boolean branchedTree;
     private int[] branchAxes = new int[0];
     private boolean restored;
+    private boolean saplingsChecked;
+    private final PhysicalJobCargo cargo;
+    private final PhysicalToolPickup toolPickup;
+    private final PhysicalBuilderMaterials materials;
+    private static final net.minecraft.world.item.Item[] AXES = { Items.NETHERITE_AXE, Items.DIAMOND_AXE,
+            Items.IRON_AXE, Items.STONE_AXE, Items.WOODEN_AXE, Items.GOLDEN_AXE };
 
     public WoodcutterJob(Villager villager, Colony colony) {
         super(villager, colony, JobType.LUMBERJACK);
+        ColonyVillager worker = villager instanceof ColonyVillager cv ? cv : null;
+        cargo = worker == null ? null : new PhysicalJobCargo(worker, colony);
+        toolPickup = worker == null ? null : new PhysicalToolPickup(worker, colony);
+        materials = worker == null ? null : new PhysicalBuilderMaterials(worker, colony);
     }
 
     @Override
     protected void doWork(ServerLevel level) {
         if (!restored) { readMemory(); restored = true; }
+        if (cargo != null && (treeBase == null || cargoFull())) {
+            var delivery = cargo.deliver(level);
+            if (delivery != PhysicalJobCargo.Delivery.NONE) {
+                state = delivery == PhysicalJobCargo.Delivery.MOVING ? JobState.GOING_TO_WORK
+                        : delivery == PhysicalJobCargo.Delivery.DELIVERED ? JobState.WORKING : JobState.WAITING_FOR_CHEST;
+                ticksUntilNextWork = delivery == PhysicalJobCargo.Delivery.MOVING ? 10 : 40; return;
+            }
+        }
+        if (treeBase == null && materials != null) {
+            var result = materials.returnSurplus(level);
+            if (result != PhysicalBuilderMaterials.Result.READY) {
+                state = result == PhysicalBuilderMaterials.Result.MOVING ? JobState.GOING_TO_WORK
+                        : result == PhysicalBuilderMaterials.Result.WORKING ? JobState.WORKING : JobState.WAITING_FOR_CHEST;
+                ticksUntilNextWork = result == PhysicalBuilderMaterials.Result.MOVING ? 10 : 40; return;
+            }
+        }
         if (treeBase == null) {
             BlockPos center = villager.blockPosition();
             for (BlockPos mutable : BlockPos.betweenClosed(center.offset(-16, -4, -16), center.offset(16, 8, 16))) {
@@ -96,6 +122,7 @@ public class WoodcutterJob extends AbstractJob {
                 }
                 if (!accessible) continue;
                 treeBase = base;
+                saplingsChecked = false;
                 treeSpecies = species;
                 tree = found;
                 squareTree = square;
@@ -136,7 +163,43 @@ public class WoodcutterJob extends AbstractJob {
         }
         // Resolve a missing axe before approaching the tree; otherwise the worker
         // alternates between walking to the tree and back to the crafting table.
-        if (!equipAxeIfAvailable(level)) { craftStoneReplacement(level, "axe"); return; }
+        if (!(villager.getMainHandItem().getItem() instanceof AxeItem)) {
+            if (!villager.getMainHandItem().isEmpty()) { state = JobState.NEEDS_TOOL; ticksUntilNextWork = 100; return; }
+            if (toolPickup == null) { if (!equipAxeIfAvailable(level)) craftStoneReplacement(level, "axe"); return; }
+            var picked = toolPickup.equip(level, AXES);
+            if (picked == PhysicalToolPickup.Result.EQUIPPED) { state = JobState.WORKING; ticksUntilNextWork = 20; return; }
+            if (picked == PhysicalToolPickup.Result.MOVING || picked == PhysicalToolPickup.Result.BLOCKED) {
+                state = picked == PhysicalToolPickup.Result.MOVING ? JobState.GOING_TO_WORK : JobState.STUCK;
+                ticksUntilNextWork = picked == PhysicalToolPickup.Result.MOVING ? 10 : 60; return;
+            }
+            var result = materials.prepare(level, "minecraft:stone_axe");
+            if (result == PhysicalBuilderMaterials.Result.READY && materials.takePrepared("minecraft:stone_axe")) {
+                villager.setItemSlot(EquipmentSlot.MAINHAND, new net.minecraft.world.item.ItemStack(Items.STONE_AXE));
+                state = JobState.WORKING; ticksUntilNextWork = 20;
+            } else {
+                state = result == PhysicalBuilderMaterials.Result.MOVING ? JobState.GOING_TO_WORK
+                        : result == PhysicalBuilderMaterials.Result.WORKING ? JobState.WORKING
+                        : result == PhysicalBuilderMaterials.Result.MISSING ? JobState.NEEDS_TOOL : JobState.STUCK;
+                ticksUntilNextWork = result == PhysicalBuilderMaterials.Result.MOVING ? 10 : 40;
+            }
+            return;
+        }
+        if (materials != null && !saplingsChecked) {
+            if (!squareTree && species.sapling() == Blocks.DARK_OAK_SAPLING) saplingsChecked = true;
+            else {
+                String sapling = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(species.sapling().asItem()).toString();
+                var result = materials.prepareCount(level, sapling, squareTree ? 4 : 1);
+                if (result == PhysicalBuilderMaterials.Result.MOVING || result == PhysicalBuilderMaterials.Result.WORKING) {
+                    state = result == PhysicalBuilderMaterials.Result.MOVING ? JobState.GOING_TO_WORK : JobState.WORKING;
+                    ticksUntilNextWork = 10; return;
+                }
+                // An unavailable sapling does not conjure one or prevent harvesting.
+                // Unreachable or full storage waits rather than stranding reserved items.
+                if (result == PhysicalBuilderMaterials.Result.BLOCKED) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
+                saplingsChecked = true;
+            }
+            writeMemory();
+        }
         BlockPos log = tree.get(remaining - 1);
         if (!inToolReach(log)) {
             if (branchedTree || squareTree || tree.size() > MAX_GROUND_TRUNK) {
@@ -167,8 +230,13 @@ public class WoodcutterJob extends AbstractJob {
         if (villager.getMainHandItem().getItem() instanceof AxeItem)
             villager.getMainHandItem().hurtAndBreak(1, villager, EquipmentSlot.MAINHAND);
         villager.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
-        for (var drop : drops) if (!drop.isEmpty()) depositToColony(level,
-                net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(drop.getItem()).toString(), drop.getCount());
+        for (var drop : drops) if (!drop.isEmpty()) {
+            if (cargo == null) depositToColony(level, net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(drop.getItem()).toString(), drop.getCount());
+            else {
+                cargo.collectStack(drop);
+                if (!drop.isEmpty()) net.minecraft.world.level.block.Block.popResource(level, log, drop);
+            }
+        }
         remaining--;
         if (remaining == 0) {
             // No free saplings: replant only from real colony stock, at the tree's original base.
@@ -181,21 +249,31 @@ public class WoodcutterJob extends AbstractJob {
                             || !level.getBlockState(p).isAir() || !view.soil(p.below())) canPlant = false;
                 }
                 // Consume actual saplings only after validating all four spots.
-                if (canPlant && colony.consumeStock(level, sapling, 4)) {
+                if (canPlant && (materials == null ? colony.consumeStock(level, sapling, 4) : materials.countPrepared(sapling) >= 4)) {
                     for (int x = 0; x < 2; x++) for (int z = 0; z < 2; z++) {
-                        if (!level.setBlock(treeBase.offset(x, 0, z), species.sapling().defaultBlockState(), 3))
-                            colony.depositToWarehouse(sapling, 1);
+                        if (materials != null && !materials.takePrepared(sapling)) break;
+                        if (!level.setBlock(treeBase.offset(x, 0, z), species.sapling().defaultBlockState(), 3)) {
+                            if (materials == null) colony.depositToWarehouse(sapling, 1); else materials.refund(sapling);
+                        }
                     }
                 }
             } else if (species.sapling() != Blocks.DARK_OAK_SAPLING && level.getBlockState(treeBase).isAir()
-                    && view.soil(treeBase.below()) && colony.consumeStock(level, sapling, 1)) {
-                if (!level.setBlock(treeBase, species.sapling().defaultBlockState(), 3))
-                    colony.depositToWarehouse(sapling, 1);
+                    && view.soil(treeBase.below()) && (materials == null ? colony.consumeStock(level, sapling, 1) : materials.takePrepared(sapling))) {
+                if (!level.setBlock(treeBase, species.sapling().defaultBlockState(), 3)) {
+                    if (materials == null) colony.depositToWarehouse(sapling, 1); else materials.refund(sapling);
+                }
             }
             clearTree();
         } else writeMemory();
         state = JobState.WORKING;
         ticksUntilNextWork = 30;
+    }
+
+    private boolean cargoFull() {
+        var worker = (ColonyVillager) villager;
+        var first = worker.getCourierCargo(); var second = worker.getCourierCargoExtra();
+        return !first.isEmpty() && !second.isEmpty()
+                && first.getCount() >= first.getMaxStackSize() && second.getCount() >= second.getMaxStackSize();
     }
 
     private boolean inToolReach(BlockPos log) {
@@ -242,7 +320,7 @@ public class WoodcutterJob extends AbstractJob {
     }
 
     private void clearTree() {
-        treeBase = null; treeSpecies = null; tree = java.util.List.of(); remaining = 0; squareTree = false; branchedTree = false; branchAxes = new int[0]; writeMemory();
+        treeBase = null; treeSpecies = null; tree = java.util.List.of(); remaining = 0; squareTree = false; branchedTree = false; saplingsChecked = false; branchAxes = new int[0]; writeMemory();
     }
     private void writeMemory() {
         if (!(villager instanceof ColonyVillager cv)) return;
@@ -257,6 +335,7 @@ public class WoodcutterJob extends AbstractJob {
             else tag.putInt("height", squareTree ? tree.size() / 4 : tree.size());
             if (squareTree) tag.putBoolean("square", true);
             tag.putInt("remaining", remaining);
+            tag.putBoolean("saplingsChecked", saplingsChecked);
         }
         cv.setWoodcutterMemory(tag);
     }
@@ -291,6 +370,7 @@ public class WoodcutterJob extends AbstractJob {
         if (branched && savedAxes.length != size) return;
         branchAxes = branched ? savedAxes : new int[0];
         treeBase = base; tree = java.util.List.copyOf(logs); remaining = count; squareTree = square; branchedTree = branched;
+        saplingsChecked = tag.getBoolean("saplingsChecked");
     }
 
     private final class TreeView implements SafeOakTree.View {

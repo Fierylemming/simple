@@ -107,6 +107,48 @@ final class PhysicalBuilderMaterials {
         return Result.BLOCKED;
     }
 
+    /** Fetch exactly the requested plain items, without crafting or consulting
+     * virtual stock. Partial collections remain in the persisted inventory. */
+    Result prepareCount(ServerLevel level, String wanted, int count) {
+        int local = snapshot(held()).getOrDefault(wanted, 0);
+        if (local >= count) return Result.READY;
+        var warehouse = colony.getWarehouseManager();
+        var positions = warehouse.courierStoragePositions(level);
+        int total = local;
+        for (var pos : positions) {
+            var c = warehouse.courierContainer(level, pos);
+            if (c != null) total += snapshot(c).getOrDefault(wanted, 0);
+        }
+        if (total < count) return Result.MISSING;
+        unreachable.entrySet().removeIf(e -> e.getValue() <= level.getGameTime());
+        var candidates = positions.stream().filter(p -> !unreachable.containsKey(p)).filter(p -> {
+            var c = warehouse.courierContainer(level, p);
+            return c != null && snapshot(c).getOrDefault(wanted, 0) > 0;
+        }).sorted(Comparator.comparingDouble(p -> p.distSqr(worker.blockPosition()))).toList();
+        for (var pos : candidates) {
+            if (worker.distanceToSqr(pos.getX()+.5, pos.getY()+.5, pos.getZ()+.5) > 9) {
+                if (!worker.onGround() && !worker.isInLiquid() && !worker.isPassenger()) return Result.MOVING;
+                var path = worker.getNavigation().createPath(pos, 1);
+                if (path == null || !path.canReach()) { unreachable.put(pos, level.getGameTime()+200); continue; }
+                worker.getNavigation().moveTo(path, .7); return Result.MOVING;
+            }
+            var c = warehouse.courierContainer(level, pos);
+            for (int i = 0; c != null && i < c.getContainerSize(); i++) {
+                var stack = c.getItem(i);
+                if (!plain(stack) || !id(stack).equals(wanted)) continue;
+                int amount = Math.min(count - local, Math.min(capacity(held(), stack), stack.getCount()));
+                if (amount <= 0) return Result.BLOCKED;
+                var taken = c.removeItem(i, amount);
+                var remainder = held().addItem(taken);
+                if (!remainder.isEmpty()) worker.spawnAtLocation(remainder);
+                c.setChanged(); worker.swing(InteractionHand.MAIN_HAND); return Result.WORKING;
+            }
+        }
+        return Result.BLOCKED;
+    }
+
+    int countPrepared(String wanted) { return snapshot(held()).getOrDefault(wanted, 0); }
+
     private static int capacity(Container c, ItemStack stack) {
         int room = 0;
         for (int i = 0; i < c.getContainerSize(); i++) {
