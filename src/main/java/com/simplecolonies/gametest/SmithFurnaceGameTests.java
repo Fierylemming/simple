@@ -192,7 +192,12 @@ public class SmithFurnaceGameTests {
         helper.succeedWhen(() -> {
             if (!supplied[0] || !picked[0] || !loaded[0] || !carried[0] || container.countItem(Items.IRON_INGOT) != 3
                     || !worker.getCourierCargo().isEmpty() || helper.getBlockEntity(furnacePos).getPersistentData().contains("simplecolonies_smith_batch"))
-                helper.fail("Physical smelting incomplete: " + job.getState() + " furnace=" + furnace.getItem(0) + "," + furnace.getItem(2));
+                helper.fail("Physical smelting incomplete: " + job.getState() + " furnace=" + furnace.getItem(0) + "," + furnace.getItem(2)
+                        + " worker=" + worker.blockPosition() + " onGround=" + worker.onGround()
+                        + " cargo=" + worker.getCourierCargo() + "/" + worker.getCourierCargoExtra()
+                        + " ingots=" + container.countItem(Items.IRON_INGOT)
+                        + " shared=" + colony.getWarehouseManager().courierStoragePositions(helper.getLevel())
+                        + " path=" + worker.getNavigation().getPath());
             if (colony.getWarehouseCount("minecraft:raw_iron") != 3 || colony.getWarehouseCount("minecraft:coal") != 1
                     || !ItemStack.isSameItemSameComponents(container.getItem(0), special) || container.getItem(0).getCount() != 3)
                 helper.fail("Smelting used virtual or customized supplies");
