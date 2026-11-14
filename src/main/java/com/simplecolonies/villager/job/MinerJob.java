@@ -66,7 +66,8 @@ public class MinerJob extends AbstractJob {
                 ticksUntilNextWork = picked == PhysicalToolPickup.Result.MOVING ? 10 : 60; return;
             }
             var result = materials.prepare(level, "minecraft:stone_pickaxe");
-            if (result == PhysicalBuilderMaterials.Result.READY && materials.takePrepared("minecraft:stone_pickaxe")) {
+            if ((result == PhysicalBuilderMaterials.Result.READY || result == PhysicalBuilderMaterials.Result.WORKING)
+                    && materials.takePrepared("minecraft:stone_pickaxe")) {
                 villager.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.STONE_PICKAXE));
                 state = JobState.WORKING; ticksUntilNextWork = 20;
             } else {

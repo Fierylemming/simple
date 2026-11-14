@@ -173,7 +173,8 @@ public class WoodcutterJob extends AbstractJob {
                 ticksUntilNextWork = picked == PhysicalToolPickup.Result.MOVING ? 10 : 60; return;
             }
             var result = materials.prepare(level, "minecraft:stone_axe");
-            if (result == PhysicalBuilderMaterials.Result.READY && materials.takePrepared("minecraft:stone_axe")) {
+            if ((result == PhysicalBuilderMaterials.Result.READY || result == PhysicalBuilderMaterials.Result.WORKING)
+                    && materials.takePrepared("minecraft:stone_axe")) {
                 villager.setItemSlot(EquipmentSlot.MAINHAND, new net.minecraft.world.item.ItemStack(Items.STONE_AXE));
                 state = JobState.WORKING; ticksUntilNextWork = 20;
             } else {
