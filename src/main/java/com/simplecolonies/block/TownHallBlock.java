@@ -66,15 +66,16 @@ public class TownHallBlock extends Block implements EntityBlock {
         // Open menu (playable GUI)
         if (player instanceof ServerPlayer sp) {
             final Colony fColony = colony;
+            var targets = com.simplecolonies.menu.TownHallMenu.snapshotDiplomacyTargets(fColony);
             // Use Extended Menu Provider pattern: we pass colonyId+pos via extraData handled in TownHallMenu.fromNetwork
             // NeoForge 1.21.1 uses MenuProvider with extra data via IMenuExtension; simplified here via custom open
             sp.openMenu(new SimpleMenuProvider((containerId, inv, ply) ->
-                    new com.simplecolonies.menu.TownHallMenu(containerId, inv, fColony, pos),
+                    new com.simplecolonies.menu.TownHallMenu(containerId, inv, fColony, pos, targets),
                     net.minecraft.network.chat.Component.literal(fColony.getCulture().displayName + " Colony #" + fColony.getId())),
                     buf -> {
                         buf.writeInt(fColony.getId());
                         buf.writeBlockPos(pos);
-                        buf.writeNbt(fColony.save());
+                        buf.writeNbt(com.simplecolonies.menu.TownHallMenu.snapshotWithTargets(fColony, targets));
                     }
             );
         }

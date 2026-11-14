@@ -47,6 +47,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
     private int citizenScroll = 0;
     private int researchScroll = 0;
     private int buildingScroll = 0;
+    private int diplomacyTarget = 0;
 
     private final int W = 340;
     private final int H = 285;
@@ -124,9 +125,16 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
             }
             case 3 -> {}
             case 4 -> {
-                addRenderableWidget(Button.builder(Component.literal("⚔ Declare War"), b->send(TownHallMenu.BTN_DECLARE_WAR_NEXT)).bounds(btnX, btnY, 110, 16).build());
-                addRenderableWidget(Button.builder(Component.literal("⚖ Ally"), b->send(TownHallMenu.BTN_PROPOSE_ALLIANCE)).bounds(btnX+116, btnY, 90, 16).build());
-                addRenderableWidget(Button.builder(Component.literal("Peace"), b->send(TownHallMenu.BTN_MAKE_PEACE)).bounds(btnX+212, btnY, 82, 16).build());
+                var targets = menu.getDiplomacyTargets();
+                if (!targets.isEmpty()) {
+                    diplomacyTarget = Math.min(diplomacyTarget, targets.size()-1);
+                    addRenderableWidget(Button.builder(Component.literal("<"), b->{ diplomacyTarget=(diplomacyTarget+targets.size()-1)%targets.size(); rebuild(); }).bounds(btnX, btnY, 22, 16).build());
+                    addRenderableWidget(Button.builder(Component.literal(">"), b->{ diplomacyTarget=(diplomacyTarget+1)%targets.size(); rebuild(); }).bounds(btnX+258, btnY, 22, 16).build());
+                    final int selected = diplomacyTarget;
+                    addRenderableWidget(Button.builder(Component.literal("War"), b->send(TownHallMenu.BTN_WAR_TARGET_BASE+selected)).bounds(btnX, btnY+20, 85, 16).build());
+                    addRenderableWidget(Button.builder(Component.literal("Ally"), b->send(TownHallMenu.BTN_ALLY_TARGET_BASE+selected)).bounds(btnX+91, btnY+20, 85, 16).build());
+                    addRenderableWidget(Button.builder(Component.literal("Peace"), b->send(TownHallMenu.BTN_PEACE_TARGET_BASE+selected)).bounds(btnX+182, btnY+20, 85, 16).build());
+                }
             }
             case 5 -> {
                 var av = menu.colony.getResearch().getAvailableToBuy();
@@ -182,6 +190,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
         if(currentTab==0) cy=y0+68;
         else if(currentTab==2) cy=y0+66;
         else if(currentTab==5) cy=y0+66;
+        else if(currentTab==4) cy=y0+86;
         switch(currentTab){
             case 0 -> drawOverview(g,cx,cy,col,res);
             case 1 -> drawCitizens(g,cx,cy,col,res);
@@ -200,7 +209,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
             case 1->"Shift+right-click villager to reassign job (if researched).";
             case 2->"Completed shelters count as capacity; beds are separate.";
             case 3->"Only explicitly shared storage is available to workers.";
-            case 4->"Peace/War: rally soldiers with Command Staff.";
+            case 4->"Select target first. Alliance and peace are immediate.";
             case 5->"Research auto-buys when warehouse has surplus mats.";
             default->"";
         };
@@ -322,15 +331,13 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
 
     // ── Diplomacy ──
     private void drawDiplomacy(GuiGraphics g,int x,int y, com.simplecolonies.colony.Colony c){
-        g.drawString(font, "Relations — actions target nearest colony (leader only):", x,y, C_TEXT,false); y+=12;
-        var all=c.getDiplomacy().getAll();
-        if(all.isEmpty()) drawHintBox(g,x,y,"Neutral with all. Wars and peace treaties expire by world day.");
-        else for(var r: all){
-            int col=r.relation==com.simplecolonies.colony.Diplomacy.Relation.WAR?C_RED: r.relation==com.simplecolonies.colony.Diplomacy.Relation.ALLIED?C_GREEN:C_TEXT_MID;
-            int bg=r.relation==com.simplecolonies.colony.Diplomacy.Relation.WAR?C_RED_BG: r.relation==com.simplecolonies.colony.Diplomacy.Relation.ALLIED?C_GREEN_BG: C_PANEL;
-            g.fill(x,y,x+316,y+14, bg); g.fill(x,y,x+2,y+14, col);
-            g.drawString(font, "#"+r.otherColonyId+" — "+r.relation + (r.daysRemaining>0?" ("+r.daysRemaining+"d)":""), x+8,y+3, col,false); y+=16;
-        }
+        var targets = menu.getDiplomacyTargets();
+        if (targets.isEmpty()) { drawHintBox(g,x,y,"No other colonies. Reopen to refresh the list."); return; }
+        var target = targets.get(Math.min(diplomacyTarget, targets.size()-1));
+        g.drawString(font, "Target #"+target.id()+"  "+target.culture()+"  ("+(diplomacyTarget+1)+"/"+targets.size()+")", x+27,y-37,C_TEXT,false);
+        var relation = c.getDiplomacy().getAll().stream().filter(r -> r.otherColonyId == target.id()).findFirst().orElse(null);
+        g.drawString(font, "Relation: "+(relation == null ? "NEUTRAL" : relation.relation+(relation.daysRemaining>0?" ("+relation.daysRemaining+"d)":"")), x,y,C_TEXT,false); y+=18;
+        drawHintBox(g,x,y,"Actions are immediate; reopen to refresh relations.");
     }
 
     // ── Research ──

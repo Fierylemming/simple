@@ -19,6 +19,42 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public class TownHallSafetyGameTests {
     @GameTest(template = "empty")
+    public static void diplomacyUsesSelectedSnapshotTargetAndChecksLeader(GameTestHelper helper) {
+        var center = helper.absolutePos(new BlockPos(8, 1, 8));
+        var self = new Colony(40001, CultureType.ROMAN, center);
+        var first = new Colony(40002, CultureType.GREEK, center.east(20));
+        var second = new Colony(40003, CultureType.PERSIAN, center.east(40));
+        var available = new java.util.HashMap<Integer, Colony>();
+        available.put(first.getId(), first); available.put(second.getId(), second);
+        helper.setBlock(new BlockPos(8, 1, 8), com.simplecolonies.block.ModBlocks.TOWN_HALL.get());
+        ((com.simplecolonies.block.entity.TownHallBlockEntity) helper.getBlockEntity(new BlockPos(8, 1, 8))).setColonyId(self.getId());
+        var player = helper.makeMockPlayer(GameType.SURVIVAL);
+        player.moveTo(center.getX()+.5, center.getY(), center.getZ()+.5);
+        var targets = java.util.List.of(new TownHallMenu.DiplomacyTarget(first.getId(), "first"), new TownHallMenu.DiplomacyTarget(second.getId(), "second"));
+        var snapshot = TownHallMenu.snapshotWithTargets(self, targets);
+        var saved = snapshot.getList("menuDiplomacyTargets", net.minecraft.nbt.Tag.TAG_COMPOUND);
+        if (saved.size() != 2 || saved.getCompound(1).getInt("id") != second.getId()) helper.fail("Target snapshot lost ordering");
+        var menu = new TownHallMenu(1, player.getInventory(), self, center, targets, available::get);
+        menu.clickMenuButton(player, TownHallMenu.BTN_WAR_TARGET_BASE+1);
+        if (self.getDiplomacy().getRelation(second.getId()) != com.simplecolonies.colony.Diplomacy.Relation.NEUTRAL) helper.fail("Non-leader changed relations");
+        self.setLeader(player);
+        menu.clickMenuButton(player, TownHallMenu.BTN_WAR_TARGET_BASE+1);
+        if (self.getDiplomacy().getRelation(second.getId()) != com.simplecolonies.colony.Diplomacy.Relation.WAR
+                || second.getDiplomacy().getRelation(self.getId()) != com.simplecolonies.colony.Diplomacy.Relation.WAR
+                || self.getDiplomacy().getRelation(first.getId()) != com.simplecolonies.colony.Diplomacy.Relation.NEUTRAL)
+            helper.fail("War affected wrong colony");
+        available.remove(first.getId());
+        menu.clickMenuButton(player, TownHallMenu.BTN_ALLY_TARGET_BASE);
+        if (self.getDiplomacy().getRelation(second.getId()) != com.simplecolonies.colony.Diplomacy.Relation.WAR)
+            helper.fail("Deleted target redirected action");
+        menu.clickMenuButton(player, TownHallMenu.BTN_PEACE_TARGET_BASE+1);
+        menu.clickMenuButton(player, TownHallMenu.BTN_WAR_TARGET_BASE+1);
+        if (self.getDiplomacy().getRelation(second.getId()) != com.simplecolonies.colony.Diplomacy.Relation.PEACE_TREATY)
+            helper.fail("Peace treaty failed to prevent war");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void schematicPlaceholderNeverConsumesItemsOrQueuesFakeHouse(GameTestHelper helper) {
         var center = helper.absolutePos(new BlockPos(8, 1, 8));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
