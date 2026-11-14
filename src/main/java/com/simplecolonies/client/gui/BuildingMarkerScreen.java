@@ -86,7 +86,7 @@ public class BuildingMarkerScreen extends AbstractContainerScreen<BuildingMarker
             String desc = switch(menu.currentType){
                 case HOUSE->"Housing: +4 shelter slots. Beds are separate.";
                 case FARM->"Farmer: tills, plants, harvests. Needs farmland + water.";
-                case PASTURE->"Sheep within 6 blocks; needs loom, shears and shared storage.";
+                case PASTURE->"Permits shepherds and butchers to work nearby livestock.";
                 case LUMBERJACK_HUT->"Woodcutter: fells trees, replants saplings.";
                 case MINE->"Miner: digs stone/ore, needs pickaxe tier.";
                 case WAREHOUSE->"Hub: all couriers deliver here. Many chests = faster.";
