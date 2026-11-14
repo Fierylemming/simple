@@ -52,9 +52,10 @@ public class CreateIntegrationGameTests {
         return stack;
     }
 
-    @GameTest(template = "empty", timeoutTicks = 300)
+    @GameTest(template = "empty", timeoutTicks = 700)
     public static void deployedCreateSchematicQueuesOnceAndPreservesBlueprint(GameTestHelper helper) throws Exception {
         if (!createAvailable(helper)) return;
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
         var src = new BlockPos(2, 1, 2);
         helper.setBlock(src, Blocks.OAK_PLANKS); helper.setBlock(src.east(), Blocks.COBBLESTONE);
         var blueprint = schematic(helper, src, new Vec3i(2, 1, 1), new BlockPos(10, 1, 10));
@@ -82,6 +83,46 @@ public class CreateIntegrationGameTests {
             helper.fail("Create task did not survive a colony save");
         if (CreateSchematicIntegration.queue(colony, helper.getLevel()).task() != null || colony.getBuildings().size() != 1)
             helper.fail("Duplicated an already queued schematic");
+        inventory.setItem(1, new ItemStack(net.minecraft.world.item.Items.OAK_PLANKS));
+        inventory.setItem(2, new ItemStack(net.minecraft.world.item.Items.COBBLESTONE));
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 8));
+        worker.setNoAi(true);
+        var job = new com.simplecolonies.villager.job.BuilderJob(worker, restored);
+        var restoredPlan = restored.getBuildings().getFirst();
+        for (int tick = 1; tick < 700; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.succeedWhen(() -> {
+            if (restoredPlan.getState() != com.simplecolonies.building.BuildingState.COMPLETE
+                    || !helper.getBlockState(target).is(Blocks.OAK_PLANKS) || !helper.getBlockState(target.east()).is(Blocks.COBBLESTONE)
+                    || inventory.countItem(net.minecraft.world.item.Items.OAK_PLANKS) != 0
+                    || inventory.countItem(net.minecraft.world.item.Items.COBBLESTONE) != 0
+                    || !ItemStack.isSameItemSameComponents(inventory.getItem(0), blueprint))
+                helper.fail("Restored Create plan did not physically build: " + restoredPlan.getState() + "/" + job.getState());
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    @GameTest(template = "empty", timeoutTicks = 300)
+    public static void rotatedCreateSchematicPreservesPositionsAndFacing(GameTestHelper helper) throws Exception {
+        if (!createAvailable(helper)) return;
+        var src = new BlockPos(2, 1, 2);
+        helper.setBlock(src, Blocks.OAK_STAIRS.defaultBlockState().setValue(net.minecraft.world.level.block.StairBlock.FACING, net.minecraft.core.Direction.NORTH));
+        helper.setBlock(src.east(), Blocks.COBBLESTONE);
+        var blueprint = schematic(helper, src, new Vec3i(2, 1, 1), new BlockPos(10, 1, 10));
+        var components = Class.forName("com.simibubi.create.AllDataComponents");
+        blueprint.set((DataComponentType<net.minecraft.world.level.block.Rotation>) components.getField("SCHEMATIC_ROTATION").get(null),
+                net.minecraft.world.level.block.Rotation.CLOCKWISE_90);
+        var chest = new BlockPos(6, 1, 6); helper.setBlock(chest, Blocks.CHEST);
+        ((Container) helper.getBlockEntity(chest)).setItem(0, blueprint);
+        var colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
+        colony.addCitizen(new CitizenData(java.util.UUID.randomUUID(), "Builder", JobType.BUILDER));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share schematic chest");
+        var result = CreateSchematicIntegration.queue(colony, helper.getLevel());
+        if (result.task() == null) { helper.fail("Rotated Create import failed: " + result.message()); return; }
+        var blocks = result.task().getRemainingPlacements();
+        if (blocks.size() != 2 || blocks.stream().noneMatch(p -> p.pos.equals(helper.absolutePos(new BlockPos(10, 1, 10)))
+                    && p.state.is(Blocks.OAK_STAIRS) && p.state.getValue(net.minecraft.world.level.block.StairBlock.FACING) == net.minecraft.core.Direction.EAST)
+                || blocks.stream().noneMatch(p -> p.pos.equals(helper.absolutePos(new BlockPos(10, 1, 11))) && p.state.is(Blocks.COBBLESTONE)))
+            helper.fail("Create rotation lost the transformed position or stair facing");
         helper.succeed();
     }
 
