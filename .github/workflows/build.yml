@@ -36,14 +36,17 @@ jobs:
         run: |
           python3 - <<'PYCODE'
           from pathlib import Path
-          log = Path('create-gametest.log') if Path('create-gametest.log').exists() else (Path('gametest.log') if Path('gametest.log').exists() else Path('build.log'))
-          lines = log.read_text(errors='replace').splitlines()
-          failures = [line for line in lines if any(term in line.lower() for term in ('failed at ', 'error:', 'could not ', 'could not resolve', 'could not find'))]
-          for line in failures:
-              print('::error title=Test or compiler failure::' + line[-3000:].replace('%', '%25').replace('\r', '%0D'))
-          highlights = [line for line in lines if any(term in line.lower() for term in ('error', 'failed', 'exception', 'tests complete', 'required tests'))]
-          text = '\n'.join(highlights[-12:] + lines[-8:])[-3500:].replace('%', '%25').replace('\n', '%0A').replace('\r', '%0D')
-          print('::error title=Build log tail::' + text)
+          for log in (Path('build.log'), Path('gametest.log'), Path('create-gametest.log')):
+              if not log.exists():
+                  continue
+              lines = log.read_text(errors='replace').splitlines()
+              failures = [line for line in lines if any(term in line.lower() for term in ('failed at ', 'error:', 'could not resolve', 'could not find'))]
+              for line in failures:
+                  print('::error title=' + log.name + ' failure::' + line[-3000:].replace('%', '%25').replace('\r', '%0D'))
+              if any('build failed' in line.lower() for line in lines):
+                  highlights = [line for line in lines if any(term in line.lower() for term in ('error', 'failed', 'exception', 'tests complete', 'required tests'))]
+                  text = '\n'.join(highlights[-12:] + lines[-8:])[-3500:].replace('%', '%25').replace('\n', '%0A').replace('\r', '%0D')
+                  print('::error title=' + log.name + ' tail::' + text)
           PYCODE
       - name: Upload build log
         if: always()
