@@ -4,7 +4,7 @@ This is an **unfinished test build**, not the completed overhaul. Back up any ex
 
 ## Get the build
 
-1. Open [CI run 43638114379](https://github.com/Fierylemming/simple/actions/runs/43638114379) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `fecc664`. The build and both standard and Create-enabled GameTests passed, but navigation and animal integration have failed intermittently in other runs and still need in-game verification. Extract the zip.
+1. Open [CI run 43638575497](https://github.com/Fierylemming/simple/actions/runs/43638575497) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `d8d356f`. The build and both standard and Create-enabled GameTests passed, but navigation and animal integration have failed intermittently in other runs and still need in-game verification. Extract the zip.
 2. In Prism Launcher, create a **Minecraft 1.21.1, NeoForge 21.1.265, Java 21** instance. Place the extracted SimpleColonies jar in that instance's `mods` folder; remove any older SimpleColonies jar first. Do not install it alongside another copy. For a server, install the same version on both client and server.
 3. Start a new world with cheats enabled, in the Overworld. No public overhaul release has been made.
 

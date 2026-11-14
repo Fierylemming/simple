@@ -245,3 +245,7 @@ A trusted player may now sneak-use the Building Tool on a cow, pig or sheep to m
 [Run 43637259067](https://github.com/Fierylemming/simple/actions/runs/43637259067) passed the standard suite but failed the Create-enabled suite on sheep breeding (worker stuck after collecting wheat) and crooked acacia harvesting (no tree selected). Forestry discovery and livestock approaches now defer ground path requests when airborne, with focused regressions. This addresses a possible cause; the original random failures have not been conclusively diagnosed or eliminated.
 
 [Run 43638114379](https://github.com/Fierylemming/simple/actions/runs/43638114379) passed both suites with the airborne retry regressions, but intermittent livestock and tree tests still require repeated validation.
+
+## Unloaded citizen health catch-up
+
+Pending daily health effects for unloaded citizens are stored as ordered run lengths, with legacy byte-array migration. At most 64 pending days are applied per entity invocation; the rest remain saved, and starvation hits from different simulated days no longer collapse into one due to Minecraft's same-tick damage immunity. This bounds the common long uniform time-skip case but does not simulate physical work during a skip. [Run 43638575497](https://github.com/Fierylemming/simple/actions/runs/43638575497) passed the build and both GameTest suites with these changes.
