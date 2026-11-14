@@ -136,6 +136,7 @@ public class BuildingUpgrade {
                     || inside(p.north(radius + 1), site, radius)
                     || inside(entrance, p, radius))) continue;
             if (!clearWing(level, colony, site, house)) continue;
+            if (building.getType() == BuildingType.HARBOR && !colony.hasFishingWater(level, site)) continue;
             if (ConstructionCrafting.canBuild(stock, building.previewWorksiteWing(site))) return site;
         }
         return null;

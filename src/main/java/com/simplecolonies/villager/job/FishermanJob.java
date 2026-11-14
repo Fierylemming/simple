@@ -95,14 +95,14 @@ public class FishermanJob extends AbstractJob {
         }
         var harbor = colony.getBuildings().stream()
                 .filter(b -> b.getType() == BuildingType.HARBOR && b.isOperational())
-                .filter(b -> level.isLoaded(b.getPos()) && b.getPos().distSqr(site.get().pos()) <= 144)
-                .min(Comparator.comparingDouble(b -> b.getPos().distSqr(site.get().pos()))).orElse(null);
+                .filter(b -> level.isLoaded(b.getPos()) && b.distanceToOperationalSite(site.get().pos()) <= 144)
+                .min(Comparator.comparingDouble(b -> b.distanceToOperationalSite(site.get().pos()))).orElse(null);
         if (harbor == null) { lastSearch = "no loaded completed harbor near " + site.get().pos().toShortString(); clearJobPath(); state = JobState.STUCK; ticksUntilNextWork = 100; return; }
         if (colony.getWarehouseCount(level, "minecraft:cod") + colony.getWarehouseCount(level, "minecraft:salmon") >= 8) {
             lastSearch = "fish reserve full";
             clearJobPath(); state = JobState.IDLE; ticksUntilNextWork = 200; return;
         }
-        var fish = level.getEntitiesOfClass(AbstractFish.class, new AABB(harbor.getPos()).inflate(10, 4, 10),
+        var fish = level.getEntitiesOfClass(AbstractFish.class, new AABB(site.get().pos()).inflate(10, 4, 10),
                 f -> f.isAlive() && f.isInWater() && colony.isInside(f.blockPosition())
                         && (f.getType() == EntityType.COD || f.getType() == EntityType.SALMON)
                         && !f.hasCustomName() && !f.fromBucket() && !f.isPersistenceRequired() && !f.requiresCustomPersistence());

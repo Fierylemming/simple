@@ -392,4 +392,25 @@ public class FishermanGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 200)
+    public static void fishermanRecognizesDistantCompletedHarborWing(GameTestHelper helper) {
+        Colony colony = setup(helper);
+        var wing = helper.absolutePos(SITE);
+        var harbor = new Building(BuildingType.HARBOR, wing.west(15), CultureType.ROMAN);
+        harbor.setState(com.simplecolonies.building.BuildingState.COMPLETE);
+        if (!harbor.beginWorksiteWing(wing)) helper.fail("Could not queue fixture wing");
+        while (harbor.getNextPlacement() != null) harbor.markPlaced(harbor.getNextPlacement());
+        harbor.finishConstruction();
+        colony.registerPlayerBuilding(harbor);
+        var fisher = worker(helper);
+        fisher.setNoAi(true);
+        var job = new FishermanJob(fisher, colony);
+        for (int tick = 1; tick < 200; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(120, () -> {
+            if (job.diagnostic().startsWith("no loaded completed harbor") || job.diagnostic().equals("not searched"))
+                helper.fail("Fisher did not recognize the completed wing: " + job.diagnostic());
+            helper.succeed();
+        });
+    }
+
 }

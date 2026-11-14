@@ -422,7 +422,7 @@ public class Colony {
 
     /** A modest, loaded two-deep pool near the dry worksite. This does not
      * guarantee a path to the shore or that the biome will spawn fish. */
-    private boolean hasFishingWater(ServerLevel level, BlockPos station) {
+    public boolean hasFishingWater(ServerLevel level, BlockPos station) {
         for (int x = -8; x <= 7; x++) for (int z = -8; z <= 7; z++) {
             if (x * x + z * z > 49) continue;
             for (int y = -2; y <= 0; y++) {
