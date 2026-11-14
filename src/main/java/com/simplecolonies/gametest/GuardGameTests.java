@@ -89,6 +89,34 @@ public class GuardGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void followOrderSurvivesReloadAndRevokesOnLeadershipChange(GameTestHelper helper) {
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 8));
+        worker.setJob(com.simplecolonies.villager.job.JobType.GUARD);
+        var leader = helper.makeMockPlayer(net.minecraft.world.level.GameType.SURVIVAL);
+        var colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
+        colony.setLeader(leader);
+        var job = new SoldierJob(worker, colony);
+        job.setCommander(leader, true);
+        var saved = new net.minecraft.nbt.CompoundTag();
+        worker.saveWithoutId(saved);
+        var restored = com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get().create(helper.getLevel());
+        if (restored == null) { helper.fail("Could not create restored defender"); return; }
+        restored.load(saved);
+        var resumed = new SoldierJob(restored, colony);
+        if (!resumed.isFollowing() || !leader.getUUID().equals(restored.getFollowCommanderId()))
+            helper.fail("Follow order did not survive entity reload");
+        // No leader in this colony represents a revoked/changed leadership.
+        var other = new Colony(1, CultureType.ROMAN, colony.getCenter());
+        var revoked = new SoldierJob(restored, other);
+        if (revoked.hasValidCommander(helper.getLevel()) || revoked.isFollowing() || restored.getFollowCommanderId() != null)
+            helper.fail("Former leader retained a follow order");
+        job.setCommander(leader, true);
+        worker.setJob(com.simplecolonies.villager.job.JobType.FARMER);
+        if (worker.getFollowCommanderId() != null) helper.fail("Profession change retained a military order");
+        helper.succeed();
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 1000)
     public static void soldierFollowsLeaderAndStopsWhenReleased(GameTestHelper helper) {
         for (int x = 40; x <= 72; x++) for (int z = 40; z <= 72; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);

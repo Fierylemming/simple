@@ -36,6 +36,8 @@ public class ColonyVillager extends Villager {
     private int colonyId = -1;
     private JobType job = JobType.UNEMPLOYED;
     private AbstractJob jobInstance;
+    // Saved as an identity, not an entity reference: never force-load a leader.
+    private java.util.UUID followCommanderId;
     private boolean suppressVanillaBrainReset;
     // Physical job cargo is retained across chunk unloads and restarts.
     private net.minecraft.world.item.ItemStack courierCargo = net.minecraft.world.item.ItemStack.EMPTY;
@@ -145,6 +147,8 @@ public class ColonyVillager extends Villager {
 
     public void setColony(Colony colony) {
         if (this.colonyId != -1 && this.colonyId != colony.getId()) {
+            followCommanderId = null;
+            jobInstance = null;
             ColonyManager.getInstance().getColony(this.colonyId).ifPresent(old -> old.removeCitizen(getUUID()));
         }
         this.colonyId = colony.getId();
@@ -163,6 +167,7 @@ public class ColonyVillager extends Villager {
     public void setJob(JobType newJob) {
         boolean changed = this.job != newJob;
         if (changed && !level().isClientSide) {
+            followCommanderId = null;
             // Keep real job tools (including their damage/components) when switching
             // professions, instead of leaving an incompatible tool in the main hand.
             var held = getMainHandItem();
@@ -223,7 +228,11 @@ public class ColonyVillager extends Villager {
         };
     }
 
-    /** Leader-only, session-local follow command; does not force-load citizens. */
+    /** Follow orders survive entity reload; an offline leader is never force-loaded. */
+    public @Nullable java.util.UUID getFollowCommanderId() { return followCommanderId; }
+    public void setFollowCommanderId(@Nullable java.util.UUID id) { followCommanderId = id; }
+
+    /** Only the current leader can order a loaded defender. */
     public boolean commandFollow(Player player, boolean follow) {
         if (level().isClientSide || !isAlive() || !job.isCombat || player.level() != level()) return false;
         var colony = ColonyManager.getInstance().getColony(colonyId).orElse(null);
@@ -235,7 +244,7 @@ public class ColonyVillager extends Villager {
     }
 
     public boolean isFollowingCommander() {
-        return jobInstance instanceof SoldierJob soldier && soldier.isFollowing();
+        return job.isCombat && followCommanderId != null;
     }
 
     // Vanilla ResetProfession/AssignProfessionFromJobSite must not overwrite a colony job.
@@ -683,6 +692,7 @@ public class ColonyVillager extends Villager {
         super.addAdditionalSaveData(tag);
         tag.putInt("colonyId", colonyId);
         tag.putString("colonyJob", job.name());
+        if (job.isCombat && followCommanderId != null) tag.putUUID("followCommander", followCommanderId);
         tag.putInt("hungerTicks", hungerTicks);
         tag.putInt("daysAlive", daysAlive);
         if (!courierCargo.isEmpty()) tag.put("courierCargo", courierCargo.save(registryAccess()));
@@ -699,6 +709,8 @@ public class ColonyVillager extends Villager {
         super.readAdditionalSaveData(tag);
         colonyId = tag.getInt("colonyId");
         if (tag.contains("colonyJob")) job = JobType.valueOf(tag.getString("colonyJob"));
+        followCommanderId = job.isCombat && tag.hasUUID("followCommander") ? tag.getUUID("followCommander") : null;
+        jobInstance = null;
         hungerTicks = tag.getInt("hungerTicks");
         daysAlive = tag.getInt("daysAlive");
         minerMemory = tag.getCompound("minerMemory").copy();

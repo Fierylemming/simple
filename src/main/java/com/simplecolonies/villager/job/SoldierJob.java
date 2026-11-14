@@ -11,18 +11,32 @@ import net.minecraft.world.entity.player.Player;
 /** Close-range defensive combat against hostiles; commander following remains optional. */
 public class SoldierJob extends AbstractJob {
     private Player commander;
-    private boolean followingLeader;
+    private java.util.UUID commanderId;
 
-    public SoldierJob(Villager villager, Colony colony) { super(villager, colony, JobType.SOLDIER); }
-    public void setCommander(Player player, boolean follow) {
-        if (!follow && followingLeader) villager.getNavigation().stop();
-        commander = follow ? player : null;
-        followingLeader = follow;
+    public SoldierJob(Villager villager, Colony colony) {
+        super(villager, colony, JobType.SOLDIER);
+        if (villager instanceof com.simplecolonies.entity.ColonyVillager citizen)
+            commanderId = citizen.getFollowCommanderId();
     }
-    public boolean isFollowing() { return followingLeader; }
+    public void setCommander(Player player, boolean follow) {
+        if (!follow && commanderId != null) villager.getNavigation().stop();
+        commander = follow ? player : null;
+        commanderId = follow ? player.getUUID() : null;
+        if (villager instanceof com.simplecolonies.entity.ColonyVillager citizen)
+            citizen.setFollowCommanderId(commanderId);
+    }
+    public boolean isFollowing() { return commanderId != null; }
 
     public boolean hasValidCommander(ServerLevel level) {
-        return followingLeader && commander != null && commander.isAlive() && !commander.isRemoved()
+        if (commanderId == null) return false;
+        // A leadership change revokes the order, including while its issuer is offline.
+        if (!commanderId.equals(colony.getLeaderId())) {
+            setCommander(null, false);
+            return false;
+        }
+        if (commander == null || commander.isRemoved() || commander.level() != level)
+            commander = level.getPlayerByUUID(commanderId);
+        return commander != null && commander.isAlive() && !commander.isRemoved()
                 && commander.level() == level && colony.isLeader(commander);
     }
 
