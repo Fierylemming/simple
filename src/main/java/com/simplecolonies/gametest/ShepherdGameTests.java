@@ -167,6 +167,8 @@ public class ShepherdGameTests {
                     || container.getItem(0).getCount() != 2)
                 helper.fail("Sheep breeding incomplete: fed=" + fed[0] + "," + fed[1] + "; flock=" + flock.size()
                         + "; wheat=" + container.getItem(0).getCount() + "; state=" + job.getState()
+                        + "; worker=" + worker.blockPosition().toShortString() + "; supplies=" + worker.getWorkSupplies()
+                        + "; sheep=" + first.blockPosition().toShortString() + "," + second.blockPosition().toShortString()
                         + "; love=" + first.isInLove() + "," + second.isInLove());
         });
     }
