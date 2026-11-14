@@ -125,6 +125,38 @@ public class PhysicalBuilderGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 900)
+    public static void queuedBuilderStopsForNewProtectedPlot(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        var base = new BlockPos(8, 1, 8); var chest = new BlockPos(6, 1, 8);
+        helper.setBlock(chest, Blocks.CHEST);
+        var center = helper.absolutePos(base);
+        var colony = new Colony(0, CultureType.ROMAN, center);
+        colony.addCitizen(new com.simplecolonies.colony.CitizenData(java.util.UUID.randomUUID(), "Builder", com.simplecolonies.villager.job.JobType.BUILDER));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
+        var container = (Container) helper.getBlockEntity(chest);
+        container.setItem(0, new ItemStack(Items.OAK_PLANKS));
+        var source = new CompoundTag(); source.putString("source", "protection-fixture");
+        var plan = Building.imported(center, CultureType.ROMAN, source, java.util.List.of(
+                new Building.BlockPlacement(center, Blocks.OAK_PLANKS.defaultBlockState(), "minecraft:oak_planks")));
+        if (!colony.queueImportedBuilding(plan) || !colony.updateMarkerBuilding(center.east(7), false, BuildingType.PROTECTED_PLOT))
+            helper.fail("Could not queue and protect the site");
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(7, 1, 9)); worker.setNoAi(true);
+        var job = new BuilderJob(worker, colony);
+        for (int tick = 1; tick < 900; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        boolean[] unprotected = {false};
+        helper.runAtTickTime(150, () -> {
+            if (!helper.getBlockState(base).isAir() || container.countItem(Items.OAK_PLANKS) != 1
+                    || plan.getState() != BuildingState.BLOCKED) helper.fail("Builder modified protected plot or took materials");
+            colony.updateMarkerBuilding(center.east(7), true, null);
+            unprotected[0] = true;
+        });
+        helper.succeedWhen(() -> {
+            if (!unprotected[0] || plan.getState() != BuildingState.COMPLETE || !helper.getBlockState(base).is(Blocks.OAK_PLANKS)
+                    || container.countItem(Items.OAK_PLANKS) != 0) helper.fail("Builder did not resume after plot was cleared");
+        });
+    }
+
     @GameTest(template = "empty")
     public static void cancellingImportedPlanSuppressesAutomaticRetryAcrossReload(GameTestHelper helper) {
         var center = helper.absolutePos(new BlockPos(8, 1, 8));

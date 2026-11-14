@@ -253,3 +253,7 @@ Pending daily health effects for unloaded citizens are stored as ordered run len
 ## Courier destination selection
 
 Couriers carrying real cargo now select among accepting shared containers near the warehouse hub rather than staying indefinitely at a full or incompatible nearest container. Unreachable destinations are temporarily set aside; no eligible destination leaves cargo on the worker. A GameTest checks an alternate shared hub, physical delivery, preservation of item components, and an unshared chest. [Run 43638979706](https://github.com/Fierylemming/simple/actions/runs/43638979706) passed the build and both GameTest suites.
+
+## Protected plots (pending CI)
+
+A trusted player can designate a Building Marker as a protected plot. The 17-by-17 horizontal area centered on the marker extends through all heights and persists across reloads, including when the marker's chunk is unloaded. Colony construction planning and builder placement, farm crop work, mining, forestry, and butcher, shepherd and fisherman targets check these plots, including plots belonging to another colony. Changing, clearing or breaking the marker removes its linked protection. This is an opt-in safeguard, not automatic property detection: it does not protect against players, other mods, vanilla mobs or all incidental effects, and explicitly shared containers may still be used. Unmarked property and natural-looking player terrain remain at risk. Further normal-world and multiplayer validation is required; this change is not a release.
