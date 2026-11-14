@@ -57,6 +57,9 @@ public class WoodcutterJob extends AbstractJob {
     private boolean saplingsChecked;
     private net.minecraft.world.level.pathfinder.Path approachPath;
     private BlockPos approachLog;
+    private double approachBestDistance;
+    private long approachProgressTime;
+    private final java.util.Map<BlockPos, Long> blockedStands = new java.util.HashMap<>();
     private final PhysicalJobCargo cargo;
     private final PhysicalToolPickup toolPickup;
     private final PhysicalBuilderMaterials materials;
@@ -79,6 +82,22 @@ public class WoodcutterJob extends AbstractJob {
                 || brain.hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.NEAREST_HOSTILE)
                 || brain.hasMemoryValue(net.minecraft.world.entity.ai.memory.MemoryModuleType.HURT_BY);
         if (!panic && state == JobState.GOING_TO_WORK && villager.getNavigation().getPath() == approachPath && !approachPath.isDone()) {
+            var end = approachPath.getEndNode();
+            if (end != null) {
+                double distance = end.asBlockPos().distToCenterSqr(villager.position());
+                if (distance < approachBestDistance - 0.1) {
+                    approachBestDistance = distance;
+                    approachProgressTime = level.getGameTime();
+                } else if (level.getGameTime() - approachProgressTime >= 160) {
+                    // A valid path can still be physically blocked. Try another
+                    // natural standing spot rather than holding it forever.
+                    blockedStands.put(end.asBlockPos(), level.getGameTime() + 200);
+                    clearApproach();
+                    state = JobState.STUCK;
+                    ticksUntilNextWork = 0;
+                    return;
+                }
+            }
             brain.eraseMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET);
             brain.setMemory(pathMemory, approachPath);
         } else {
@@ -90,6 +109,9 @@ public class WoodcutterJob extends AbstractJob {
     private void followApproach(net.minecraft.world.level.pathfinder.Path path, BlockPos log) {
         if (villager.getNavigation().moveTo(path, .7)) {
             approachPath = path; approachLog = log;
+            var end = path.getEndNode();
+            approachBestDistance = end == null ? Double.POSITIVE_INFINITY : end.asBlockPos().distToCenterSqr(villager.position());
+            approachProgressTime = villager.level().getGameTime();
             villager.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.PATH, path);
         }
     }
@@ -253,8 +275,9 @@ public class WoodcutterJob extends AbstractJob {
             var candidates = new java.util.ArrayList<BlockPos>();
             for (Direction d : Direction.Plane.HORIZONTAL) candidates.add(treeBase.relative(d));
             candidates.sort(java.util.Comparator.comparingDouble(p -> villager.distanceToSqr(p.getX() + 0.5, p.getY(), p.getZ() + 0.5)));
+            blockedStands.entrySet().removeIf(e -> e.getValue() <= level.getGameTime());
             for (BlockPos candidate : candidates) {
-                if (!level.isLoaded(candidate) || !level.isLoaded(candidate.above()) || !level.isLoaded(candidate.below())) continue;
+                if (blockedStands.containsKey(candidate) || !level.isLoaded(candidate) || !level.isLoaded(candidate.above()) || !level.isLoaded(candidate.below())) continue;
                 if (!level.getBlockState(candidate).getCollisionShape(level, candidate).isEmpty()
                         || !level.getBlockState(candidate.above()).getCollisionShape(level, candidate.above()).isEmpty()
                         || !level.getBlockState(candidate.below()).isFaceSturdy(level, candidate.below(), Direction.UP)) continue;
@@ -326,10 +349,11 @@ public class WoodcutterJob extends AbstractJob {
      * eyes within real tool reach. This does not alter the hillside. */
     private net.minecraft.world.level.pathfinder.Path findTallApproach(ServerLevel level, BlockPos base, BlockPos log) {
         var candidates = new java.util.ArrayList<BlockPos>();
+        blockedStands.entrySet().removeIf(e -> e.getValue() <= level.getGameTime());
         for (int dx = -3; dx <= 3; dx++) for (int dz = -3; dz <= 3; dz++) for (int dy = -2; dy <= 5; dy++) {
             if (dx == 0 && dz == 0) continue;
             BlockPos stand = base.offset(dx, dy, dz);
-            if (!colony.isInside(stand) || !level.isLoaded(stand) || !level.isLoaded(stand.above()) || !level.isLoaded(stand.below())) continue;
+            if (blockedStands.containsKey(stand) || !colony.isInside(stand) || !level.isLoaded(stand) || !level.isLoaded(stand.above()) || !level.isLoaded(stand.below())) continue;
             var floor = level.getBlockState(stand.below());
             if (!(floor.is(BlockTags.DIRT) || floor.is(BlockTags.BASE_STONE_OVERWORLD))
                     || !floor.isFaceSturdy(level, stand.below(), Direction.UP)
