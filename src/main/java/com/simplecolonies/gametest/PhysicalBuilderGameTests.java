@@ -109,6 +109,12 @@ public class PhysicalBuilderGameTests {
         helper.runAtTickTime(100, () -> {
             if (!helper.getBlockState(base).is(Blocks.OBSIDIAN) || container.countItem(Items.OAK_PLANKS) != 3
                     || plan.getState() != BuildingState.BLOCKED) helper.fail("Imported builder altered an obstruction or consumed supplies");
+            // Even replaceable vegetation could have been placed by a player.
+            helper.setBlock(base, Blocks.SHORT_GRASS);
+        });
+        helper.runAtTickTime(200, () -> {
+            if (!helper.getBlockState(base).is(Blocks.SHORT_GRASS) || container.countItem(Items.OAK_PLANKS) != 3
+                    || plan.getState() != BuildingState.BLOCKED) helper.fail("Imported builder cleared a replaceable block");
             helper.setBlock(base, Blocks.AIR);
         });
         helper.succeedWhen(() -> {

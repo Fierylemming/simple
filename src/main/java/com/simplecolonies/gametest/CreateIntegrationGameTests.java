@@ -64,6 +64,12 @@ public class CreateIntegrationGameTests {
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         colony.addCitizen(new CitizenData(java.util.UUID.randomUUID(), "Builder", JobType.BUILDER));
         if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share schematic chest");
+        var target = new BlockPos(10, 1, 10);
+        helper.setBlock(target, Blocks.SHORT_GRASS);
+        if (CreateSchematicIntegration.queue(colony, helper.getLevel()).task() != null
+                || !helper.getBlockState(target).is(Blocks.SHORT_GRASS))
+            helper.fail("Create import accepted or cleared a replaceable obstruction");
+        helper.setBlock(target, Blocks.AIR);
         var result = CreateSchematicIntegration.queue(colony, helper.getLevel());
         if (result.task() == null) { helper.fail("Create import failed: " + result.message()); return; }
         var plan = result.task();

@@ -185,15 +185,17 @@ public final class CreateSchematicIntegration {
                         return "Schematic overlaps an existing colony building";
             }
             var existing = level.getBlockState(pos);
+            // Replaceable plants and decorations can also be player property.
+            // Imported schematics never clear them implicitly.
             if (level.getBlockEntity(pos) != null || !existing.getFluidState().isEmpty()
-                    || (!existing.equals(placement.state) && !existing.isAir() && !existing.canBeReplaced()))
+                    || (!existing.equals(placement.state) && !existing.isAir()))
                 return "Schematic site contains a solid obstruction or protected block entity";
             if (placement.state.getBlock() instanceof DoorBlock) {
                 var above = pos.above();
                 if (!level.isLoaded(above) || !colony.isInside(above) || level.getBlockEntity(above) != null) return "Schematic door is blocked";
                 var upper = level.getBlockState(above);
                 if (!upper.equals(placement.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER))
-                        && (!upper.getFluidState().isEmpty() || (!upper.isAir() && !upper.canBeReplaced()))) return "Schematic door is blocked";
+                        && (!upper.getFluidState().isEmpty() || !upper.isAir())) return "Schematic door is blocked";
             }
         }
         return null;

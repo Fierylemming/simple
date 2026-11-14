@@ -115,6 +115,12 @@ public class BuilderJob extends AbstractJob {
                 ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 200); return;
             }
             var before = level.getBlockState(next.pos);
+            if (currentJob.getType() == com.simplecolonies.building.BuildingType.SCHEMATIC
+                    && (level.getBlockEntity(next.pos) != null || !before.getFluidState().isEmpty()
+                        || (!before.isAir() && !before.equals(next.state)))) {
+                currentJob.setState(BuildingState.BLOCKED); state = JobState.STUCK;
+                ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 200); return;
+            }
             if (physical != null && !before.equals(next.state) && before.getFluidState().isEmpty()
                     && (before.isAir() || before.canBeReplaced())) {
                 var result = physical.prepare(level, next.itemId);
@@ -148,8 +154,9 @@ public class BuilderJob extends AbstractJob {
                 if (!level.isLoaded(upper)) { state = JobState.STUCK; deferCurrent(level, 200); return; }
                 var above = level.getBlockState(upper);
                 var expected = next.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER);
-                if (!above.equals(expected) && (!above.getFluidState().isEmpty()
-                        || (!above.isAir() && !above.canBeReplaced()))) {
+                if (level.getBlockEntity(upper) != null || (!above.equals(expected) && (!above.getFluidState().isEmpty()
+                        || (!above.isAir() && (currentJob.getType() == com.simplecolonies.building.BuildingType.SCHEMATIC
+                            || !above.canBeReplaced()))))) {
                     currentJob.setState(BuildingState.BLOCKED); state = JobState.STUCK;
                     ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 200); return;
                 }
