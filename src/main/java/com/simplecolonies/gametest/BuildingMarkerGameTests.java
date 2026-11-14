@@ -47,6 +47,34 @@ public class BuildingMarkerGameTests {
         helper.succeed();
     }
 
+    @SuppressWarnings("unchecked")
+    @GameTest(template = "empty")
+    public static void plotProtectionAppliesAcrossColoniesAndEndsWhenMarkerBreaks(GameTestHelper helper) {
+        var manager = com.simplecolonies.colony.ColonyManager.getInstance();
+        java.util.Map<Integer, Colony> colonies;
+        try {
+            var field = com.simplecolonies.colony.ColonyManager.class.getDeclaredField("colonies");
+            field.setAccessible(true);
+            colonies = (java.util.Map<Integer, Colony>) field.get(manager);
+        } catch (ReflectiveOperationException e) { helper.fail("Cannot install test colony: " + e); return; }
+        var relative = new BlockPos(8, 1, 8); var absolute = helper.absolutePos(relative);
+        int id = GameTestColonyIds.next();
+        var owner = new Colony(id, CultureType.ROMAN, absolute);
+        var neighbour = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, absolute.east(18));
+        colonies.put(id, owner);
+        try {
+            helper.setBlock(relative, ModBlocks.BUILDING_MARKER.get());
+            var marker = (BuildingMarkerBlockEntity) helper.getBlockEntity(relative);
+            if (!owner.updateMarkerBuilding(absolute, false, BuildingType.PROTECTED_PLOT)) helper.fail("Could not protect plot");
+            marker.setBuildingType(BuildingType.PROTECTED_PLOT); marker.setLinkedBuildingPos(absolute);
+            if (!neighbour.isProtectedPlot(absolute.east(8))) helper.fail("Neighbouring colony ignored protected plot");
+            helper.setBlock(relative, net.minecraft.world.level.block.Blocks.AIR);
+            if (neighbour.isProtectedPlot(absolute.east(8)) || !owner.getBuildings().isEmpty())
+                helper.fail("Broken marker left plot protection behind");
+        } finally { colonies.remove(id); manager.saveAll(); }
+        helper.succeed();
+    }
+
     @GameTest(template = "empty")
     public static void markerChangesAndClearsColonyBuilding(GameTestHelper helper) {
         BlockPos relative = new BlockPos(8, 1, 8), absolute = helper.absolutePos(relative);
