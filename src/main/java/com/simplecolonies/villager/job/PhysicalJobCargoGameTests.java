@@ -57,6 +57,43 @@ public class PhysicalJobCargoGameTests {
         if (excess.isRemoved() || !excess.getItem().is(Items.PORKCHOP)) helper.fail("Over-capacity world drop disappeared");
         helper.succeed();
     }
+    @GameTest(template = "empty", timeoutTicks = 600)
+    public static void missingWorkstationReturnsAllCarriedItemsWithoutProduction(GameTestHelper helper) {
+        var chest = new BlockPos(7, 1, 8);
+        helper.setBlock(chest, Blocks.CHEST);
+        var container = (Container) helper.getBlockEntity(chest);
+        for (int i = 0; i < container.getContainerSize(); i++) container.setItem(i, new ItemStack(Items.COBBLESTONE, 64));
+        var colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share storage");
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 8)); worker.setNoAi(true);
+        var named = new ItemStack(Items.BREAD, 2);
+        named.set(DataComponents.CUSTOM_NAME, Component.literal("Saved output"));
+        worker.setCourierCargo(named.copy());
+        worker.setCourierCargoExtra(new ItemStack(Items.LEATHER, 2));
+        worker.setWorkSupplies(new ItemStack(Items.WHEAT, 3));
+        worker.setPlantingSeeds(new ItemStack(Items.WHEAT_SEEDS, 1));
+        worker.getBuilderMaterials().setItem(0, new ItemStack(Items.IRON_INGOT, 2));
+        var job = new BakerJob(worker, colony);
+        for (int tick = 1; tick < 600; tick++) helper.runAtTickTime(tick, () -> job.tickWithoutWorksite(helper.getLevel()));
+        boolean[] opened = {false};
+        helper.runAtTickTime(100, () -> {
+            if (!ItemStack.isSameItemSameComponents(worker.getCourierCargo(), named) || worker.getCourierCargo().getCount() != 2
+                    || worker.getWorkSupplies().getCount() != 3 || worker.getBuilderMaterials().countItem(Items.IRON_INGOT) != 2)
+                helper.fail("Full storage lost carried items");
+            for (int i = 0; i < 5; i++) container.setItem(i, ItemStack.EMPTY);
+            opened[0] = true;
+        });
+        helper.succeedWhen(() -> {
+            if (!opened[0] || !worker.getCourierCargo().isEmpty() || !worker.getCourierCargoExtra().isEmpty()
+                    || !worker.getWorkSupplies().isEmpty() || !worker.getPlantingSeeds().isEmpty()
+                    || !worker.getBuilderMaterials().isEmpty()) helper.fail("Recovery in progress: " + job.getState());
+            if (container.countItem(Items.BREAD) != 2 || !ItemStack.isSameItemSameComponents(container.getItem(0), named)
+                    || container.countItem(Items.LEATHER) != 2 || container.countItem(Items.WHEAT) != 3
+                    || container.countItem(Items.WHEAT_SEEDS) != 1 || container.countItem(Items.IRON_INGOT) != 2)
+                helper.fail("Recovery changed components, lost items or produced without a workstation");
+        });
+    }
+
     @GameTest(template = "empty", timeoutTicks = 100)
     public static void builderCanCraftInACompletedWingDuringAnotherUpgrade(GameTestHelper helper) {
         var origin = helper.absolutePos(new BlockPos(2, 1, 8));

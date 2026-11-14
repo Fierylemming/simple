@@ -341,12 +341,13 @@ public class ColonyVillager extends Villager {
             if (homeDimension && sl.isNight() && !job.isCombat && !isTrading()) {
                 seekShelter(sl, colony);
             } else if (!isBaby() && jobInstance != null) {
-                boolean mayWork = job.isCombat
-                        ? homeDimension || (jobInstance instanceof SoldierJob soldier && soldier.hasValidCommander(sl))
-                        : homeDimension && !isInDanger()
-                            && (((job == JobType.SHEPHERD || job == JobType.FARMER || job == JobType.BUTCHER || job == JobType.FISHERMAN) && (!courierCargo.isEmpty() || !courierCargoExtra.isEmpty()))
-                                || updateWorkstation(sl, colony));
-                if (mayWork) jobInstance.tick(sl);
+                if (job.isCombat) {
+                    if (homeDimension || (jobInstance instanceof SoldierJob soldier && soldier.hasValidCommander(sl)))
+                        jobInstance.tick(sl);
+                } else if (homeDimension && !isInDanger()) {
+                    if (updateWorkstation(sl, colony)) jobInstance.tick(sl);
+                    else jobInstance.tickWithoutWorksite(sl);
+                }
             }
 
             if (homeDimension && !sl.isNight()) trySocialize(sl);

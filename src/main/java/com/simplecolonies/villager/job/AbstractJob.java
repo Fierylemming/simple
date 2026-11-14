@@ -91,6 +91,44 @@ public abstract class AbstractJob {
     /** Ordinary workers stay within the colony; specific activities may allow travel. */
     protected boolean mayWorkOutsideColony(ServerLevel level) { return false; }
 
+    private PhysicalJobCargo recoveryCargo;
+    private PhysicalBuilderMaterials recoveryMaterials;
+
+    /** A missing POI must stop production, not strand physical items on a worker.
+     * This deliberately performs only returns and never calls profession work. */
+    public final void tickWithoutWorksite(ServerLevel level) {
+        if (!(villager instanceof com.simplecolonies.entity.ColonyVillager worker)) return;
+        if (ticksUntilNextWork > 0) { ticksUntilNextWork--; return; }
+        if (recoveryCargo == null) {
+            recoveryCargo = new PhysicalJobCargo(worker, colony);
+            recoveryMaterials = new PhysicalBuilderMaterials(worker, colony);
+        }
+        var delivery = recoveryCargo.deliver(level);
+        if (delivery != PhysicalJobCargo.Delivery.NONE) {
+            state = delivery == PhysicalJobCargo.Delivery.MOVING ? JobState.GOING_TO_WORK
+                    : delivery == PhysicalJobCargo.Delivery.DELIVERED ? JobState.WORKING : JobState.WAITING_FOR_CHEST;
+            ticksUntilNextWork = delivery == PhysicalJobCargo.Delivery.MOVING ? 10 : 40;
+            return;
+        }
+        // Do not overwrite either cargo slot; take ownership only when both are empty.
+        if (!worker.getWorkSupplies().isEmpty()) {
+            worker.setCourierCargo(worker.getWorkSupplies());
+            worker.setWorkSupplies(net.minecraft.world.item.ItemStack.EMPTY);
+        } else if (!worker.getPlantingSeeds().isEmpty()) {
+            worker.setCourierCargo(worker.getPlantingSeeds());
+            worker.setPlantingSeeds(net.minecraft.world.item.ItemStack.EMPTY);
+        } else {
+            var result = recoveryMaterials.returnSurplus(level);
+            state = result == PhysicalBuilderMaterials.Result.MOVING ? JobState.GOING_TO_WORK
+                    : result == PhysicalBuilderMaterials.Result.WORKING ? JobState.WORKING
+                    : result == PhysicalBuilderMaterials.Result.READY ? JobState.STUCK : JobState.WAITING_FOR_CHEST;
+            ticksUntilNextWork = result == PhysicalBuilderMaterials.Result.MOVING ? 10 : 40;
+            return;
+        }
+        state = JobState.WORKING;
+        ticksUntilNextWork = 0;
+    }
+
     /** Called even between work actions, for behaviours that must not be deferred. */
     protected void onTick(ServerLevel level) {}
 
