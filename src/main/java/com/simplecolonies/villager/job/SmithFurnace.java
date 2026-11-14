@@ -14,7 +14,7 @@ import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 
 /** A small, persisted batch in a real furnace next to a designated smithy. */
 final class SmithFurnace {
-    private static final String TAG = "simplecolonies_smith_batch";
+    static final String TAG = "simplecolonies_smith_batch";
     private static final int BATCH = 3;
     enum Result { UNAVAILABLE, MOVING, WAITING, WORKED }
 

@@ -109,6 +109,16 @@ final class PhysicalBuilderMaterials {
         return Result.BLOCKED;
     }
 
+    int countAvailable(ServerLevel level, String id) {
+        int result = snapshot(held()).getOrDefault(id, 0);
+        var warehouse = colony.getWarehouseManager();
+        for (var pos : warehouse.courierStoragePositions(level)) {
+            var container = warehouse.courierContainer(level, pos);
+            if (container != null) result += snapshot(container).getOrDefault(id, 0);
+        }
+        return result;
+    }
+
     boolean canPrepare(ServerLevel level, String wanted) {
         var available = snapshot(held());
         var warehouse = colony.getWarehouseManager();

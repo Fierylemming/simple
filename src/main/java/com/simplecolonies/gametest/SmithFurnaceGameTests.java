@@ -139,4 +139,64 @@ public class SmithFurnaceGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 3500)
+    public static void colonySmithCarriesOreFuelAndSmeltedIron(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos site = new BlockPos(4, 1, 8), furnacePos = site.east(), chest = new BlockPos(13, 1, 8);
+        helper.setBlock(site, Blocks.SMITHING_TABLE); helper.setBlock(furnacePos, Blocks.FURNACE); helper.setBlock(chest, Blocks.CHEST);
+        var station = helper.absolutePos(site); var absFurnace = helper.absolutePos(furnacePos); var storage = helper.absolutePos(chest);
+        Colony colony = new Colony(0, CultureType.ROMAN, station);
+        colony.registerPlayerBuilding(new Building(BuildingType.BLACKSMITH, station, CultureType.ROMAN, true));
+        colony.depositToWarehouse("minecraft:raw_iron", 3); colony.depositToWarehouse("minecraft:coal", 1);
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), storage)) helper.fail("Could not share furnace supplies");
+        var container = (Container) helper.getBlockEntity(chest); var furnace = (Container) helper.getBlockEntity(furnacePos);
+        var special = new ItemStack(Items.RAW_IRON, 3);
+        special.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal("Reserved ore"));
+        container.setItem(0, special.copy());
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(7, 1, 8));
+        worker.setVillagerData(worker.getVillagerData().setProfession(ColonyProfessions.profession(JobType.BLACKSMITH)));
+        worker.refreshBrain(helper.getLevel());
+        worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), station));
+        var job = new BlacksmithJob(worker, colony);
+        boolean[] supplied = {false}, picked = {false}, loaded = {false}, carried = {false};
+        for (int tick = 1; tick < 3500; tick++) helper.runAtTickTime(tick, () -> {
+            job.tick(helper.getLevel());
+            if (!picked[0] && worker.getBuilderMaterials().countItem(Items.RAW_IRON) == 3) {
+                if (!supplied[0] || worker.distanceToSqr(storage.getX()+.5, storage.getY()+.5, storage.getZ()+.5) > 9)
+                    helper.fail("Smith obtained ore remotely");
+                var tag = new net.minecraft.nbt.CompoundTag(); worker.addAdditionalSaveData(tag);
+                var saved = new net.minecraft.world.SimpleContainer(18);
+                saved.fromTag(tag.getList("builderMaterials", net.minecraft.nbt.Tag.TAG_COMPOUND), helper.getLevel().registryAccess());
+                if (saved.countItem(Items.RAW_IRON) != 3) helper.fail("Smelting supplies did not persist");
+                picked[0] = true;
+            }
+            if (!loaded[0] && furnace.getItem(0).is(Items.RAW_IRON)) {
+                if (!picked[0] || worker.distanceToSqr(absFurnace.getX()+.5, absFurnace.getY()+.5, absFurnace.getZ()+.5) > 9
+                        || !helper.getBlockEntity(furnacePos).getPersistentData().contains("simplecolonies_smith_batch"))
+                    helper.fail("Smith loaded the furnace remotely or without a claim");
+                loaded[0] = true;
+            }
+            if (!carried[0] && worker.getCourierCargo().is(Items.IRON_INGOT)) {
+                if (!loaded[0] || worker.distanceToSqr(absFurnace.getX()+.5, absFurnace.getY()+.5, absFurnace.getZ()+.5) > 9)
+                    helper.fail("Smith took furnace output remotely");
+                var tag = new net.minecraft.nbt.CompoundTag(); worker.addAdditionalSaveData(tag);
+                if (!ItemStack.parseOptional(helper.getLevel().registryAccess(), tag.getCompound("courierCargo")).is(Items.IRON_INGOT))
+                    helper.fail("Smelted iron cargo did not persist");
+                carried[0] = true;
+            }
+        });
+        helper.runAtTickTime(150, () -> {
+            if (!furnace.isEmpty() || !worker.getBuilderMaterials().isEmpty()) helper.fail("Smith used virtual or customized smelting stock");
+            container.setItem(1, new ItemStack(Items.RAW_IRON, 3)); container.setItem(2, new ItemStack(Items.COAL, 1)); supplied[0] = true;
+        });
+        helper.succeedWhen(() -> {
+            if (!supplied[0] || !picked[0] || !loaded[0] || !carried[0] || container.countItem(Items.IRON_INGOT) != 3
+                    || !worker.getCourierCargo().isEmpty() || helper.getBlockEntity(furnacePos).getPersistentData().contains("simplecolonies_smith_batch"))
+                helper.fail("Physical smelting incomplete: " + job.getState() + " furnace=" + furnace.getItem(0) + "," + furnace.getItem(2));
+            if (colony.getWarehouseCount("minecraft:raw_iron") != 3 || colony.getWarehouseCount("minecraft:coal") != 1
+                    || !ItemStack.isSameItemSameComponents(container.getItem(0), special) || container.getItem(0).getCount() != 3)
+                helper.fail("Smelting used virtual or customized supplies");
+        });
+    }
+
 }

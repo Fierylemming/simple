@@ -9,9 +9,14 @@ import net.minecraft.world.entity.npc.Villager;
 public class BlacksmithJob extends AbstractJob {
     private static final String IRON = "minecraft:iron_ingot", COBBLE = "minecraft:cobblestone";
     private final PhysicalBuilderMaterials materials;
+    private final PhysicalJobCargo cargo;
+    private final PhysicalSmithFurnace furnace;
     public BlacksmithJob(Villager villager, Colony colony) {
         super(villager, colony, JobType.BLACKSMITH);
-        materials = villager instanceof com.simplecolonies.entity.ColonyVillager worker ? new PhysicalBuilderMaterials(worker, colony) : null;
+        var worker = villager instanceof com.simplecolonies.entity.ColonyVillager cv ? cv : null;
+        materials = worker == null ? null : new PhysicalBuilderMaterials(worker, colony);
+        cargo = worker == null ? null : new PhysicalJobCargo(worker, colony);
+        furnace = worker == null ? null : new PhysicalSmithFurnace(worker, colony, materials, cargo);
     }
 
     @Override protected void doWork(ServerLevel level) {
@@ -58,6 +63,12 @@ public class BlacksmithJob extends AbstractJob {
         ticksUntilNextWork = result == SmithFurnace.Result.MOVING ? 10 : 40;
     }
     private void physicalTools(ServerLevel level) {
+        var delivery = cargo.deliver(level);
+        if (delivery != PhysicalJobCargo.Delivery.NONE) {
+            state = delivery == PhysicalJobCargo.Delivery.MOVING ? JobState.GOING_TO_WORK
+                    : delivery == PhysicalJobCargo.Delivery.DELIVERED ? JobState.WORKING : JobState.WAITING_FOR_CHEST;
+            ticksUntilNextWork = delivery == PhysicalJobCargo.Delivery.MOVING ? 10 : 40; return;
+        }
         // Finish carrying completed tools before checking the workstation: a
         // broken workstation must not erase output already made.
         for (String item : new String[]{"stone_pickaxe", "iron_pickaxe", "stone_axe", "iron_axe", "stone_sword", "iron_sword", "shears"}) {
@@ -68,6 +79,7 @@ public class BlacksmithJob extends AbstractJob {
                 || !colony.isInside(memory.get().pos()) || !level.getBlockState(memory.get().pos()).is(net.minecraft.world.level.block.Blocks.SMITHING_TABLE)) {
             state = JobState.STUCK; ticksUntilNextWork = 100; return;
         }
+        if (furnace.hasInputs()) { runPhysicalFurnace(level, memory.get().pos()); return; }
         var warehouse = colony.getWarehouseManager();
         ToolCrafting.Stock shared = new ToolCrafting.Stock() {
             public int count(String id) {
@@ -104,17 +116,19 @@ public class BlacksmithJob extends AbstractJob {
         }
         var returned = materials.returnSurplus(level);
         if (returned != PhysicalBuilderMaterials.Result.READY) { reportReturn(returned); return; }
-        // Furnace logistics remain provisional until physical furnace pickup and
-        // delivery are implemented; tool production above does not use it.
-        if (!atClaimedWorkstation(level)) return;
-        var result = SmithFurnace.work(level, colony, villager, memory.get().pos());
+        runPhysicalFurnace(level, memory.get().pos());
+    }
+
+    private void runPhysicalFurnace(ServerLevel level, net.minecraft.core.BlockPos station) {
+        var result = furnace.work(level, station);
+        if (result == PhysicalSmithFurnace.Result.RETURN_INPUTS) { returnMaterials(level); return; }
         state = switch (result) {
             case MOVING -> JobState.GOING_TO_WORK;
             case WAITING, WORKED -> JobState.WORKING;
-            case UNAVAILABLE -> JobState.NEEDS_RESOURCE;
+            default -> JobState.NEEDS_RESOURCE;
         };
-        if (result == SmithFurnace.Result.WORKED) villager.swing(InteractionHand.MAIN_HAND);
-        ticksUntilNextWork = result == SmithFurnace.Result.MOVING ? 10 : 40;
+        if (result == PhysicalSmithFurnace.Result.WORKED) villager.swing(InteractionHand.MAIN_HAND);
+        ticksUntilNextWork = result == PhysicalSmithFurnace.Result.MOVING ? 10 : 40;
     }
 
     private void returnMaterials(ServerLevel level) { reportReturn(materials.returnSurplus(level)); }
