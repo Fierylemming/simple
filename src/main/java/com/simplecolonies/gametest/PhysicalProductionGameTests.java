@@ -55,6 +55,7 @@ public class PhysicalProductionGameTests {
         worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), station));
         AbstractJob job = leather ? new LeatherworkerJob(worker, colony) : new BakerJob(worker, colony);
         boolean[] supplied = {false}, picked = {false}, crafted = {false};
+        long[] deliveredAt = {0};
         for (int tick = 1; tick < 2200; tick++) helper.runAtTickTime(tick, () -> {
             job.tick(helper.getLevel());
             if (!picked[0] && worker.getBuilderMaterials().countItem(input) == amount) {
@@ -74,6 +75,8 @@ public class PhysicalProductionGameTests {
                     helper.fail("Finished output not saved on worker");
                 crafted[0] = true;
             }
+            if (crafted[0] && deliveredAt[0] == 0 && container.countItem(output) == 1 && worker.getCourierCargo().isEmpty())
+                deliveredAt[0] = helper.getLevel().getGameTime();
         });
         helper.runAtTickTime(150, () -> {
             if (!worker.getBuilderMaterials().isEmpty() || !worker.getCourierCargo().isEmpty()
@@ -82,7 +85,8 @@ public class PhysicalProductionGameTests {
             container.setItem(1, new ItemStack(input, leather ? 16 : 3)); supplied[0] = true;
         });
         helper.succeedWhen(() -> {
-            if (!supplied[0] || !picked[0] || !crafted[0] || !worker.getCourierCargo().isEmpty()
+            if (!supplied[0] || !picked[0] || !crafted[0] || deliveredAt[0] == 0
+                    || helper.getLevel().getGameTime() - deliveredAt[0] < 250 || !worker.getCourierCargo().isEmpty()
                     || container.countItem(output) != 1) helper.fail("Physical production incomplete: " + job.getState());
             if (!ItemStack.isSameItemSameComponents(container.getItem(0), special) || container.getItem(0).getCount() != amount
                     || colony.getWarehouseCount(leather ? "minecraft:leather" : "minecraft:wheat") != amount
