@@ -185,11 +185,12 @@ final class PhysicalBuilderMaterials {
     private java.util.List<BlockPos> findCraftingTables(ServerLevel level) {
         var tables = new java.util.HashSet<BlockPos>();
         for (var building : colony.getBuildings()) {
-            if (building.getState() != BuildingState.COMPLETE
+            if (!building.isOperational()
                     || (building.getType() != BuildingType.TOWN_HALL && building.getType() != BuildingType.HOUSE)) continue;
-            for (BlockPos p : BlockPos.betweenClosed(building.getPos().offset(-3, -1, -3), building.getPos().offset(3, 3, 3))) {
-                if (level.isLoaded(p) && colony.isInside(p) && level.getBlockState(p).is(Blocks.CRAFTING_TABLE)) tables.add(p.immutable());
-            }
+            for (BlockPos site : building.shelterSites())
+                for (BlockPos p : BlockPos.betweenClosed(site.offset(-3, -1, -3), site.offset(3, 3, 3))) {
+                    if (level.isLoaded(p) && colony.isInside(p) && level.getBlockState(p).is(Blocks.CRAFTING_TABLE)) tables.add(p.immutable());
+                }
         }
         return tables.stream().sorted(Comparator.comparingDouble(p -> p.distSqr(worker.blockPosition()))).toList();
     }

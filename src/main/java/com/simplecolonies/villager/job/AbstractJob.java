@@ -119,14 +119,15 @@ public abstract class AbstractJob {
         BlockPos table = null;
         double best = Double.MAX_VALUE;
         for (var building : colony.getBuildings()) {
-            if (building.getState() != com.simplecolonies.building.BuildingState.COMPLETE
+            if (!building.isOperational()
                     || (building.getType() != com.simplecolonies.building.BuildingType.TOWN_HALL
                     && building.getType() != com.simplecolonies.building.BuildingType.HOUSE)) continue;
-            for (BlockPos pos : BlockPos.betweenClosed(building.getPos().offset(-3, -1, -3), building.getPos().offset(3, 3, 3))) {
-                if (!level.isLoaded(pos) || !colony.isInside(pos) || !level.getBlockState(pos).is(net.minecraft.world.level.block.Blocks.CRAFTING_TABLE)) continue;
-                double distance = villager.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
-                if (distance < best) { best = distance; table = pos.immutable(); }
-            }
+            for (BlockPos site : building.shelterSites())
+                for (BlockPos pos : BlockPos.betweenClosed(site.offset(-3, -1, -3), site.offset(3, 3, 3))) {
+                    if (!level.isLoaded(pos) || !colony.isInside(pos) || !level.getBlockState(pos).is(net.minecraft.world.level.block.Blocks.CRAFTING_TABLE)) continue;
+                    double distance = villager.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+                    if (distance < best) { best = distance; table = pos.immutable(); }
+                }
         }
         if (table == null) { state = JobState.NEEDS_TOOL; ticksUntilNextWork = 100; return; }
         if (best > 9) {

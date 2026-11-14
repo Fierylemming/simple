@@ -57,4 +57,27 @@ public class PhysicalJobCargoGameTests {
         if (excess.isRemoved() || !excess.getItem().is(Items.PORKCHOP)) helper.fail("Over-capacity world drop disappeared");
         helper.succeed();
     }
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void builderCanCraftInACompletedWingDuringAnotherUpgrade(GameTestHelper helper) {
+        var origin = helper.absolutePos(new BlockPos(2, 1, 8));
+        var wing = helper.absolutePos(new BlockPos(8, 1, 8));
+        Colony colony = new Colony(0, CultureType.ROMAN, origin);
+        var house = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.HOUSE, origin, CultureType.ROMAN);
+        house.setState(com.simplecolonies.building.BuildingState.COMPLETE);
+        if (!house.beginWorksiteWing(wing)) helper.fail("Could not queue first wing");
+        while (house.getNextPlacement() != null) house.markPlaced(house.getNextPlacement());
+        house.finishConstruction();
+        if (!house.beginWorksiteWing(origin.west(7))) helper.fail("Could not queue second wing");
+        colony.registerPlayerBuilding(house);
+        helper.setBlock(new BlockPos(8, 1, 8), Blocks.CRAFTING_TABLE);
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 9)); worker.setNoAi(true);
+        worker.getBuilderMaterials().setItem(0, new ItemStack(Items.OAK_LOG, 1));
+        var materials = new PhysicalBuilderMaterials(worker, colony);
+        if (materials.prepare(helper.getLevel(), "minecraft:oak_planks") != PhysicalBuilderMaterials.Result.WORKING
+                || worker.getBuilderMaterials().countItem(Items.OAK_PLANKS) != 4
+                || worker.getBuilderMaterials().countItem(Items.OAK_LOG) != 0)
+            helper.fail("Builder could not use completed wing table during another upgrade");
+        helper.succeed();
+    }
+
 }
