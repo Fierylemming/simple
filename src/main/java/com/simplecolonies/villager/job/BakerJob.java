@@ -10,6 +10,11 @@ public class BakerJob extends AbstractJob {
     public BakerJob(Villager villager, Colony colony) { super(villager, colony, JobType.BAKER); }
 
     @Override protected void doWork(ServerLevel level) {
+        if (villager instanceof com.simplecolonies.entity.ColonyVillager) {
+            physicalRecipe(level, net.minecraft.world.item.Items.WHEAT, 3, net.minecraft.world.item.Items.BREAD, false,
+                    net.minecraft.world.level.block.Blocks.SMOKER);
+            return;
+        }
         if (!atClaimedWorkstation(level)) return;
         if (!colony.consumeStock(level, "minecraft:wheat", 3)) {
             state = JobState.NEEDS_RESOURCE;

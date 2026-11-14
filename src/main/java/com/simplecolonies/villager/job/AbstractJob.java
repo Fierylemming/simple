@@ -150,6 +150,60 @@ public abstract class AbstractJob {
         state = JobState.WORKING; ticksUntilNextWork = 40;
     }
 
+    private PhysicalBuilderMaterials physicalIngredients;
+    private PhysicalJobCargo physicalOutput;
+
+    /** A small fixed recipe made at the assigned workstation from items carried
+     * from shared storage. Inputs and outputs persist on the villager. */
+    protected void physicalRecipe(ServerLevel level, net.minecraft.world.item.Item input, int amount,
+            net.minecraft.world.item.Item output, boolean keepSpare, net.minecraft.world.level.block.Block stationBlock) {
+        if (!(villager instanceof com.simplecolonies.entity.ColonyVillager worker)) throw new IllegalStateException("Physical recipe requires colony villager");
+        if (physicalIngredients == null) {
+            physicalIngredients = new PhysicalBuilderMaterials(worker, colony);
+            physicalOutput = new PhysicalJobCargo(worker, colony);
+        }
+        var delivery = physicalOutput.deliver(level);
+        if (delivery != PhysicalJobCargo.Delivery.NONE) {
+            state = delivery == PhysicalJobCargo.Delivery.MOVING ? JobState.GOING_TO_WORK
+                    : delivery == PhysicalJobCargo.Delivery.DELIVERED ? JobState.WORKING : JobState.WAITING_FOR_CHEST;
+            ticksUntilNextWork = delivery == PhysicalJobCargo.Delivery.MOVING ? 10 : 40; return;
+        }
+        var warehouse = colony.getWarehouseManager();
+        if (keepSpare && warehouse.courierStoragePositions(level).stream().anyMatch(p -> {
+            var c = warehouse.courierContainer(level, p);
+            for (int i = 0; c != null && i < c.getContainerSize(); i++) if (c.getItem(i).is(output)) return true;
+            return false;
+        })) {
+            var returned = physicalIngredients.returnSurplus(level);
+            state = returned == PhysicalBuilderMaterials.Result.READY ? JobState.IDLE
+                    : returned == PhysicalBuilderMaterials.Result.MOVING ? JobState.GOING_TO_WORK
+                    : returned == PhysicalBuilderMaterials.Result.WORKING ? JobState.WORKING : JobState.WAITING_FOR_CHEST;
+            ticksUntilNextWork = returned == PhysicalBuilderMaterials.Result.MOVING ? 10 : 100; return;
+        }
+        var site = villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE);
+        if (site.isEmpty() || !site.get().dimension().equals(level.dimension()) || !level.isLoaded(site.get().pos())
+                || !colony.isInside(site.get().pos()) || !level.getBlockState(site.get().pos()).is(stationBlock)) {
+            state = JobState.STUCK; ticksUntilNextWork = 100; return;
+        }
+        String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(input).toString();
+        var result = physicalIngredients.prepareCount(level, id, amount);
+        if (result != PhysicalBuilderMaterials.Result.READY) {
+            state = result == PhysicalBuilderMaterials.Result.MOVING ? JobState.GOING_TO_WORK
+                    : result == PhysicalBuilderMaterials.Result.WORKING ? JobState.WORKING
+                    : result == PhysicalBuilderMaterials.Result.MISSING ? JobState.NEEDS_RESOURCE : JobState.STUCK;
+            ticksUntilNextWork = result == PhysicalBuilderMaterials.Result.MOVING ? 10 : 40; return;
+        }
+        if (!atClaimedWorkstation(level)) return;
+        for (int i = 0; i < amount; i++) {
+            if (!physicalIngredients.takePrepared(id)) throw new IllegalStateException("Carried recipe input changed unexpectedly");
+        }
+        var made = new net.minecraft.world.item.ItemStack(output);
+        physicalOutput.collectStack(made);
+        if (!made.isEmpty()) worker.spawnAtLocation(made);
+        villager.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+        state = JobState.WORKING; ticksUntilNextWork = 40;
+    }
+
     // --- Warehouse / chest helpers ---
 
     protected void depositToColony(ServerLevel level, String itemId, int count) {

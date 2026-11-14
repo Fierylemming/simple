@@ -14,6 +14,11 @@ public class LeatherworkerJob extends AbstractJob {
 
     @Override
     protected void doWork(ServerLevel level) {
+        if (villager instanceof com.simplecolonies.entity.ColonyVillager) {
+            physicalRecipe(level, net.minecraft.world.item.Items.LEATHER, 8, net.minecraft.world.item.Items.LEATHER_CHESTPLATE, true,
+                    net.minecraft.world.level.block.Blocks.CAULDRON);
+            return;
+        }
         if (!atClaimedWorkstation(level)) return;
         // Keep one spare, not an unlimited drain on the herd's leather. Armor in
         // somebody's inventory does not count, so a withdrawn spare can be replaced.
