@@ -29,6 +29,19 @@ public class VillagerGrowthGameTests {
         }
     }
 
+    @GameTest(template = "empty")
+    public static void pendingHealthDaysApplyEachDayInOrder(GameTestHelper helper) {
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 8));
+        worker.setNoAi(true);
+        var citizen = new CitizenData(worker.getUUID(), "Test", JobType.UNEMPLOYED);
+        for (int i = 0; i < 8; i++) citizen.queueDailyHealth(true);
+        for (int i = 0; i < 3; i++) citizen.queueDailyHealth(false);
+        worker.applyPendingDailyHealth(citizen);
+        if (Math.abs(worker.getHealth() - 13.0f) > .01f)
+            helper.fail("Starvation and healing days were not applied separately and in order: health=" + worker.getHealth());
+        helper.succeed();
+    }
+
     @GameTest(template = "isolated", timeoutTicks = 300)
     public static void cancelledBirthKeepsRealFoodInItsContainer(GameTestHelper helper) {
         for (int x = 44; x <= 68; x++) for (int z = 44; z <= 68; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);

@@ -20,13 +20,30 @@ public class CitizenData {
     public boolean isChild;
     // A shared house assignment; null means the citizen may shelter in the hall.
     public net.minecraft.core.BlockPos home;
-    // Each entry is one simulated day; kept for citizens in unloaded chunks.
-    private final java.util.List<Byte> pendingHealthDays = new java.util.ArrayList<>();
+    // Run-length encoded daily effects retain ordering while allowing large time
+    // skips without storing one boxed byte per citizen per simulated day.
+    private record HealthRun(byte starving, long days) {}
+    private final java.util.Deque<HealthRun> pendingHealthDays = new java.util.ArrayDeque<>();
 
-    public void queueDailyHealth(boolean starving) { pendingHealthDays.add((byte) (starving ? 1 : 0)); }
+    public void queueDailyHealth(boolean starving) { addHealthDays((byte) (starving ? 1 : 0), 1); }
+    private void addHealthDays(byte starving, long days) {
+        if (days <= 0) return;
+        starving = (byte) (starving == 0 ? 0 : 1);
+        var last = pendingHealthDays.peekLast();
+        if (last != null && last.starving == starving && last.days <= Long.MAX_VALUE - days) {
+            pendingHealthDays.removeLast(); days += last.days;
+        }
+        pendingHealthDays.addLast(new HealthRun(starving, days));
+    }
+    /** Bound entity work after reload; unprocessed days remain queued and saved. */
     public java.util.List<Byte> takePendingHealthDays() {
-        var result = new java.util.ArrayList<>(pendingHealthDays);
-        pendingHealthDays.clear();
+        var result = new java.util.ArrayList<Byte>();
+        while (result.size() < 64 && !pendingHealthDays.isEmpty()) {
+            var run = pendingHealthDays.removeFirst();
+            int count = (int) Math.min(run.days, 64 - result.size());
+            for (int i = 0; i < count; i++) result.add(run.starving);
+            if (run.days > count) pendingHealthDays.addFirst(new HealthRun(run.starving, run.days - count));
+        }
         return result;
     }
 
@@ -50,9 +67,13 @@ public class CitizenData {
         tag.putBoolean("isSoldier", isSoldier);
         tag.putBoolean("isChild", isChild);
         if (home != null) tag.putLong("home", home.asLong());
-        byte[] days = new byte[pendingHealthDays.size()];
-        for (int i = 0; i < days.length; i++) days[i] = pendingHealthDays.get(i);
-        tag.putByteArray("pendingHealthDays", days);
+        var runs = new net.minecraft.nbt.ListTag();
+        for (var run : pendingHealthDays) {
+            var entry = new CompoundTag();
+            entry.putBoolean("starving", run.starving != 0); entry.putLong("days", run.days);
+            runs.add(entry);
+        }
+        tag.put("pendingHealthRuns", runs);
         return tag;
     }
 
@@ -67,7 +88,16 @@ public class CitizenData {
         d.isSoldier = tag.getBoolean("isSoldier");
         d.isChild = tag.getBoolean("isChild");
         if (tag.contains("home")) d.home = net.minecraft.core.BlockPos.of(tag.getLong("home"));
-        for (byte day : tag.getByteArray("pendingHealthDays")) d.pendingHealthDays.add(day);
+        if (tag.contains("pendingHealthRuns", net.minecraft.nbt.Tag.TAG_LIST)) {
+            var runs = tag.getList("pendingHealthRuns", net.minecraft.nbt.Tag.TAG_COMPOUND);
+            for (int i = 0; i < runs.size(); i++) {
+                var run = runs.getCompound(i);
+                d.addHealthDays((byte) (run.getBoolean("starving") ? 1 : 0), run.getLong("days"));
+            }
+        } else {
+            // Old worlds used one byte per pending day.
+            for (byte day : tag.getByteArray("pendingHealthDays")) d.addHealthDays(day, 1);
+        }
         return d;
     }
 }

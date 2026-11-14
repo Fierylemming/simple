@@ -141,6 +141,8 @@ public class Colony {
         // Process a bounded batch each tick so enormous /time jumps cannot freeze the server.
         // The persisted cursor is advanced only after each individual day has run.
         int dailyBudget = DailyCatchUp.batchSize(lastSimulatedDay, day, 64);
+        boolean processedDay = dailyBudget > 0;
+        boolean catchUpBatch = deferredBirthsDuringCatchUp;
         while (dailyBudget-- > 0) {
             int neededFood = (int) Math.ceil(citizens.size() * com.simplecolonies.config.ColonyConfig.FOOD_CONSUMPTION_MULTIPLIER.get());
             int availableFood = countFoodInWarehouse(level);
@@ -168,19 +170,28 @@ public class Colony {
 
             for (CitizenData citizen : List.copyOf(citizens.values())) {
                 citizen.queueDailyHealth(state == ColonyState.STARVING);
-                if (level.getEntity(citizen.uuid) instanceof com.simplecolonies.entity.ColonyVillager villager) {
-                    villager.applyPendingDailyHealth(citizen);
-                }
             }
 
             // Catch-up simulates food and health, not physical social events.
-            if (!deferredBirthsDuringCatchUp) tryBreed(level);
+            // For an ordinary single day apply health before choosing living parents.
+            if (!deferredBirthsDuringCatchUp) {
+                for (CitizenData citizen : List.copyOf(citizens.values()))
+                    if (level.getEntity(citizen.uuid) instanceof com.simplecolonies.entity.ColonyVillager villager)
+                        villager.applyPendingDailyHealth(citizen);
+                tryBreed(level);
+            }
 
             // Progression: village can self-unlock research if it has surplus
             researchManager.tickAutoProgress(level);
             lastSimulatedDay++;
         }
         if (lastSimulatedDay >= day) deferredBirthsDuringCatchUp = false;
+        // Apply at most one bounded batch per citizen here, not once per simulated
+        // day. Remaining effects are persisted and also drained by entity ticks.
+        if (processedDay && catchUpBatch) for (CitizenData citizen : List.copyOf(citizens.values())) {
+            if (level.getEntity(citizen.uuid) instanceof com.simplecolonies.entity.ColonyVillager villager)
+                villager.applyPendingDailyHealth(citizen);
+        }
 
         // Optional Create schematics are processed before ordinary expansion.
         // Throttle file reads; no Create classes are loaded on an unmodded server.

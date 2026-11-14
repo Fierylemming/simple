@@ -635,11 +635,17 @@ public class ColonyVillager extends Villager {
         if (pending.isEmpty()) return;
         for (byte starving : pending) {
             if (!isAlive()) break;
-            daysAlive++;
+            if (daysAlive < Integer.MAX_VALUE) daysAlive++;
             if (starving != 0) {
-                hungerTicks++;
+                if (hungerTicks < Integer.MAX_VALUE) hungerTicks++;
                 if (hungerTicks > 3) {
-                    hurt(damageSources().starve(), 2.0f);
+                    // Queued entries represent separate days, not simultaneous
+                    // attacks. Vanilla hurt immunity must not collapse them into
+                    // a single hit when an unloaded citizen is restored.
+                    int previousImmunity = invulnerableTime;
+                    invulnerableTime = 0;
+                    try { hurt(damageSources().starve(), 2.0f); }
+                    finally { invulnerableTime = Math.max(previousImmunity, invulnerableTime); }
                     addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.WEAKNESS, 6000, 0));
                 }
             } else {

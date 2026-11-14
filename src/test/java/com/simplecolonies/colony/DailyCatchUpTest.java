@@ -38,6 +38,32 @@ class DailyCatchUpTest {
         assertTrue(DailyCatchUp.clockJumpedForward(Long.MIN_VALUE, Long.MAX_VALUE, 10, 20));
     }
 
+    @Test void longHealthRunsAreCompressedAndProcessedInBoundedOrder() {
+        var citizen = new CitizenData(UUID.randomUUID(), "Test", JobType.FARMER);
+        for (int i = 0; i < 10000; i++) citizen.queueDailyHealth(true);
+        citizen.queueDailyHealth(false);
+        var tag = citizen.save();
+        assertEquals(2, tag.getList("pendingHealthRuns", net.minecraft.nbt.Tag.TAG_COMPOUND).size());
+        var restored = CitizenData.load(tag);
+        for (int i = 0; i < 156; i++) {
+            var batch = restored.takePendingHealthDays();
+            assertEquals(64, batch.size());
+            assertTrue(batch.stream().allMatch(day -> day == 1));
+        }
+        var remaining = CitizenData.load(restored.save()).takePendingHealthDays();
+        assertEquals(17, remaining.size());
+        assertEquals((byte) 0, remaining.getLast());
+    }
+
+    @Test void legacyHealthBytesMigrateWithoutReordering() {
+        var citizen = new CitizenData(UUID.randomUUID(), "Old", JobType.FARMER);
+        var tag = citizen.save();
+        tag.remove("pendingHealthRuns");
+        tag.putByteArray("pendingHealthDays", new byte[] {1, 1, 0, 1});
+        var restored = CitizenData.load(tag);
+        assertEquals(List.of((byte) 1, (byte) 1, (byte) 0, (byte) 1), restored.takePendingHealthDays());
+    }
+
     @Test void unloadedCitizenHealthDaysPersistInOrder() {
         CitizenData citizen = new CitizenData(UUID.randomUUID(), "Test", JobType.FARMER);
         citizen.queueDailyHealth(true);
