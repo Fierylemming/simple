@@ -86,4 +86,55 @@ public class PhysicalBuilderGameTests {
                 helper.fail("Builder changed virtual stock, customized timber or the workstation");
         });
     }
+    @GameTest(template = "empty", timeoutTicks = 800)
+    public static void importedPlanUsesRealMaterialsAndRespectsObstructions(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos base = new BlockPos(8, 1, 8), chest = new BlockPos(6, 1, 8);
+        helper.setBlock(base, Blocks.OBSIDIAN); helper.setBlock(chest, Blocks.CHEST);
+        var center = helper.absolutePos(base);
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        colony.addCitizen(new com.simplecolonies.colony.CitizenData(java.util.UUID.randomUUID(), "Builder", com.simplecolonies.villager.job.JobType.BUILDER));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
+        var container = (Container) helper.getBlockEntity(chest);
+        container.setItem(0, new ItemStack(Items.OAK_PLANKS, 3));
+        var source = new CompoundTag(); source.putString("source", "import-fixture");
+        var blocks = java.util.List.of(new Building.BlockPlacement(center, Blocks.OAK_PLANKS.defaultBlockState(), "minecraft:oak_planks"),
+                new Building.BlockPlacement(center.east(), Blocks.OAK_PLANKS.defaultBlockState(), "minecraft:oak_planks"),
+                new Building.BlockPlacement(center.east(2), Blocks.OAK_PLANKS.defaultBlockState(), "minecraft:oak_planks"));
+        Building plan = Building.imported(center, CultureType.ROMAN, source, blocks);
+        if (!colony.queueImportedBuilding(plan)) helper.fail("Could not queue imported plan");
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(7, 1, 9)); worker.setNoAi(true);
+        var job = new BuilderJob(worker, colony);
+        for (int tick = 1; tick < 800; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(100, () -> {
+            if (!helper.getBlockState(base).is(Blocks.OBSIDIAN) || container.countItem(Items.OAK_PLANKS) != 3
+                    || plan.getState() != BuildingState.BLOCKED) helper.fail("Imported builder altered an obstruction or consumed supplies");
+            helper.setBlock(base, Blocks.AIR);
+        });
+        helper.succeedWhen(() -> {
+            if (plan.getState() != BuildingState.COMPLETE || !helper.getBlockState(base).is(Blocks.OAK_PLANKS)
+                    || !helper.getBlockState(base.east()).is(Blocks.OAK_PLANKS) || !helper.getBlockState(base.east(2)).is(Blocks.OAK_PLANKS)
+                    || container.countItem(Items.OAK_PLANKS) != 0 || !plan.hasImportedSource(source))
+                helper.fail("Imported physical construction incomplete: " + plan.getState() + ", " + job.getState());
+        });
+    }
+
+    @GameTest(template = "empty")
+    public static void cancellingImportedPlanSuppressesAutomaticRetryAcrossReload(GameTestHelper helper) {
+        var center = helper.absolutePos(new BlockPos(8, 1, 8));
+        Colony colony = new Colony(0, CultureType.ROMAN, center);
+        colony.addCitizen(new com.simplecolonies.colony.CitizenData(java.util.UUID.randomUUID(), "Builder", com.simplecolonies.villager.job.JobType.BUILDER));
+        var source = new CompoundTag(); source.putString("source", "cancel-fixture");
+        var blocks = java.util.List.of(new Building.BlockPlacement(center.east(10), Blocks.OAK_PLANKS.defaultBlockState(), "minecraft:oak_planks"));
+        var plan = Building.imported(center, CultureType.ROMAN, source, blocks);
+        if (!plan.importedFootprintNear(center.east(10), 0) || plan.importedFootprintNear(center, 0)
+                || !colony.queueImportedBuilding(plan) || !colony.cancelUnfinishedBuilding(center))
+            helper.fail("Could not cancel imported plan or calculate footprint");
+        var restored = Colony.load(colony.save());
+        if (!restored.isCancelledSchematic(source)) helper.fail("Cancelled blueprint would be automatically queued after reload");
+        restored.clearCancelledSchematic(source);
+        if (restored.isCancelledSchematic(source)) helper.fail("Explicit retry could not clear cancellation");
+        helper.succeed();
+    }
+
 }

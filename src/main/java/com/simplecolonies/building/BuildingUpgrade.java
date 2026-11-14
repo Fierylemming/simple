@@ -130,7 +130,7 @@ public class BuildingUpgrade {
         for (var offset : offsets) {
             var site = building.getPos().offset(offset[0], 0, offset[1]);
             if (colony.getBuildings().stream().anyMatch(b -> b != building
-                    && b.footprintSites().stream().anyMatch(p -> p.distSqr(site) < 144))) continue;
+                    && (b.importedFootprintNear(site, 12) || b.footprintSites().stream().anyMatch(p -> p.distSqr(site) < 144)))) continue;
             // Do not wall off an existing north-facing entrance, or put the new
             // entrance inside an existing footprint. Touching edges are fine.
             int radius = house ? 3 : 2;

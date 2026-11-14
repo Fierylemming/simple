@@ -106,6 +106,14 @@ public class BuilderJob extends AbstractJob {
                 return;
             }
             if (!level.isLoaded(next.pos)) { state = JobState.STUCK; deferCurrent(level, 200); return; }
+            if (currentJob.getType() == com.simplecolonies.building.BuildingType.SCHEMATIC
+                    && (!colony.isInside(next.pos) || !level.getWorldBorder().isWithinBounds(next.pos)
+                        || colony.getBuildings().stream().filter(b -> b != currentJob).anyMatch(b ->
+                            b.importedFootprintNear(next.pos, 8) || b.footprintSites().stream().anyMatch(p ->
+                                Math.abs((long) p.getX() - next.pos.getX()) <= 8 && Math.abs((long) p.getZ() - next.pos.getZ()) <= 8)))) {
+                currentJob.setState(BuildingState.BLOCKED); state = JobState.STUCK;
+                ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 200); return;
+            }
             var before = level.getBlockState(next.pos);
             if (physical != null && !before.equals(next.state) && before.getFluidState().isEmpty()
                     && (before.isAir() || before.canBeReplaced())) {

@@ -106,6 +106,8 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
                 String[] bt = {"House","Farm","Lumber","Mine","Barracks"};
                 int[] ids2 = {TownHallMenu.BTN_ADD_BUILDING_HOUSE,TownHallMenu.BTN_ADD_BUILDING_FARM,TownHallMenu.BTN_ADD_BUILDING_LUMBER,TownHallMenu.BTN_ADD_BUILDING_MINE,TownHallMenu.BTN_ADD_BUILDING_BARRACKS};
                 for (int i=0;i<bt.length;i++) { final int idx=i; addRenderableWidget(Button.builder(Component.literal(bt[idx]), b->send(ids2[idx])).bounds(btnX+idx*64, btnY, 60, 16).build()); }
+                addRenderableWidget(Button.builder(Component.literal("Queue Create schematic"), b->send(TownHallMenu.BTN_CREATE_SCHEMATIC))
+                        .bounds(x+12, y+211, 150, 16).build());
                 var buildings = menu.colony.getBuildings();
                 if (buildings.size() > 4) {
                     addRenderableWidget(Button.builder(Component.literal("▲"), b->{ if(buildingScroll>0){buildingScroll--; rebuild();}}).bounds(x+W-22, y+77, 14, 12).build());

@@ -146,8 +146,9 @@ public class TownHallMenu extends AbstractContainerMenu {
             }
             case BTN_CREATE_SCHEMATIC -> {
                 if (!isLeader) { deny(player); return true; }
+                var result = com.simplecolonies.integration.CreateSchematicIntegration.queue(colony, level, true);
                 player.displayClientMessage(net.minecraft.network.chat.Component.literal(
-                        "§eCreate schematic construction is not implemented; no items were consumed."), true);
+                        (result.task() == null ? "§e" : "§a") + result.message()), false);
                 return true;
             }
         }

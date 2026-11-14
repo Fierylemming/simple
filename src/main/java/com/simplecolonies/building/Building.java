@@ -32,6 +32,8 @@ public class Building {
     // that edits, file deletion or removing Create cannot alter an active job.
     private CompoundTag importedPlan;
     private boolean importedPlanValid;
+    private int importedMinX, importedMaxX, importedMinZ, importedMaxZ;
+    private boolean importedBoundsValid;
     private final Map<String, Integer> requiredResources = new HashMap<>();
     private final Queue<BlockPlacement> placements = new ArrayDeque<>();
     private final List<BlockPlacement> completed = new ArrayList<>();
@@ -88,6 +90,9 @@ public class Building {
     public boolean hasImportedSource(CompoundTag source) {
         return type == BuildingType.SCHEMATIC && importedPlan != null && importedPlan.getCompound("source").equals(source);
     }
+    public CompoundTag importedSource() {
+        return type == BuildingType.SCHEMATIC && importedPlan != null ? importedPlan.getCompound("source").copy() : null;
+    }
 
     public BuildingType getType() { return type; }
     public BlockPos getPos() { return pos; }
@@ -112,6 +117,13 @@ public class Building {
         return List.copyOf(sites);
     }
     public boolean isOperational() { return state == BuildingState.COMPLETE || isUpgrading(); }
+    /** Conservative horizontal bounds, even when a saved plan references a missing mod block. */
+    public boolean importedFootprintNear(BlockPos target, int margin) {
+        return type == BuildingType.SCHEMATIC && importedBoundsValid
+                && (long) target.getX() >= (long) importedMinX - margin && (long) target.getX() <= (long) importedMaxX + margin
+                && (long) target.getZ() >= (long) importedMinZ - margin && (long) target.getZ() <= (long) importedMaxZ + margin;
+    }
+
     /** All physical footprints, including an unfinished wing, for spatial safety checks. */
     public List<BlockPos> footprintSites() {
         var sites = new ArrayList<BlockPos>();
@@ -169,6 +181,16 @@ public class Building {
             if (importedPlan == null) return;
             var list = importedPlan.getList("placements", net.minecraft.nbt.Tag.TAG_COMPOUND);
             if (list.isEmpty() || list.size() > 16384) return;
+            importedBoundsValid = false;
+            for (int i = 0; i < list.size(); i++) {
+                var p = BlockPos.of(list.getCompound(i).getLong("pos"));
+                if (!importedBoundsValid) {
+                    importedMinX = importedMaxX = p.getX(); importedMinZ = importedMaxZ = p.getZ(); importedBoundsValid = true;
+                } else {
+                    importedMinX = Math.min(importedMinX, p.getX()); importedMaxX = Math.max(importedMaxX, p.getX());
+                    importedMinZ = Math.min(importedMinZ, p.getZ()); importedMaxZ = Math.max(importedMaxZ, p.getZ());
+                }
+            }
             var decoded = new ArrayList<BlockPlacement>();
             try {
                 for (int i = 0; i < list.size(); i++) {

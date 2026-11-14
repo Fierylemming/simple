@@ -186,6 +186,7 @@ public class MinerJob extends AbstractJob {
     private boolean safeArea(ServerLevel level, BlockPos pos) {
         if (!MinerRules.farFromBuilding(pos.getX(), pos.getZ(), colony.getCenter().getX(), colony.getCenter().getZ(), 12)) return false;
         for (var building : colony.getBuildings()) {
+            if (building.importedFootprintNear(pos, 12)) return false;
             for (BlockPos site : building.footprintSites())
                 if (!MinerRules.farFromBuilding(pos.getX(), pos.getZ(), site.getX(), site.getZ(), Math.max(12, building.getSize() / 2 + 8))) return false;
         }

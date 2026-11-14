@@ -34,6 +34,9 @@ public class Colony {
     private int radius;
     private final Map<UUID, CitizenData> citizens = new ConcurrentHashMap<>();
     private final List<Building> buildings = new ArrayList<>();
+    // Cancelled schematics are not automatically queued again while left in a chest.
+    // A leader can explicitly retry from the hall.
+    private final List<CompoundTag> cancelledSchematics = new ArrayList<>();
     // Legacy abstract stockpile — still used as fallback when no chests scanned (e.g. freshly generated village)
     private final Map<String, Integer> warehouse = new HashMap<>();
     // New: distributed chest network
@@ -46,6 +49,7 @@ public class Colony {
     private int daysSinceExpansion = 0;
     private ColonyState state = ColonyState.ACTIVE;
     private long lastTickGameTime = 0;
+    private long lastSchematicCheck = Long.MIN_VALUE;
     private long lastSimulatedDay = -1;
     private boolean deferredBirthsDuringCatchUp;
     private boolean hasObservedClocks;
@@ -177,6 +181,14 @@ public class Colony {
             lastSimulatedDay++;
         }
         if (lastSimulatedDay >= day) deferredBirthsDuringCatchUp = false;
+
+        // Optional Create schematics are processed before ordinary expansion.
+        // Throttle file reads; no Create classes are loaded on an unmodded server.
+        if (com.simplecolonies.integration.CreateSchematicIntegration.isCreateLoaded()
+                && (lastSchematicCheck == Long.MIN_VALUE || gameTime - lastSchematicCheck >= 1200)) {
+            lastSchematicCheck = gameTime;
+            com.simplecolonies.integration.CreateSchematicIntegration.queue(this, level);
+        }
 
         // Expansion is driven by actual simulation ticks and available supplies, not the calendar.
         if (com.simplecolonies.config.ColonyConfig.ENABLE_NATURAL_EXPANSION.get()) {
@@ -382,6 +394,21 @@ public class Colony {
         expansionStatus = housingReason + "; no affordable, clear claimed worksite or civic site";
     }
 
+    public boolean isCancelledSchematic(CompoundTag source) { return cancelledSchematics.contains(source); }
+    public void clearCancelledSchematic(CompoundTag source) {
+        if (cancelledSchematics.remove(source)) ColonyManager.getInstance().markDirty(this);
+    }
+
+    /** Queue a validated external plan; never replace an existing job or site. */
+    public boolean queueImportedBuilding(Building blueprint) {
+        if (blueprint.getType() != BuildingType.SCHEMATIC || !blueprint.hasSupportedPlan()
+                || !isInside(blueprint.getPos())
+                || citizens.values().stream().noneMatch(c -> !c.isChild && c.job == JobType.BUILDER)
+                || buildings.stream().anyMatch(b -> b.hasSupportedPlan() && b.getState() != com.simplecolonies.building.BuildingState.COMPLETE)) return false;
+        queueExpansion(blueprint);
+        return true;
+    }
+
     private void queueExpansion(Building blueprint) {
         buildings.add(blueprint);
         expansionStatus = "Construction already queued";
@@ -404,7 +431,7 @@ public class Colony {
 
     /** Validate an unchanged five-by-five plot, optionally allowing the central workstation. */
     public boolean isClearWorksite(ServerLevel level, BlockPos station, boolean allowStation) {
-        if (buildings.stream().anyMatch(b -> b.footprintSites().stream().anyMatch(p -> p.distSqr(station) < 144))) return false;
+        if (buildings.stream().anyMatch(b -> (b.importedFootprintNear(station, 12) || b.footprintSites().stream().anyMatch(p -> p.distSqr(station) < 144)))) return false;
         if (!clearEntrance(level, station.north(3))) return false;
         for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
             BlockPos ground = station.offset(x, -1, z);
@@ -508,7 +535,7 @@ public class Colony {
     }
 
     public boolean isClearBuildSite(ServerLevel level, BlockPos pos) {
-        if (buildings.stream().anyMatch(b -> b.footprintSites().stream().anyMatch(p -> p.distSqr(pos) < 144))) return false;
+        if (buildings.stream().anyMatch(b -> (b.importedFootprintNear(pos, 12) || b.footprintSites().stream().anyMatch(p -> p.distSqr(pos) < 144)))) return false;
         int variant = Building.houseVariantAt(pos);
         if (!clearEntrance(level, pos.north(variant == 2 ? 4 : 3))) return false;
         for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) {
@@ -722,6 +749,8 @@ public class Colony {
             ColonyManager.getInstance().markDirty(this);
             return true;
         }
+        var source = building.importedSource();
+        if (source != null && !cancelledSchematics.contains(source)) cancelledSchematics.add(source);
         buildings.remove(building);
         expansionStatus = "Plan cancelled; placed blocks remain";
         ColonyManager.getInstance().markDirty(this);
@@ -793,6 +822,9 @@ public class Colony {
         ListTag buildingsTag = new ListTag();
         for (Building b : buildings) buildingsTag.add(b.save());
         tag.put("buildings", buildingsTag);
+        ListTag cancelledTag = new ListTag();
+        for (var source : cancelledSchematics) cancelledTag.add(source.copy());
+        tag.put("cancelledSchematics", cancelledTag);
         CompoundTag wh = new CompoundTag();
         warehouse.forEach((k,v) -> wh.putInt(k, v));
         tag.put("warehouse", wh);
@@ -832,6 +864,8 @@ public class Colony {
         for (int i = 0; i < buildingsTag.size(); i++) {
             c.buildings.add(Building.load(buildingsTag.getCompound(i)));
         }
+        ListTag cancelledTag = tag.getList("cancelledSchematics", net.minecraft.nbt.Tag.TAG_COMPOUND);
+        for (int i = 0; i < cancelledTag.size(); i++) c.cancelledSchematics.add(cancelledTag.getCompound(i).copy());
         CompoundTag wh = tag.getCompound("warehouse");
         for (String k : wh.getAllKeys()) c.warehouse.put(k, wh.getInt(k));
         CompoundTag rep = tag.getCompound("reputation");
