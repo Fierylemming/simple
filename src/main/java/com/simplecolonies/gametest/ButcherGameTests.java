@@ -259,7 +259,10 @@ public class ButcherGameTests {
             if (!first.isAlive() || !second.isAlive() || pigs.stream().noneMatch(net.minecraft.world.entity.animal.Pig::isBaby)
                     || colony.getWarehouseCount(helper.getLevel(), "minecraft:carrot") != 2)
                 helper.fail("Pig breeding incomplete: pigs=" + pigs.size() + " carrots="
-                        + colony.getWarehouseCount(helper.getLevel(), "minecraft:carrot") + " state=" + job.getState());
+                        + colony.getWarehouseCount(helper.getLevel(), "minecraft:carrot") + " state=" + job.getState()
+                        + " worker=" + worker.blockPosition().toShortString() + " supplies=" + worker.getWorkSupplies()
+                        + " pigPositions=" + first.blockPosition().toShortString() + "," + second.blockPosition().toShortString()
+                        + " ages=" + first.getAge() + "," + second.getAge() + " love=" + first.isInLove() + "," + second.isInLove());
             helper.succeed();
         });
     }

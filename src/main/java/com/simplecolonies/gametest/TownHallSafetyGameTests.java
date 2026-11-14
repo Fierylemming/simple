@@ -69,6 +69,20 @@ public class TownHallSafetyGameTests {
         menu.clickMenuButton(player, TownHallMenu.BTN_WAR_TARGET_BASE+1);
         if (self.getDiplomacy().getRelation(second.getId()) != com.simplecolonies.colony.Diplomacy.Relation.PEACE_TREATY)
             helper.fail("Peace treaty failed to prevent war");
+        menu.clickMenuButton(player, TownHallMenu.BTN_ALLY_TARGET_BASE+1);
+        if (second.getDiplomacy().incomingOffer(self.getId(), day) != com.simplecolonies.colony.Diplomacy.Offer.ALLIANCE)
+            helper.fail("Alliance offer was not delivered");
+        player.moveTo(otherHall.getX()+.5, otherHall.getY(), otherHall.getZ()+.5);
+        reverse.clickMenuButton(player, TownHallMenu.BTN_DECLINE_TARGET_BASE);
+        if (second.getDiplomacy().incomingOffer(self.getId(), day) != null) helper.fail("Offer was not declined");
+        player.moveTo(center.getX()+.5, center.getY(), center.getZ()+.5);
+        menu.clickMenuButton(player, TownHallMenu.BTN_ALLY_TARGET_BASE+1);
+        player.moveTo(otherHall.getX()+.5, otherHall.getY(), otherHall.getZ()+.5);
+        reverse.clickMenuButton(player, TownHallMenu.BTN_ALLY_TARGET_BASE);
+        if (self.getDiplomacy().getRelation(second.getId()) != com.simplecolonies.colony.Diplomacy.Relation.ALLIED
+                || second.getDiplomacy().getRelation(self.getId()) != com.simplecolonies.colony.Diplomacy.Relation.ALLIED
+                || second.getDiplomacy().incomingOffer(self.getId(), day) != null)
+            helper.fail("Alliance acceptance was not bilateral or left an offer");
         helper.succeed();
     }
 
