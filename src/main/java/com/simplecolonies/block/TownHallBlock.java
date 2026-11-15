@@ -1,0 +1,98 @@
+package com.simplecolonies.block;
+
+import com.simplecolonies.block.entity.TownHallBlockEntity;
+import com.simplecolonies.colony.Colony;
+import com.simplecolonies.colony.ColonyManager;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.SimpleMenuProvider;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
+import org.jetbrains.annotations.Nullable;
+
+/**
+ * Town Hall is the heart of a colony. Right-click to open colony management screen.
+ * Now fully playable: opens TownHallScreen with 5 tabs.
+ * Placing Town Hall creates a colony if not inside another, and links BE to colonyId.
+ */
+public class TownHallBlock extends Block implements EntityBlock {
+    public TownHallBlock(Properties props) { super(props); }
+
+    @Nullable
+    @Override
+    public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
+        return new TownHallBlockEntity(pos, state);
+    }
+
+    @Override
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+        if (level.isClientSide) return InteractionResult.SUCCESS;
+        if (!level.dimension().equals(Level.OVERWORLD)) {
+            player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cColonies can only be founded in the Overworld."), true);
+            return InteractionResult.FAIL;
+        }
+
+        ColonyManager mgr = ColonyManager.getInstance();
+        Colony colony = mgr.getColonyAt(level.dimension(), pos).orElse(null);
+
+        if (colony == null) {
+            // Create new colony here if player places/activates in wilderness
+            var culture = com.simplecolonies.culture.CultureType.fromBiomeTemperature(level.getBiome(pos).value().getBaseTemperature(), level.getBiome(pos));
+            colony = mgr.createColony(level instanceof net.minecraft.server.level.ServerLevel sl ? sl : null, culture, pos);
+            if (colony == null) {
+                if (player instanceof ServerPlayer sp) sp.displayClientMessage(net.minecraft.network.chat.Component.literal("§cToo many colonies in this dimension!"), true);
+                return InteractionResult.FAIL;
+            }
+            if (player instanceof ServerPlayer sp) {
+                sp.displayClientMessage(net.minecraft.network.chat.Component.literal("§aCreated new " + culture.displayName + " colony #" + colony.getId()), false);
+                colony.addReputation(sp, 10, "founded town hall");
+                colony.setLeader(sp); // crafter automatically becomes leader of their colony
+                sp.displayClientMessage(net.minecraft.network.chat.Component.literal("§6You are now Leader of Colony #" + colony.getId() + " — starter villagers & buildings spawning!"), false);
+            }
+        }
+
+        // Ensure BE linked
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be instanceof TownHallBlockEntity thbe) {
+            thbe.setColonyId(colony.getId());
+        }
+
+        // Open menu (playable GUI)
+        if (player instanceof ServerPlayer sp) {
+            final Colony fColony = colony;
+            var targets = com.simplecolonies.menu.TownHallMenu.snapshotDiplomacyTargets(fColony);
+            // Use Extended Menu Provider pattern: we pass colonyId+pos via extraData handled in TownHallMenu.fromNetwork
+            // NeoForge 1.21.1 uses MenuProvider with extra data via IMenuExtension; simplified here via custom open
+            sp.openMenu(new SimpleMenuProvider((containerId, inv, ply) ->
+                    new com.simplecolonies.menu.TownHallMenu(containerId, inv, fColony, pos, targets),
+                    net.minecraft.network.chat.Component.literal(fColony.getCulture().displayName + " Colony #" + fColony.getId())),
+                    buf -> {
+                        buf.writeInt(fColony.getId());
+                        buf.writeBlockPos(pos);
+                        buf.writeNbt(com.simplecolonies.menu.TownHallMenu.snapshotWithTargets(fColony, targets));
+                    }
+            );
+        }
+
+        return InteractionResult.SUCCESS;
+    }
+
+    @Override
+    public void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
+        super.onPlace(state, level, pos, oldState, movedByPiston);
+        if (!level.isClientSide) {
+            // Auto-link BE if colony already exists at pos (village generated via structure)
+            BlockEntity be = level.getBlockEntity(pos);
+            if (be instanceof TownHallBlockEntity th) {
+                Colony colony = ColonyManager.getInstance().getColonyAt(level.dimension(), pos).orElse(null);
+                if (colony != null) th.setColonyId(colony.getId());
+            }
+        }
+    }
+}
