@@ -207,6 +207,11 @@ public class ShepherdGameTests {
             new ShepherdJob(worker, colony).tick(helper.getLevel());
             if (!first.getNavigation().isDone() || first.isInLove() || second.isInLove()
                     || worker.getWorkSupplies().getCount() != 2) helper.fail("Shepherd guided a protected animal");
+            com.simplecolonies.entity.AnimalProtection.unprotect(first);
+            first.setLeashedTo(worker, true);
+            if (!com.simplecolonies.entity.AnimalProtection.protectedFromWorkers(first)) helper.fail("Leashed animal was not protected");
+            new ShepherdJob(worker, colony).tick(helper.getLevel());
+            if (!first.getNavigation().isDone() || first.isInLove() || second.isInLove()) helper.fail("Shepherd guided a leashed animal");
             helper.succeed();
         });
     }

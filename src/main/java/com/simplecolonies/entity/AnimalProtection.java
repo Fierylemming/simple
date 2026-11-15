@@ -3,14 +3,14 @@ package com.simplecolonies.entity;
 import java.util.UUID;
 import net.minecraft.world.entity.animal.Animal;
 
-/** Player-marked animals are never worked by colony livestock jobs. This is an
- * opt-out, not a way to infer the owner of every unnamed vanilla animal. */
+/** Named, leashed and player-marked animals are never worked by colony livestock
+ * jobs. This does not infer the owner of every unnamed, unmarked animal. */
 public final class AnimalProtection {
     private static final String OWNER = "simplecolonies:protected_by";
     private AnimalProtection() {}
 
     public static boolean protectedFromWorkers(Animal animal) {
-        return animal.hasCustomName() || animal.getPersistentData().hasUUID(OWNER);
+        return animal.hasCustomName() || animal.isLeashed() || animal.getPersistentData().hasUUID(OWNER);
     }
 
     public static UUID protector(Animal animal) {
