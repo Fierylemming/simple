@@ -202,11 +202,10 @@ public class ShepherdGameTests {
             if (path == null || !path.canReach() || first.isInLove() || second.isInLove()
                     || worker.getWorkSupplies().getCount() != 2 || inventory.countItem(Items.WHEAT) != 2)
                 helper.fail("Shepherd did not physically guide the separated pair: " + job.getState());
-            first.getNavigation().stop();
             com.simplecolonies.entity.AnimalProtection.protect(first, java.util.UUID.randomUUID());
-            new ShepherdJob(worker, colony).tick(helper.getLevel());
+            job.tick(helper.getLevel());
             if (!first.getNavigation().isDone() || first.isInLove() || second.isInLove()
-                    || worker.getWorkSupplies().getCount() != 2) helper.fail("Shepherd guided a protected animal");
+                    || worker.getWorkSupplies().getCount() != 2) helper.fail("Protecting an animal did not stop its guided path");
             com.simplecolonies.entity.AnimalProtection.unprotect(first);
             first.setLeashedTo(worker, true);
             if (!com.simplecolonies.entity.AnimalProtection.protectedFromWorkers(first)) helper.fail("Leashed animal was not protected");

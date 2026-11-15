@@ -18,8 +18,25 @@ import net.minecraft.world.phys.AABB;
 
 /** Shears real sheep in a player-designated pasture and carries actual drops to shared storage. */
 public final class ShepherdJob extends AbstractJob {
+    private Sheep guidedSheep;
+    private net.minecraft.world.level.pathfinder.Path guidePath;
+    private BlockPos guidePasture;
     public ShepherdJob(ColonyVillager villager, Colony colony) { super(villager, colony, JobType.SHEPHERD); }
     private ColonyVillager worker() { return (ColonyVillager) villager; }
+
+    @Override protected void onTick(ServerLevel level) {
+        if (guidedSheep == null) return;
+        boolean stillOwned = guidedSheep.getNavigation().getPath() == guidePath;
+        boolean valid = guidedSheep.isAlive() && !protectedAnimal(guidedSheep)
+                && !guidedSheep.isNoAi() && !guidedSheep.isPassenger() && level.isLoaded(guidePasture)
+                && level.getBlockEntity(guidePasture) instanceof BuildingMarkerBlockEntity marker
+                && marker.getBuildingType() == BuildingType.PASTURE && guidePasture.equals(marker.getLinkedBuildingPos())
+                && colony.getBuildings().stream().anyMatch(b -> b.isPlayerPlaced && b.getType() == BuildingType.PASTURE
+                        && b.getState() == BuildingState.COMPLETE && b.getPos().equals(guidePasture))
+                && safeGuidePath(level, guidePath, guidePasture);
+        if (!valid && stillOwned) guidedSheep.getNavigation().stop();
+        if (!valid || !stillOwned || guidePath.isDone()) { guidedSheep = null; guidePath = null; guidePasture = null; }
+    }
 
     @Override protected void doWork(ServerLevel level) {
         var warehouse = colony.getWarehouseManager();
@@ -62,6 +79,7 @@ public final class ShepherdJob extends AbstractJob {
         if (sheep.stream().noneMatch(a -> !protectedAnimal(a) && !a.isBaby() && !a.isSheared())) {
             breedSheep(level, sheep, storage, center); return;
         }
+        stopGuidance();
         if (!villager.getMainHandItem().is(Items.SHEARS)) {
             if (!villager.getMainHandItem().isEmpty()) { state = JobState.NEEDS_TOOL; ticksUntilNextWork = 100; return; }
             var inventory = villager.getInventory();
@@ -134,7 +152,7 @@ public final class ShepherdJob extends AbstractJob {
      * AI, not this job, creates offspring. Named sheep count toward the cap
      * but are never fed. Keep at least two wheat in storage as a reserve. */
     private void breedSheep(ServerLevel level, java.util.List<Sheep> flock, java.util.List<BlockPos> storage, BlockPos center) {
-        if (flock.size() >= 4) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
+        if (flock.size() >= 4) { stopGuidance(); state = JobState.IDLE; ticksUntilNextWork = 100; return; }
         var adults = flock.stream().filter(a -> !protectedAnimal(a) && a.getAge() == 0).toList();
         var target = adults.stream().filter(a -> !a.isInLove() && a.canFallInLove())
                 // Do not spend two wheat on sheep that are too far apart to
@@ -144,9 +162,10 @@ public final class ShepherdJob extends AbstractJob {
                         && (other.isInLove() || other.canFallInLove())))
                 .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
         if (target == null) {
-            if (!herdSeparatedSheep(level, adults, center, storage)) { state = JobState.IDLE; ticksUntilNextWork = 100; }
+            if (!herdSeparatedSheep(level, adults, center, storage)) { stopGuidance(); state = JobState.IDLE; ticksUntilNextWork = 100; }
             return;
         }
+        stopGuidance();
         boolean partnerWaiting = adults.stream().anyMatch(a -> a != target && a.distanceToSqr(target) <= 36 && a.isInLove());
         // Old saves may have shepherd wheat in vanilla inventory. Move only the
         // actual plain wheat needed for this pair into the persistent work slot.
@@ -264,19 +283,31 @@ public final class ShepherdJob extends AbstractJob {
             villager.getNavigation().moveTo(approach, 0.7);
             state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return true;
         }
+        if (guidedSheep != first) stopGuidance();
         var path = first.getNavigation().createPath(second.blockPosition(), 1);
-        if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return true; }
+        if (path == null || !path.canReach()) { stopGuidance(); state = JobState.STUCK; ticksUntilNextWork = 60; return true; }
+        if (!safeGuidePath(level, path, center)) { stopGuidance(); state = JobState.STUCK; ticksUntilNextWork = 60; return true; }
+        if (first.getNavigation().moveTo(path, 0.8)) {
+            guidedSheep = first; guidePath = path; guidePasture = center.immutable();
+        }
+        villager.getLookControl().setLookAt(first);
+        state = JobState.WORKING; ticksUntilNextWork = 40; return true;
+    }
+
+    private void stopGuidance() {
+        if (guidedSheep != null && guidedSheep.getNavigation().getPath() == guidePath) guidedSheep.getNavigation().stop();
+        guidedSheep = null; guidePath = null; guidePasture = null;
+    }
+
+    private boolean safeGuidePath(ServerLevel level, net.minecraft.world.level.pathfinder.Path path, BlockPos center) {
+        if (path == null) return false;
         for (int i = 0; i < path.getNodeCount(); i++) {
             var p = path.getNode(i).asBlockPos();
             if (!level.isLoaded(p) || !colony.isInside(p) || colony.isProtectedPlot(p)
                     || Math.abs(p.getX() - center.getX()) > 6 || Math.abs(p.getZ() - center.getZ()) > 6
-                    || Math.abs(p.getY() - center.getY()) > 3 || !level.getFluidState(p).isEmpty()) {
-                state = JobState.STUCK; ticksUntilNextWork = 60; return true;
-            }
+                    || Math.abs(p.getY() - center.getY()) > 3 || !level.getFluidState(p).isEmpty()) return false;
         }
-        first.getNavigation().moveTo(path, 0.8);
-        villager.getLookControl().setLookAt(first);
-        state = JobState.WORKING; ticksUntilNextWork = 40; return true;
+        return true;
     }
 
     private boolean protectedAnimal(Sheep animal) {
