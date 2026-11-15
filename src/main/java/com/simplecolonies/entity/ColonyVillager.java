@@ -145,9 +145,14 @@ public class ColonyVillager extends Villager {
     public CompoundTag getWoodcutterMemory() { return woodcutterMemory.copy(); }
     public void setWoodcutterMemory(CompoundTag memory) { woodcutterMemory = memory.copy(); }
 
+    private void stopShepherdGuidance() {
+        if (jobInstance instanceof ShepherdJob shepherd) shepherd.stopGuidance();
+    }
+
     public void setColony(Colony colony) {
         if (this.colonyId != -1 && this.colonyId != colony.getId()) {
             followCommanderId = null;
+            stopShepherdGuidance();
             jobInstance = null;
             ColonyManager.getInstance().getColony(this.colonyId).ifPresent(old -> old.removeCitizen(getUUID()));
         }
@@ -168,6 +173,7 @@ public class ColonyVillager extends Villager {
         boolean changed = this.job != newJob;
         if (changed && !level().isClientSide) {
             followCommanderId = null;
+            stopShepherdGuidance();
             // Keep real job tools (including their damage/components) when switching
             // professions, instead of leaving an incompatible tool in the main hand.
             var held = getMainHandItem();
@@ -333,9 +339,10 @@ public class ColonyVillager extends Villager {
         }
         if (!level().isClientSide && level() instanceof ServerLevel sl) {
             Colony colony = ColonyManager.getInstance().getColony(colonyId).orElse(null);
-            if (colony == null) return;
+            if (colony == null) { stopShepherdGuidance(); return; }
 
             boolean homeDimension = sl.dimension().equals(Level.OVERWORLD);
+            if (!homeDimension || sl.isNight() || isInDanger() || isTrading() || isSleeping() || isBaby()) stopShepherdGuidance();
             // Colony territory and workstations exist only in the Overworld.
             // A defender may still follow a valid commander in another dimension.
             if (homeDimension && sl.isNight() && !job.isCombat && !isTrading()) {
@@ -344,9 +351,9 @@ public class ColonyVillager extends Villager {
                 if (job.isCombat) {
                     if (homeDimension || (jobInstance instanceof SoldierJob soldier && soldier.hasValidCommander(sl)))
                         jobInstance.tick(sl);
-                } else if (homeDimension && !isInDanger()) {
+                } else if (homeDimension && !isInDanger() && !isTrading() && !isSleeping()) {
                     if (updateWorkstation(sl, colony)) jobInstance.tick(sl);
-                    else jobInstance.tickWithoutWorksite(sl);
+                    else { stopShepherdGuidance(); jobInstance.tickWithoutWorksite(sl); }
                 }
             }
 
@@ -744,6 +751,7 @@ public class ColonyVillager extends Villager {
     @Override
     public void die(net.minecraft.world.damagesource.DamageSource source) {
         if (!level().isClientSide) {
+            stopShepherdGuidance();
             dropCourierCargo();
             ColonyManager.getInstance().getColony(colonyId).ifPresent(c -> c.removeCitizen(getUUID()));
         }

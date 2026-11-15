@@ -294,7 +294,8 @@ public final class ShepherdJob extends AbstractJob {
         state = JobState.WORKING; ticksUntilNextWork = 40; return true;
     }
 
-    private void stopGuidance() {
+    /** Release only navigation owned by this job when work is interrupted. */
+    public void stopGuidance() {
         if (guidedSheep != null && guidedSheep.getNavigation().getPath() == guidePath) guidedSheep.getNavigation().stop();
         guidedSheep = null; guidePath = null; guidePasture = null;
     }
