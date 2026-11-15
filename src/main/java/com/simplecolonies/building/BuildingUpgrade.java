@@ -69,21 +69,22 @@ public class BuildingUpgrade {
     }
 
     public static boolean tryUpgrade(Colony colony, Building building, net.minecraft.server.level.ServerLevel level, net.minecraft.world.entity.player.Player player) {
-        var site = building.canBuildWorksiteWing() ? findWorksiteWing(colony, building, level) : null;
-        if (site == null || !building.beginWorksiteWing(site)) {
+        var choice = building.canBuildWorksiteWing() ? findWorksiteWing(colony, building, level) : null;
+        if (choice == null || !building.beginWorksiteWing(choice.site(), choice.timber())) {
             if (player != null) player.displayClientMessage(net.minecraft.network.chat.Component.literal(
                     "§cUpgrade needs a builder, a clear site and physical materials for " + building.getType().displayName), true);
             return false;
         }
         com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
         if (player != null) player.displayClientMessage(net.minecraft.network.chat.Component.literal(
-                "§aQueued a " + building.getType().displayName + " wing at " + site.toShortString() + "; builder consumes materials as placed."), false);
+                "§aQueued a " + building.getType().displayName + " wing at " + choice.site().toShortString() + "; builder consumes materials as placed."), false);
         return true;
     }
 
     /** Each tier adds an independent workshop with a real additional POI.
      * Keep wings close enough to associate their workstations with the parent. */
-    private static net.minecraft.core.BlockPos findWorksiteWing(Colony colony, Building building,
+    private record WingChoice(net.minecraft.core.BlockPos site, HouseTimber timber) {}
+    private static WingChoice findWorksiteWing(Colony colony, Building building,
             net.minecraft.server.level.ServerLevel level) {
         if (level == null || !level.dimension().equals(net.minecraft.world.level.Level.OVERWORLD)
                 || !colony.getBuildings().contains(building) || !building.canBuildWorksiteWing()
@@ -113,7 +114,9 @@ public class BuildingUpgrade {
                     || inside(entrance, p, radius))) continue;
             if (!clearWing(level, colony, site, house)) continue;
             if (building.getType() == BuildingType.HARBOR && !colony.hasFishingWater(level, site)) continue;
-            if (ConstructionCrafting.canBuild(stock, building.previewWorksiteWing(site))) return site;
+            var timbers = building.isPlayerPlaced && house ? HouseTimber.all() : java.util.List.of(building.houseTimber());
+            for (var timber : timbers)
+                if (ConstructionCrafting.canBuild(stock, building.previewWorksiteWing(site, timber))) return new WingChoice(site, timber);
         }
         return null;
     }

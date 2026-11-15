@@ -319,12 +319,14 @@ public class Building {
     }
 
     /** Preview a wing without consuming resources or changing the current plan. */
-    public List<BlockPlacement> previewWorksiteWing(BlockPos site) {
-        if (!canBuildWorksiteWing() || site == null) return List.of();
+    public List<BlockPlacement> previewWorksiteWing(BlockPos site) { return previewWorksiteWing(site, houseTimber); }
+
+    List<BlockPlacement> previewWorksiteWing(BlockPos site, HouseTimber timber) {
+        if (!canBuildWorksiteWing() || site == null || timber == null) return List.of();
         var plan = new ArrayList<BlockPlacement>();
         if (type == BuildingType.HOUSE) {
             CulturalHousePlans.generate(site, culture, houseVariant, (at, block) ->
-                    plan.add(placement(at, planVersion >= 12 ? houseTimber.replaceOak(block) : block)));
+                    plan.add(placement(at, isPlayerPlaced || planVersion >= 12 ? timber.replaceOak(block) : block)));
         } else {
             LevelOneWorksites.generate(type, site, culture, (at, block) ->
                     plan.add(placement(at, planVersion >= 12 ? houseTimber.replaceOak(block) : block)));
@@ -340,8 +342,13 @@ public class Building {
         return List.copyOf(plan);
     }
 
-    public boolean beginWorksiteWing(BlockPos site) {
-        if (!canBuildWorksiteWing() || site == null) return false;
+    HouseTimber houseTimber() { return houseTimber; }
+
+    public boolean beginWorksiteWing(BlockPos site) { return beginWorksiteWing(site, houseTimber); }
+
+    boolean beginWorksiteWing(BlockPos site, HouseTimber timber) {
+        if (!canBuildWorksiteWing() || site == null || timber == null) return false;
+        if (isPlayerPlaced && type == BuildingType.HOUSE) houseTimber = timber;
         // A marker's original house was player-built, so upgrading an old
         // marker cannot change a saved generated parent plan.
         if (isPlayerPlaced && planVersion < 13) planVersion = 13;

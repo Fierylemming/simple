@@ -48,20 +48,23 @@ public class MarkerHouseWingGameTests {
         if (!colony[0].updateMarkerBuilding(abs, false, BuildingType.HOUSE)) helper.fail("Could not designate the house");
         marker.setBuildingType(BuildingType.HOUSE); marker.setLinkedBuildingPos(abs);
         Building[] house = {colony[0].getBuildings().getFirst()};
-        colony[0].depositToWarehouse("minecraft:oak_log", 300);
+        colony[0].depositToWarehouse("minecraft:spruce_log", 300);
         colony[0].depositToWarehouse("minecraft:cobblestone", 300);
         colony[0].depositToWarehouse("minecraft:coal", 32);
         if (BuildingUpgrade.tryUpgrade(colony[0], house[0], helper.getLevel(), null)) helper.fail("Virtual stock funded a physical wing");
         var warehouse = colony[0].getWarehouseManager();
         if (!warehouse.registerStorage(helper.getLevel(), storage)) helper.fail("Could not share materials");
-        warehouse.deposit(helper.getLevel(), storage, "minecraft:oak_log", 300);
+        warehouse.deposit(helper.getLevel(), storage, "minecraft:spruce_log", 300);
         warehouse.deposit(helper.getLevel(), storage, "minecraft:cobblestone", 300);
         warehouse.deposit(helper.getLevel(), storage, "minecraft:coal", 32);
         var container = (Container) helper.getBlockEntity(chest);
         if (!BuildingUpgrade.tryUpgrade(colony[0], house[0], helper.getLevel(), null)) helper.fail("Could not queue marker wing");
         var wing = house[0].getUpgradeSite(); int total = house[0].getRemainingPlacements().size();
+        if (house[0].getRemainingPlacements().stream().noneMatch(p -> p.state.is(Blocks.SPRUCE_PLANKS))
+                || house[0].getRemainingPlacements().stream().anyMatch(p -> p.state.is(Blocks.OAK_PLANKS)))
+            helper.fail("Marker wing did not select the available spruce family");
         if (wing == null || total == 0 || house[0].getLevel() != 1 || colony[0].getShelterCapacity() != 4
-                || !house[0].isOperational() || container.countItem(net.minecraft.world.item.Items.OAK_LOG) != 300)
+                || !house[0].isOperational() || container.countItem(net.minecraft.world.item.Items.SPRUCE_LOG) != 300)
             helper.fail("Queue prematurely consumed supplies or awarded capacity");
         if (colony[0].updateMarkerBuilding(abs, true, BuildingType.FARM)) helper.fail("Changed marker during unfinished wing");
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), origin.offset(-4, 0, -5));
@@ -74,13 +77,14 @@ public class MarkerHouseWingGameTests {
                 var tag = new CompoundTag(); worker.addAdditionalSaveData(tag);
                 var savedMaterials = new net.minecraft.world.SimpleContainer(18);
                 savedMaterials.fromTag(tag.getList("builderMaterials", net.minecraft.nbt.Tag.TAG_COMPOUND), helper.getLevel().registryAccess());
-                if (savedMaterials.countItem(net.minecraft.world.item.Items.OAK_LOG) != worker.getBuilderMaterials().countItem(net.minecraft.world.item.Items.OAK_LOG))
+                if (savedMaterials.countItem(net.minecraft.world.item.Items.SPRUCE_LOG) != worker.getBuilderMaterials().countItem(net.minecraft.world.item.Items.SPRUCE_LOG))
                     helper.fail("Carried supplies were not saved");
                 int remaining = house[0].getRemainingPlacements().size();
                 colony[0] = Colony.load(colony[0].save());
                 house[0] = colony[0].getBuildings().getFirst();
                 if (!house[0].isPlayerPlaced || !house[0].isUpgrading() || !house[0].isOperational()
                         || !wing.equals(house[0].getUpgradeSite()) || house[0].getRemainingPlacements().size() != remaining
+                        || house[0].getRemainingPlacements().stream().noneMatch(p -> p.state.is(Blocks.SPRUCE_PLANKS))
                         || colony[0].getShelterCapacity() != 4) helper.fail("Marker wing or parent did not survive reload");
                 job[0] = new BuilderJob(worker, colony[0]); reloaded[0] = true;
             }
@@ -89,7 +93,7 @@ public class MarkerHouseWingGameTests {
             if (!reloaded[0] || house[0].getState() != BuildingState.COMPLETE || house[0].getLevel() != 2
                     || colony[0].getShelterCapacity() != 8 || !house[0].shelterSites().contains(wing)
                     || !helper.getBlockState(origin).is(ModBlocks.BUILDING_MARKER.get())
-                    || container.countItem(net.minecraft.world.item.Items.OAK_LOG) >= 300)
+                    || container.countItem(net.minecraft.world.item.Items.SPRUCE_LOG) >= 300)
                 helper.fail("Physical marker wing incomplete: " + house[0].getState() + ", " + job[0].getState()
                         + " remaining=" + house[0].getRemainingPlacements().size() + " worker=" + worker.blockPosition());
             var restored = Colony.load(colony[0].save());

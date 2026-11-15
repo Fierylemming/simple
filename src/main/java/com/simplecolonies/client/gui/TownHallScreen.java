@@ -116,7 +116,7 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
                 }
                 for (int i=buildingScroll; i<Math.min(buildingScroll+4, Math.min(100, buildings.size())); i++) {
                     var building = buildings.get(i);
-                    if (building.canBuildWorksiteWing() || (building.isPlayerPlaced && building.getType()==BuildingType.HOUSE && building.getLevel()<5)) {
+                    if (building.canBuildWorksiteWing()) {
                         final int index=i;
                         addRenderableWidget(Button.builder(Component.literal("Upgrade"), b->send(TownHallMenu.BTN_UPGRADE_BUILDING_BASE+index))
                                 .bounds(x+244, y+78+(i-buildingScroll)*32, 58, 16).build());
