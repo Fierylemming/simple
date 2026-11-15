@@ -463,7 +463,8 @@ public class ColonyVillager extends Villager {
         for (var entry : shelters) {
             var shelter = entry.getKey();
             var anchor = entry.getValue();
-            int y = shelter.isPlayerPlaced ? anchor.getY() : anchor.getY() + shelter.constructionWalkY() - shelter.getPos().getY();
+            int y = shelter.isPlayerPlaced && anchor.equals(shelter.getPos()) ? anchor.getY()
+                    : anchor.getY() + shelter.constructionWalkY() - shelter.getPos().getY();
             var candidates = new java.util.ArrayList<net.minecraft.core.BlockPos>();
             // The central 3x3 is inside all generated shells, including old houses.
             for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++) {

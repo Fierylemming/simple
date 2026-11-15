@@ -205,7 +205,7 @@ public class ColonyCommand {
                                             if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("No such colony.")); return 0; }
                                             var pos = net.minecraft.commands.arguments.coordinates.BlockPosArgument.getBlockPos(ctx, "position");
                                             if (!colony.get().cancelUnfinishedBuilding(pos)) {
-                                                ctx.getSource().sendFailure(Component.literal("No unique unfinished generated plan at that exact position. Completed and player buildings cannot be cancelled."));
+                                                ctx.getSource().sendFailure(Component.literal("No unique unfinished plan or pending wing at that exact position. Completed buildings cannot be cancelled."));
                                                 return 0;
                                             }
                                             ctx.getSource().sendSuccess(() -> Component.literal("Cancelled plan at " + pos.toShortString()
@@ -286,7 +286,7 @@ public class ColonyCommand {
                     + ": " + building.getState() + (next == null ? "" : "; next block " + next.pos.toShortString() + " needs " + next.itemId)), false);
         }
         if (!unfinished) src.sendSuccess(() -> Component.literal("No construction is queued."), false);
-        else src.sendSuccess(() -> Component.literal("Operators can cancel an unfinished generated plan with /colony cancel_building <id> <x y z>; existing blocks remain."), false);
+        else src.sendSuccess(() -> Component.literal("Operators can cancel an unfinished plan or wing with /colony cancel_building <id> <x y z>; existing blocks remain."), false);
         return 1;
     }
 

@@ -766,19 +766,20 @@ public class Colony {
         com.simplecolonies.SimpleColonies.LOGGER.info("[Colony #{}] {}", id, msg.getString());
     }
 
-    /** Forget a specific unfinished generated plan without modifying the world or
-     * refunding already-placed blocks. Refuse ambiguous or player-owned records. */
+    /** Forget a specific unfinished generated plan or cancel a pending wing,
+     * without modifying placed blocks or removing the completed parent. */
     public boolean cancelUnfinishedBuilding(BlockPos pos) {
         var matches = buildings.stream().filter(b -> b.getPos().equals(pos)).toList();
         if (matches.size() != 1) return false;
         Building building = matches.getFirst();
-        if (building.isPlayerPlaced || building.getState() == com.simplecolonies.building.BuildingState.COMPLETE) return false;
+        if (building.getState() == com.simplecolonies.building.BuildingState.COMPLETE) return false;
         if (building.isUpgrading()) {
             if (!building.cancelUpgrade()) return false;
             expansionStatus = "Upgrade cancelled; placed blocks remain";
             ColonyManager.getInstance().markDirty(this);
             return true;
         }
+        if (building.isPlayerPlaced) return false;
         var source = building.importedSource();
         if (source != null && !cancelledSchematics.contains(source)) cancelledSchematics.add(source);
         buildings.remove(building);
@@ -820,8 +821,12 @@ public class Colony {
         if (expectedType == null) return false;
         var matches = buildings.stream().filter(b -> b.getPos().equals(pos)).toList();
         if (matches.size() != 1 || !matches.getFirst().isPlayerPlaced
-                || matches.getFirst().getType() != expectedType
-                || matches.getFirst().getState() != com.simplecolonies.building.BuildingState.COMPLETE) return false;
+                || matches.getFirst().getType() != expectedType) return false;
+        var building = matches.getFirst();
+        // Breaking the actual linked marker revokes the designation even during
+        // construction. Already placed wing blocks are never demolished.
+        if (building.isUpgrading()) building.cancelUpgrade();
+        if (building.getState() != com.simplecolonies.building.BuildingState.COMPLETE) return false;
         return updateMarkerBuilding(pos, true, null);
     }
 

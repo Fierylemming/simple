@@ -120,7 +120,7 @@ public class WarehouseGameTests {
     }
 
     @GameTest(template = "empty")
-    public static void markerUpgradeChargesLiveStockAndPersistsCapacity(GameTestHelper helper) {
+    public static void markerUpgradeDoesNotSpendVirtualStockOrInventCapacity(GameTestHelper helper) {
         BlockPos center = helper.absolutePos(new BlockPos(8, 1, 8));
         Colony colony = new Colony(0, CultureType.ROMAN, center);
         var house = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.HOUSE, center, CultureType.ROMAN, true);
@@ -130,19 +130,19 @@ public class WarehouseGameTests {
         if (com.simplecolonies.building.BuildingUpgrade.tryUpgrade(colony, house, helper.getLevel(), null)
                 || house.getLevel() != 1) helper.fail("Upgraded without materials");
         cost.forEach(colony::depositToWarehouse);
-        if (!com.simplecolonies.building.BuildingUpgrade.tryUpgrade(colony, house, helper.getLevel(), null)
-                || house.getLevel() != 2 || house.getHousingCapacity() != 8) helper.fail("Marker capacity upgrade failed");
-        for (var entry : cost.entrySet()) if (colony.getWarehouseCount(helper.getLevel(), entry.getKey()) != 0)
-            helper.fail("Upgrade did not charge exactly " + entry.getKey());
-        if (Colony.load(colony.save()).getBuildings().getFirst().getHousingCapacity() != 8)
-            helper.fail("Marker upgrade did not persist");
+        if (com.simplecolonies.building.BuildingUpgrade.tryUpgrade(colony, house, helper.getLevel(), null)
+                || house.getLevel() != 1 || house.getHousingCapacity() != 4) helper.fail("Virtual stock upgraded a house marker");
+        for (var entry : cost.entrySet()) if (colony.getWarehouseCount(entry.getKey()) != entry.getValue())
+            helper.fail("Unqueued upgrade consumed " + entry.getKey());
+        if (Colony.load(colony.save()).getBuildings().getFirst().getHousingCapacity() != 4)
+            helper.fail("Marker capacity changed after reload");
         var farm = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.FARM, center.east(6), CultureType.ROMAN, true);
         var farmCost = com.simplecolonies.building.BuildingUpgrade.costForUpgrade(farm);
         farmCost.forEach(colony::depositToWarehouse);
+        var beforeFarm = colony.getWarehouseSnapshot(null);
         if (com.simplecolonies.building.BuildingUpgrade.tryUpgrade(colony, farm, helper.getLevel(), null)
                 || farm.getLevel() != 1) helper.fail("Charged for a nonfunctional farm upgrade");
-        for (var entry : farmCost.entrySet()) if (colony.getWarehouseCount(helper.getLevel(), entry.getKey()) != entry.getValue())
-            helper.fail("Nonfunctional upgrade consumed " + entry.getKey());
+        if (!beforeFarm.equals(colony.getWarehouseSnapshot(null))) helper.fail("Nonfunctional upgrade consumed stock");
         var natural = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.HOUSE, center.east(8), CultureType.ROMAN);
         natural.setState(com.simplecolonies.building.BuildingState.COMPLETE);
         if (com.simplecolonies.building.BuildingUpgrade.tryUpgrade(colony, natural, helper.getLevel(), null))

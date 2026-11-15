@@ -105,11 +105,12 @@ public class Building {
         return !isPlayerPlaced && type == BuildingType.BLACKSMITH && planVersion >= 7
                 && level == 1 && state == BuildingState.COMPLETE && upgradeSite == null;
     }
-    /** Generated worksite upgrades add a separate real workstation wing. */
+    /** House upgrades add a real shelter wing; generated workplaces add a
+     * separate workstation wing. A player marker stays in the original house. */
     public boolean canBuildWorksiteWing() {
-        return !isPlayerPlaced && state == BuildingState.COMPLETE && level < 5
-                && (type == BuildingType.HOUSE && planVersion >= 5
-                    || LevelOneWorksites.supports(type, planVersion) && wingStation(type) != null);
+        return state == BuildingState.COMPLETE && level < 5
+                && (type == BuildingType.HOUSE && (isPlayerPlaced || planVersion >= 5)
+                    || !isPlayerPlaced && LevelOneWorksites.supports(type, planVersion) && wingStation(type) != null);
     }
     public List<BlockPos> completedWingSites() {
         var sites = new ArrayList<>(previousWings);
@@ -295,7 +296,8 @@ public class Building {
 
     public boolean hasSupportedPlan() {
         if (type == BuildingType.SCHEMATIC) return !isPlayerPlaced && importedPlanValid;
-        return !isPlayerPlaced && (upgradeSite == null || upgradePlanVersion == 1 || upgradePlanVersion == 2 || upgradePlanVersion == 3)
+        if (isPlayerPlaced) return type == BuildingType.HOUSE && upgradeSite != null && upgradePlanVersion == 3;
+        return (upgradeSite == null || upgradePlanVersion == 1 || upgradePlanVersion == 2 || upgradePlanVersion == 3)
                 && (type == BuildingType.HOUSE || (planVersion >= 4 && LevelOneWorksites.supports(type, planVersion)));
     }
 
@@ -340,6 +342,9 @@ public class Building {
 
     public boolean beginWorksiteWing(BlockPos site) {
         if (!canBuildWorksiteWing() || site == null) return false;
+        // A marker's original house was player-built, so upgrading an old
+        // marker cannot change a saved generated parent plan.
+        if (isPlayerPlaced && planVersion < 13) planVersion = 13;
         if (upgradeSite != null && !previousWings.contains(upgradeSite)) previousWings.add(upgradeSite);
         upgradeSite = site.immutable(); upgradePlanVersion = type == BuildingType.HOUSE ? 3 : 2;
         completed.clear(); loadSchematicPlacements(); state = BuildingState.UNDER_CONSTRUCTION;
@@ -369,23 +374,6 @@ public class Building {
         if (!placements.isEmpty()) return;
         if (isUpgrading()) level = Math.min(5, level + 1);
         state = BuildingState.COMPLETE;
-    }
-
-    public void upgradeToNextLevel() {
-        if (level >= 5) return;
-        level++;
-        // Rebuild placement queue for the new level's expanded shell
-        // For player marker buildings we keep COMPLETE but still grow housing; for blueprints we set UNDER_CONSTRUCTION
-        if (!isPlayerPlaced) {
-            requiredResources.clear();
-            requiredResources.putAll(BuildingUpgrade.costForUpgradePreview(this, level)); // preview of what was consumed; real cost already paid
-            placements.clear();
-            loadSchematicPlacements();
-            state = BuildingState.UNDER_CONSTRUCTION;
-        } else {
-            // Player building instantly grows: just update level, no placements needed
-            state = BuildingState.COMPLETE;
-        }
     }
 
     public boolean hasResources(Colony colony) {
@@ -459,13 +447,14 @@ public class Building {
         if (type == BuildingType.SCHEMATIC && tag.contains("importedPlan", net.minecraft.nbt.Tag.TAG_COMPOUND))
             b.importedPlan = tag.getCompound("importedPlan").copy();
         b.level = tag.getInt("level");
-        if (!isPlayer) for (long p : tag.getLongArray("previousWings")) b.previousWings.add(BlockPos.of(p));
-        if (!isPlayer && tag.contains("upgradeSite")) {
+        boolean supportsSavedWings = !isPlayer || type == BuildingType.HOUSE;
+        if (supportsSavedWings) for (long p : tag.getLongArray("previousWings")) b.previousWings.add(BlockPos.of(p));
+        if (supportsSavedWings && tag.contains("upgradeSite")) {
             b.upgradeSite = BlockPos.of(tag.getLong("upgradeSite"));
             b.upgradePlanVersion = tag.getInt("upgradePlanVersion");
         }
         // Regenerate the deterministic plan and discard exactly the completed prefix.
-        if (!isPlayer && b.state != BuildingState.COMPLETE) {
+        if ((!isPlayer || b.upgradeSite != null && type == BuildingType.HOUSE) && b.state != BuildingState.COMPLETE) {
             b.loadSchematicPlacements();
             int done = Math.max(0, tag.getInt("completedPlacements"));
             while (done-- > 0 && b.getNextPlacement() != null) b.markPlaced(b.getNextPlacement());

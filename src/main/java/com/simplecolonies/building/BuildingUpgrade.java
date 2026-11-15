@@ -65,47 +65,19 @@ public class BuildingUpgrade {
     }
 
     public static boolean canUpgrade(Colony colony, Building building, net.minecraft.server.level.ServerLevel level) {
-        if (building.canBuildWorksiteWing()) return findWorksiteWing(colony, building, level) != null;
-        if (!building.isPlayerPlaced || building.getType() != BuildingType.HOUSE) return false;
-        // Other marker upgrades currently change no functioning capacity. Never
-        // charge for an upgrade that neither builds nor does useful work.
-        if (building.getLevel() >= maxLevel(building.getType())) return false;
-        if (building.getState() != BuildingState.COMPLETE) return false; // only upgrade finished buildings
-        Map<String, Integer> cost = costForUpgrade(building);
-        for (var e : cost.entrySet()) {
-            if (colony.getWarehouseCount(level, e.getKey()) < e.getValue()) return false;
-        }
-        return true;
+        return building.canBuildWorksiteWing() && findWorksiteWing(colony, building, level) != null;
     }
 
     public static boolean tryUpgrade(Colony colony, Building building, net.minecraft.server.level.ServerLevel level, net.minecraft.world.entity.player.Player player) {
-        if (!canUpgrade(colony, building, level)) {
-            if (player != null) player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cUpgrade unavailable or insufficient materials for " + building.getType().displayName + " to Lv" + (building.getLevel()+1)), true);
+        var site = building.canBuildWorksiteWing() ? findWorksiteWing(colony, building, level) : null;
+        if (site == null || !building.beginWorksiteWing(site)) {
+            if (player != null) player.displayClientMessage(net.minecraft.network.chat.Component.literal(
+                    "§cUpgrade needs a builder, a clear site and physical materials for " + building.getType().displayName), true);
             return false;
         }
-        if (building.canBuildWorksiteWing()) {
-            var site = findWorksiteWing(colony, building, level);
-            if (site == null || !building.beginWorksiteWing(site)) return false;
-            com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
-            if (player != null) player.displayClientMessage(net.minecraft.network.chat.Component.literal(
-                    "§aQueued a " + building.getType().displayName + " wing at " + site.toShortString() + "; builder consumes materials as placed."), false);
-            return true;
-        }
-        // The marker upgrade changes capacity only: it does not build a larger
-        // shell or create beds/workstations. Consume live stock transactionally.
-        Map<String, Integer> paid = new HashMap<>();
-        for (var e : costForUpgrade(building).entrySet()) {
-            if (!colony.consumeStock(level, e.getKey(), e.getValue())) {
-                paid.forEach(colony::depositToWarehouse);
-                if (player != null) player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cUpgrade materials changed; no upgrade was applied."), true);
-                return false;
-            }
-            paid.put(e.getKey(), e.getValue());
-        }
-        building.upgradeToNextLevel();
-        if (player != null) player.displayClientMessage(net.minecraft.network.chat.Component.literal("§aUpgraded marker capacity for " + building.getType().displayName + " → Lv" + building.getLevel()), false);
-        colony.broadcast(net.minecraft.network.chat.Component.literal("§6Updated marker capacity for " + building.getType().displayName + " at " + building.getPos().toShortString() + " to level " + building.getLevel()));
         com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
+        if (player != null) player.displayClientMessage(net.minecraft.network.chat.Component.literal(
+                "§aQueued a " + building.getType().displayName + " wing at " + site.toShortString() + "; builder consumes materials as placed."), false);
         return true;
     }
 
