@@ -26,7 +26,16 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public class MarkerHouseWingGameTests {
     @GameTest(template = "isolated", timeoutTicks = 9000)
     public static void markerHouseWingUsesPhysicalMaterialsAndResumesAfterReload(GameTestHelper helper) {
-        for (int x = 36; x <= 80; x++) for (int z = 36; z <= 80; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        for (int x = 36; x <= 80; x++) for (int z = 36; z <= 80; z++) {
+            helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+            // The isolated GameTest template has an artificial ceiling at y=5;
+            // a real six-block-tall house cannot be planned beneath it.
+            for (int y = 5; y <= 7; y++) {
+                var p = helper.absolutePos(new BlockPos(x, y, z));
+                if (helper.getLevel().getBlockState(p).is(Blocks.BARRIER))
+                    helper.getLevel().setBlock(p, Blocks.AIR.defaultBlockState(), 3);
+            }
+        }
         var origin = new BlockPos(56, 1, 56); var chest = origin.offset(-12, 0, -12);
         helper.setBlock(origin, ModBlocks.BUILDING_MARKER.get());
         helper.setBlock(origin.west(), Blocks.CRAFTING_TABLE);
