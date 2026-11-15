@@ -96,7 +96,10 @@ public class BuildingMarkerMenu extends AbstractContainerMenu {
             return true;
         }
         if (!colony.updateMarkerBuilding(markerPos, linked, chosen)) {
-            player.displayClientMessage(Component.literal("§cThat position is already used by another building."), true);
+            boolean upgrading = atMarker.size() == 1 && atMarker.getFirst().isPlayerPlaced && atMarker.getFirst().isUpgrading();
+            player.displayClientMessage(Component.literal(upgrading
+                    ? "§cFinish the wing or ask an operator to cancel it before changing the marker."
+                    : "§cThat position is already used by another building."), true);
             return true;
         }
         marker.setBuildingType(chosen);

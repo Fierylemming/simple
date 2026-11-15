@@ -103,6 +103,29 @@ public class MarkerHouseWingGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void oldMarkerCapacityAndCompletedWingsSurviveAnotherCancelledUpgrade(GameTestHelper helper) {
+        var pos = helper.absolutePos(new BlockPos(8, 1, 8));
+        var old = new Building(BuildingType.HOUSE, pos, CultureType.GREEK, true);
+        old.setLevel(2); // Historical capacity-only upgrades remain part of the parent.
+        var legacyTag = old.save(); legacyTag.remove("planVersion");
+        var house = Building.load(legacyTag);
+        if (!house.beginWorksiteWing(pos.east(7))) helper.fail("Old house marker could not upgrade");
+        while (house.getNextPlacement() != null) house.markPlaced(house.getNextPlacement());
+        house.finishConstruction();
+        if (house.getLevel() != 3 || house.getHousingCapacity() != 12 || !house.shelterSites().contains(pos.east(7)))
+            helper.fail("Completed first wing did not preserve historical marker capacity");
+        if (!house.beginWorksiteWing(pos.west(7))) helper.fail("Could not queue another marker wing");
+        var saved = Building.load(house.save());
+        if (!saved.isUpgrading() || saved.getLevel() != 3 || !saved.shelterSites().contains(pos.east(7))
+                || saved.shelterSites().contains(pos.west(7)) || !saved.cancelUpgrade())
+            helper.fail("In-progress marker wing failed to preserve its completed parent and wing");
+        saved = Building.load(saved.save());
+        if (saved.getLevel() != 3 || saved.isUpgrading() || !saved.shelterSites().contains(pos.east(7))
+                || saved.shelterSites().contains(pos.west(7))) helper.fail("Cancelled marker wing did not survive reload");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void markerWingCancellationAndBreakingPreservePlacedBlocks(GameTestHelper helper) {
         var pos = helper.absolutePos(new BlockPos(8, 1, 8));
         var colony = new Colony(GameTestColonyIds.next(), CultureType.GREEK, pos);
