@@ -171,9 +171,11 @@ public class ColonyVillager extends Villager {
 
     public void setJob(JobType newJob) {
         boolean changed = this.job != newJob;
+        // Even assigning the same job replaces its instance below. Release any
+        // animal path owned by that instance before losing the reference.
+        if (!level().isClientSide) stopShepherdGuidance();
         if (changed && !level().isClientSide) {
             followCommanderId = null;
-            stopShepherdGuidance();
             // Keep real job tools (including their damage/components) when switching
             // professions, instead of leaving an incompatible tool in the main hand.
             var held = getMainHandItem();
@@ -724,6 +726,7 @@ public class ColonyVillager extends Villager {
 
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
+        if (!level().isClientSide) stopShepherdGuidance();
         super.readAdditionalSaveData(tag);
         colonyId = tag.getInt("colonyId");
         if (tag.contains("colonyJob")) job = JobType.valueOf(tag.getString("colonyJob"));
