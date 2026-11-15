@@ -60,7 +60,7 @@ public final class ShepherdJob extends AbstractJob {
                 animal -> animal.isAlive() && colony.isInside(animal.blockPosition()));
         // Breeding already-sheared sheep does not require a pair of shears.
         if (sheep.stream().noneMatch(a -> !protectedAnimal(a) && !a.isBaby() && !a.isSheared())) {
-            breedSheep(level, sheep, storage); return;
+            breedSheep(level, sheep, storage, center); return;
         }
         if (!villager.getMainHandItem().is(Items.SHEARS)) {
             if (!villager.getMainHandItem().isEmpty()) { state = JobState.NEEDS_TOOL; ticksUntilNextWork = 100; return; }
@@ -97,7 +97,7 @@ public final class ShepherdJob extends AbstractJob {
         var target = sheep.stream().filter(animal -> !protectedAnimal(animal)
                         && animal.isShearable(null, shears, level, animal.blockPosition()))
                 .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
-        if (target == null) { breedSheep(level, sheep, storage); return; }
+        if (target == null) { breedSheep(level, sheep, storage, center); return; }
         if (villager.distanceToSqr(target) > 6.25 || !villager.hasLineOfSight(target)) {
             if (!villager.onGround() && !villager.isInLiquid() && !villager.isPassenger()) {
                 state = JobState.GOING_TO_WORK; ticksUntilNextWork = 0; return;
@@ -133,7 +133,7 @@ public final class ShepherdJob extends AbstractJob {
      * The worker walks to collect each item and to each sheep; vanilla animal
      * AI, not this job, creates offspring. Named sheep count toward the cap
      * but are never fed. Keep at least two wheat in storage as a reserve. */
-    private void breedSheep(ServerLevel level, java.util.List<Sheep> flock, java.util.List<BlockPos> storage) {
+    private void breedSheep(ServerLevel level, java.util.List<Sheep> flock, java.util.List<BlockPos> storage, BlockPos center) {
         if (flock.size() >= 4) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
         var adults = flock.stream().filter(a -> !protectedAnimal(a) && a.getAge() == 0).toList();
         var target = adults.stream().filter(a -> !a.isInLove() && a.canFallInLove())
@@ -143,7 +143,10 @@ public final class ShepherdJob extends AbstractJob {
                 .filter(a -> adults.stream().anyMatch(other -> other != a && a.distanceToSqr(other) <= 36
                         && (other.isInLove() || other.canFallInLove())))
                 .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
-        if (target == null) { state = JobState.IDLE; ticksUntilNextWork = 100; return; }
+        if (target == null) {
+            if (!herdSeparatedSheep(level, adults, center, storage)) { state = JobState.IDLE; ticksUntilNextWork = 100; }
+            return;
+        }
         boolean partnerWaiting = adults.stream().anyMatch(a -> a != target && a.distanceToSqr(target) <= 36 && a.isInLove());
         // Old saves may have shepherd wheat in vanilla inventory. Move only the
         // actual plain wheat needed for this pair into the persistent work slot.
@@ -193,6 +196,7 @@ public final class ShepherdJob extends AbstractJob {
             }
             state = JobState.NEEDS_RESOURCE; return;
         }
+        Sheep partner = null;
         if (partnerWaiting) {
             if (villager.distanceToSqr(target) > 6.25 || !villager.hasLineOfSight(target)) {
                 if (!villager.onGround() && !villager.isInLiquid() && !villager.isPassenger()) {
@@ -203,7 +207,7 @@ public final class ShepherdJob extends AbstractJob {
                 villager.getNavigation().moveTo(path, 0.7); state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
             }
         } else {
-            var partner = adults.stream().filter(a -> a != target && a.canFallInLove() && a.distanceToSqr(target) <= 36)
+            partner = adults.stream().filter(a -> a != target && a.canFallInLove() && a.distanceToSqr(target) <= 36)
                     .min(java.util.Comparator.comparingDouble(villager::distanceToSqr)).orElse(null);
             if (partner == null) return;
             if (villager.distanceToSqr(target) > 6.25 || !villager.hasLineOfSight(target)
@@ -213,12 +217,66 @@ public final class ShepherdJob extends AbstractJob {
             }
         }
         if (!target.isAlive() || protectedAnimal(target) || target.getAge() != 0 || target.isInLove() || !target.canFallInLove()) return;
-        supplies.shrink(1);
+        if (partner != null && (!partner.isAlive() || protectedAnimal(partner) || partner.getAge() != 0
+                || partner.isInLove() || !partner.canFallInLove() || supplies.getCount() < 2)) return;
+        supplies.shrink(partner == null ? 1 : 2);
         if (supplies.isEmpty()) worker().setWorkSupplies(ItemStack.EMPTY);
         target.setInLove(null);
+        if (partner != null) partner.setInLove(null);
         villager.getLookControl().setLookAt(target); villager.swing(InteractionHand.MAIN_HAND);
-        // Approach the second parent promptly, while the first is still in love.
         state = JobState.WORKING; ticksUntilNextWork = 5;
+    }
+
+    /** Gently bring a separated eligible pair together before spending wheat.
+     * This uses ordinary animal navigation, never teleports, opens gates or
+     * forces unloaded terrain. Named, marked and leashed animals are left alone. */
+    private boolean herdSeparatedSheep(ServerLevel level, java.util.List<Sheep> adults, BlockPos center, java.util.List<BlockPos> storage) {
+        var supplies = worker().getWorkSupplies();
+        if (!supplies.isEmpty() && !plainWheat(supplies)) return false;
+        int carried = supplies.isEmpty() ? 0 : supplies.getCount();
+        int stored = 0;
+        for (var pos : storage) {
+            var c = colony.getWarehouseManager().courierContainer(level, pos);
+            for (int i = 0; c != null && i < c.getContainerSize(); i++)
+                if (plainWheat(c.getItem(i))) stored += c.getItem(i).getCount();
+        }
+        if (stored < Math.max(0, 2 - carried) + 2) return false;
+        Sheep first = null, second = null; double best = Double.MAX_VALUE;
+        for (var a : adults) for (var b : adults) {
+            if (a == b || !a.canFallInLove() || !b.canFallInLove() || a.isInLove() || b.isInLove()
+                    || a.isNoAi() || b.isNoAi() || a.isLeashed() || b.isLeashed()
+                    || a.isPassenger() || b.isPassenger() || protectedAnimal(a) || protectedAnimal(b)) continue;
+            double distance = a.distanceToSqr(b);
+            if (distance <= 36 || distance > 144 || distance >= best) continue;
+            first = a; second = b; best = distance;
+        }
+        if (first == null) return false;
+        // Herd the nearer animal so the worker makes a real approach first.
+        if (villager.distanceToSqr(second) < villager.distanceToSqr(first)) {
+            var swap = first; first = second; second = swap;
+        }
+        if (villager.distanceToSqr(first) > 6.25 || !villager.hasLineOfSight(first)) {
+            if (!villager.onGround() && !villager.isInLiquid() && !villager.isPassenger()) {
+                state = JobState.GOING_TO_WORK; ticksUntilNextWork = 0; return true;
+            }
+            var approach = villager.getNavigation().createPath(first, 1);
+            if (approach == null || !approach.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return true; }
+            villager.getNavigation().moveTo(approach, 0.7);
+            state = JobState.GOING_TO_WORK; ticksUntilNextWork = 20; return true;
+        }
+        var path = first.getNavigation().createPath(second.blockPosition(), 1);
+        if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return true; }
+        for (int i = 0; i < path.getNodeCount(); i++) {
+            var p = path.getNode(i).asBlockPos();
+            if (!level.isLoaded(p) || !colony.isInside(p) || colony.isProtectedPlot(p)
+                    || Math.abs(p.getX() - center.getX()) > 6 || Math.abs(p.getZ() - center.getZ()) > 6
+                    || Math.abs(p.getY() - center.getY()) > 3 || !level.getFluidState(p).isEmpty()) {
+                state = JobState.STUCK; ticksUntilNextWork = 60; return true;
+            }
+        }
+        first.getNavigation().moveTo(path, 0.8);
+        villager.getLookControl().setLookAt(first);
+        state = JobState.WORKING; ticksUntilNextWork = 40; return true;
     }
 
     private boolean protectedAnimal(Sheep animal) {

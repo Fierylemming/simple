@@ -173,6 +173,44 @@ public class ShepherdGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void shepherdGuidesSeparatedSheepWithoutSpendingWheat(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.COBBLESTONE);
+        var pasture = new BlockPos(8, 1, 8); var loom = new BlockPos(7, 1, 6); var chest = new BlockPos(3, 1, 5);
+        helper.setBlock(pasture, ModBlocks.BUILDING_MARKER.get()); helper.setBlock(loom, Blocks.LOOM); helper.setBlock(chest, Blocks.CHEST);
+        var center = helper.absolutePos(pasture);
+        var marker = (BuildingMarkerBlockEntity) helper.getBlockEntity(pasture);
+        marker.setBuildingType(BuildingType.PASTURE); marker.setLinkedBuildingPos(center);
+        var colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, center);
+        colony.registerPlayerBuilding(new Building(BuildingType.PASTURE, center, CultureType.ROMAN, true));
+        var inventory = (Container) helper.getBlockEntity(chest); inventory.setItem(0, new ItemStack(Items.WHEAT, 2));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(4, 1, 9)); worker.setNoAi(true);
+        worker.setVillagerData(worker.getVillagerData().setProfession(ColonyProfessions.profession(JobType.SHEPHERD)));
+        worker.refreshBrain(helper.getLevel());
+        worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, GlobalPos.of(helper.getLevel().dimension(), helper.absolutePos(loom)));
+        worker.setWorkSupplies(new ItemStack(Items.WHEAT, 2));
+        var first = helper.spawn(EntityType.SHEEP, new BlockPos(4, 1, 8)); first.setSheared(true);
+        var second = helper.spawn(EntityType.SHEEP, new BlockPos(12, 1, 8)); second.setSheared(true);
+        var job = new ShepherdJob(worker, colony);
+        helper.runAtTickTime(5, () -> {
+            var a = helper.absolutePos(new BlockPos(4, 1, 8)); var b = helper.absolutePos(new BlockPos(12, 1, 8));
+            first.teleportTo(a.getX()+.5, a.getY(), a.getZ()+.5);
+            second.teleportTo(b.getX()+.5, b.getY(), b.getZ()+.5);
+            job.tick(helper.getLevel());
+            var path = first.getNavigation().getPath();
+            if (path == null || !path.canReach() || first.isInLove() || second.isInLove()
+                    || worker.getWorkSupplies().getCount() != 2 || inventory.countItem(Items.WHEAT) != 2)
+                helper.fail("Shepherd did not physically guide the separated pair: " + job.getState());
+            first.getNavigation().stop();
+            com.simplecolonies.entity.AnimalProtection.protect(first, java.util.UUID.randomUUID());
+            new ShepherdJob(worker, colony).tick(helper.getLevel());
+            if (!first.getNavigation().isDone() || first.isInLove() || second.isInLove()
+                    || worker.getWorkSupplies().getCount() != 2) helper.fail("Shepherd guided a protected animal");
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = "empty", timeoutTicks = 600)
     public static void separatedSheepAreNotFedUntilClose(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.COBBLESTONE);
