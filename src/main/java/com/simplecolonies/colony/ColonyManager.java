@@ -229,12 +229,12 @@ public class ColonyManager {
         // Never create a free-standing hall block when no hall shell was built.
         boolean hasHall = colony.getBuildings().stream().anyMatch(b -> b.getType() == com.simplecolonies.building.BuildingType.TOWN_HALL && b.getPos().equals(p));
         if (!hasHall && !level.getBlockState(p).is(ModBlocks.TOWN_HALL.get())) return;
-        if (hasHall && (level.getBlockState(p).isAir() || level.getBlockState(p).canBeReplaced())) {
-            // Ensure solid base
-            BlockPos below = p.below();
-            if (!level.getBlockState(below).isSolidRender(level, below)) {
-                level.setBlock(below, Blocks.DIRT.defaultBlockState(), 3);
-            }
+        if (hasHall && !colony.isProtectedPlot(p) && level.isLoaded(p) && level.isLoaded(p.below())
+                && level.getBlockEntity(p) == null
+                && com.simplecolonies.building.ConstructionSafety.clearable(level.getBlockState(p))
+                && level.getBlockState(p.below()).isFaceSturdy(level, p.below(), net.minecraft.core.Direction.UP)) {
+            // Repair only inside an existing safe shell. Do not replace flowers,
+            // fluids or player property, or create a free foundation in a hole.
             level.setBlock(p, com.simplecolonies.block.ModBlocks.TOWN_HALL.get().defaultBlockState(), 3);
         }
         var be = level.getBlockEntity(p);

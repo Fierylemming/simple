@@ -43,6 +43,17 @@ public class BuildingMarkerGameTests {
             if (!colony.getBuildings().isEmpty() || colony.getWarehouseManager().getConfiguredWarehouseCenter() != null)
                 helper.fail("Breaking the linked marker left a phantom building or hub");
             if (!Colony.load(colony.save()).getBuildings().isEmpty()) helper.fail("Removed marker record returned after reload");
+            helper.setBlock(pos, ModBlocks.BUILDING_MARKER.get());
+            marker = (BuildingMarkerBlockEntity) helper.getBlockEntity(pos);
+            if (!colony.updateMarkerBuilding(absolute, false, BuildingType.HOUSE)) helper.fail("Could not designate house");
+            marker.setBuildingType(BuildingType.HOUSE); marker.setLinkedBuildingPos(absolute);
+            var house = colony.getBuildings().getFirst();
+            if (!house.beginWorksiteWing(absolute.east(4))) helper.fail("Could not start marker wing");
+            var first = house.getNextPlacement();
+            helper.getLevel().setBlock(first.pos, first.state, 3); house.markPlaced(first);
+            helper.setBlock(pos, net.minecraft.world.level.block.Blocks.AIR);
+            if (!colony.getBuildings().isEmpty() || !helper.getLevel().getBlockState(first.pos).equals(first.state))
+                helper.fail("Breaking a marker during construction left a phantom or deleted blocks");
         } finally { colonies.remove(id); manager.saveAll(); }
         helper.succeed();
     }

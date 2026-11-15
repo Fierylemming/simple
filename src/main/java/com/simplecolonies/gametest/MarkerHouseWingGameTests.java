@@ -97,8 +97,10 @@ public class MarkerHouseWingGameTests {
                 helper.fail("Physical marker wing incomplete: " + house[0].getState() + ", " + job[0].getState()
                         + " remaining=" + house[0].getRemainingPlacements().size() + " worker=" + worker.blockPosition());
             var restored = Colony.load(colony[0].save());
-            if (restored.getShelterCapacity() != 8 || !restored.getBuildings().getFirst().shelterSites().contains(wing))
-                helper.fail("Completed marker wing was not saved");
+            restored.reconcileHomes();
+            if (restored.getShelterCapacity() != 8 || !restored.getBuildings().getFirst().shelterSites().contains(wing)
+                    || restored.getCitizens().stream().filter(c -> wing.equals(c.home)).count() != 4)
+                helper.fail("Completed marker wing or its home assignments were not restored");
         });
     }
 
