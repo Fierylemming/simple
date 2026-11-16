@@ -38,6 +38,11 @@ public class Building {
     private final Queue<BlockPlacement> placements = new ArrayDeque<>();
     private final List<BlockPlacement> completed = new ArrayList<>();
     public final boolean isPlayerPlaced;
+    // Bounding box of everything this building owns, used to keep mob explosions
+    // and pistons out of colony structures. Derived from the plan, persisted so a
+    // finished building keeps its box without regenerating thousands of placements.
+    private boolean protectionBoxValid;
+    private int protectMinX, protectMinY, protectMinZ, protectMaxX, protectMaxY, protectMaxZ;
 
     public Building(BuildingType type, BlockPos pos, CultureType culture) {
         this(type, pos, culture, false);
@@ -65,6 +70,7 @@ public class Building {
             this.requiredResources.clear();
             this.state = BuildingState.COMPLETE;
         }
+        if (!protectionBoxValid) recomputeProtectionBox();
     }
 
     /** Capture an already validated external plan as an immutable save-backed task. */
@@ -134,6 +140,55 @@ public class Building {
         if (upgradeSite != null && !sites.contains(upgradeSite)) sites.add(upgradeSite);
         return List.copyOf(sites);
     }
+    /**
+     * True when this building owns the position for griefing purposes: either a
+     * planned block of the shell/wing, or the small core box of a player-marked
+     * building. Terrain markers (farm, pasture, protected plot) own no blocks.
+     */
+    public boolean protects(BlockPos target) {
+        return protectionBoxValid
+                && (long) target.getX() >= protectMinX && (long) target.getX() <= protectMaxX
+                && (long) target.getY() >= protectMinY && (long) target.getY() <= protectMaxY
+                && (long) target.getZ() >= protectMinZ && (long) target.getZ() <= protectMaxZ;
+    }
+
+    /** Grow the protected box to include one planned or placed block. */
+    private void includeInProtectionBox(BlockPos p) {
+        if (!protectionBoxValid) {
+            protectMinX = protectMaxX = p.getX();
+            protectMinY = protectMaxY = p.getY();
+            protectMinZ = protectMaxZ = p.getZ();
+            protectionBoxValid = true;
+            return;
+        }
+        protectMinX = Math.min(protectMinX, p.getX()); protectMaxX = Math.max(protectMaxX, p.getX());
+        protectMinY = Math.min(protectMinY, p.getY()); protectMaxY = Math.max(protectMaxY, p.getY());
+        protectMinZ = Math.min(protectMinZ, p.getZ()); protectMaxZ = Math.max(protectMaxZ, p.getZ());
+    }
+
+    private void includeBox(BlockPos from, BlockPos to) {
+        includeInProtectionBox(from);
+        includeInProtectionBox(to);
+    }
+
+    /**
+     * Recompute the box from the current plan, completed placements, imported
+     * bounds and, for a player-marked building, a small core box around the marker.
+     */
+    private void recomputeProtectionBox() {
+        for (BlockPlacement p : completed) includeInProtectionBox(p.pos);
+        if (type == BuildingType.SCHEMATIC && importedBoundsValid) {
+            includeBox(new BlockPos(importedMinX, pos.getY() - 2, importedMinZ),
+                    new BlockPos(importedMaxX, pos.getY() + 6, importedMaxZ));
+        }
+        if (isPlayerPlaced && type != BuildingType.FARM && type != BuildingType.PASTURE
+                && type != BuildingType.PROTECTED_PLOT) {
+            // A marker records where a player built; protect the core shell, not
+            // the whole plot, so neighbouring builds and crops stay modifiable.
+            includeBox(pos.offset(-4, -2, -4), pos.offset(4, 6, 4));
+        }
+    }
+
     /** Distance to the nearest completed workplace, not just the original building. */
     public double distanceToOperationalSite(BlockPos target) {
         double nearest = pos.distSqr(target);
@@ -296,6 +351,7 @@ public class Building {
     private void addPlacement(BlockPos at, BlockState block, String item, int count) {
         placements.add(new BlockPlacement(at, block, item, count));
         requiredResources.merge(item, count, Integer::sum);
+        includeInProtectionBox(at);
     }
 
     public boolean hasSupportedPlan() {
@@ -416,6 +472,7 @@ public class Building {
     public List<BlockPlacement> getRemainingPlacements() { return List.copyOf(placements); }
     public void markPlaced(BlockPlacement p) {
         placements.poll(); completed.add(p);
+        includeInProtectionBox(p.pos);
         requiredResources.computeIfPresent(p.itemId, (key, value) -> value > p.itemCount ? value - p.itemCount : null);
     }
     public void tick(ServerLevel level, Colony colony) {}
@@ -442,6 +499,9 @@ public class Building {
         tag.put("required", req);
         tag.putInt("remainingPlacements", placements.size());
         tag.putInt("completedPlacements", completed.size());
+        if (protectionBoxValid)
+            tag.putIntArray("protectionBox", new int[]{protectMinX, protectMinY, protectMinZ,
+                    protectMaxX, protectMaxY, protectMaxZ});
         return tag;
     }
 
@@ -464,15 +524,26 @@ public class Building {
             b.upgradeSite = BlockPos.of(tag.getLong("upgradeSite"));
             b.upgradePlanVersion = tag.getInt("upgradePlanVersion");
         }
+        boolean hasSavedBox = tag.contains("protectionBox");
         // Regenerate the deterministic plan and discard exactly the completed prefix.
         if ((!isPlayer || b.upgradeSite != null && type == BuildingType.HOUSE) && b.state != BuildingState.COMPLETE) {
             b.loadSchematicPlacements();
             int done = Math.max(0, tag.getInt("completedPlacements"));
             while (done-- > 0 && b.getNextPlacement() != null) b.markPlaced(b.getNextPlacement());
         } else if (b.state == BuildingState.COMPLETE) {
-            if (type == BuildingType.SCHEMATIC) b.loadSchematicPlacements();
+            // A saved box avoids rebuilding a finished plan only to measure it.
+            if (type == BuildingType.SCHEMATIC || (!isPlayer && !hasSavedBox)) b.loadSchematicPlacements();
             b.placements.clear(); b.completed.clear(); b.requiredResources.clear();
         }
+        if (hasSavedBox) {
+            int[] box = tag.getIntArray("protectionBox");
+            if (box.length == 6) {
+                b.protectMinX = box[0]; b.protectMinY = box[1]; b.protectMinZ = box[2];
+                b.protectMaxX = box[3]; b.protectMaxY = box[4]; b.protectMaxZ = box[5];
+                b.protectionBoxValid = true;
+            }
+        }
+        if (!b.protectionBoxValid) b.recomputeProtectionBox();
         return b;
     }
 

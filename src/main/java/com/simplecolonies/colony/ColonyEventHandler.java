@@ -115,6 +115,33 @@ public class ColonyEventHandler {
         ColonyManager.getInstance().forgetPlayerPlaced(event.getPos());
     }
 
+    /**
+     * A creeper, ghast or wither must not dismantle a village. Only the affected
+     * block list changes: the blast, the damage and the sound still happen, and
+     * anything a colony does not own still breaks. Player-caused explosions are
+     * untouched so sieges and deliberate demolition still work.
+     */
+    @SubscribeEvent
+    public static void onExplosionDetonate(net.neoforged.neoforge.event.level.ExplosionEvent.Detonate event) {
+        if (!(event.getLevel() instanceof ServerLevel level)) return;
+        if (!com.simplecolonies.config.ColonyConfig.PROTECT_COLONY_FROM_MOB_EXPLOSIONS.get()) return;
+        if (!ColonyProtection.isMobExplosion(event.getExplosion())) return;
+        var blocks = event.getAffectedBlocks();
+        if (blocks.isEmpty()) return;
+        blocks.removeIf(pos -> ColonyProtection.protectsBlock(level, pos));
+    }
+
+    /** Pistons cannot shove colony buildings, protected plots or player blocks. */
+    @SubscribeEvent
+    public static void onPistonPre(net.neoforged.neoforge.event.level.PistonEvent.Pre event) {
+        if (!(event.getLevel() instanceof ServerLevel level)) return;
+        if (!com.simplecolonies.config.ColonyConfig.PROTECT_COLONY_FROM_PISTONS.get()) return;
+        var helper = event.getStructureHelper();
+        if (helper == null || !helper.resolve()) return;
+        for (var pos : helper.getToPush()) if (ColonyProtection.protectsBlock(level, pos)) { event.setCanceled(true); return; }
+        for (var pos : helper.getToDestroy()) if (ColonyProtection.protectsBlock(level, pos)) { event.setCanceled(true); return; }
+    }
+
     @SubscribeEvent
     public static void onFinalizeSpawn(FinalizeSpawnEvent event) {
         if (event.getEntity() instanceof ColonyVillager cv) {

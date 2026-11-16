@@ -624,6 +624,11 @@ public class ColonyManager {
         return false;
     }
 
+    /** Colony-owned structures, used to keep mob explosions and pistons out. */
+    public boolean protectsStructure(ServerLevel level, BlockPos pos) {
+        return getColonyAt(level.dimension(), pos).map(c -> c.protectsStructure(pos)).orElse(false);
+    }
+
     /** Called when a player physically places a block; only loaded colonies record it. */
     public void recordPlayerPlaced(ServerLevel level, BlockPos pos) {
         getColonyAt(level.dimension(), pos).ifPresent(colony -> colony.recordPlayerPlaced(pos));

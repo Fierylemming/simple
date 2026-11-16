@@ -19,6 +19,8 @@ public class ColonyConfig {
     public static final ModConfigSpec.BooleanValue ENABLE_NATURAL_EXPANSION;
     public static final ModConfigSpec.IntValue EXPANSION_CHECK_DAYS;
     public static final ModConfigSpec.BooleanValue ENABLE_WARFARE;
+    public static final ModConfigSpec.BooleanValue PROTECT_COLONY_FROM_MOB_EXPLOSIONS;
+    public static final ModConfigSpec.BooleanValue PROTECT_COLONY_FROM_PISTONS;
     public static final ModConfigSpec.BooleanValue REPLACE_VANILLA_VILLAGES;
     public static final ModConfigSpec.DoubleValue REPUTATION_NEEDED_TO_LEAD;
 
@@ -50,6 +52,11 @@ public class ColonyConfig {
         ENABLE_NATURAL_EXPANSION = BUILDER.comment("Colonies expand on their own if resources allow").define("enableNaturalExpansion", true);
         EXPANSION_CHECK_DAYS = BUILDER.comment("Legacy setting: automatic expansion now checks at each colony tick when supplies permit").defineInRange("expansionCheckDays", 5, 1, 100);
         ENABLE_WARFARE = BUILDER.comment("Enable soldier villagers, wars and alliances").define("enableWarfare", true);
+        PROTECT_COLONY_FROM_MOB_EXPLOSIONS = BUILDER.comment("Creepers, ghasts, withers and their projectiles cannot break colony buildings, protected plots or player blocks.",
+                "Entity damage still applies, and player-caused explosions (TNT, beds, crystals) still destroy blocks so sieges and demolition stay possible.")
+                .define("protectColoniesFromMobExplosions", true);
+        PROTECT_COLONY_FROM_PISTONS = BUILDER.comment("Pistons cannot push, pull or break colony buildings, protected plots or player blocks.")
+                .define("protectColoniesFromPistons", true);
         REPLACE_VANILLA_VILLAGES = BUILDER.comment("Stop vanilla villages from generating so only ancient colony villages appear.",
                 "Applied through a structure modifier while world structure data loads: restart the world/server to apply.",
                 "Villages that already generated are kept and can still be colonised.").define("replaceVanillaVillages", false);

@@ -123,6 +123,17 @@ public class Colony {
 
     public PropertyClaims getPlayerPlaced() { return playerPlaced; }
 
+    /**
+     * True when the colony owns this block: a protected plot, a block a player
+     * placed inside the colony, or the shell/wing of a hall, house or workshop.
+     * Used by explosion and piston protection so mobs cannot dismantle a village.
+     */
+    public boolean protectsStructure(BlockPos pos) {
+        if (isProtectedPlot(pos) || isPlayerPlaced(pos)) return true;
+        for (Building b : buildings) if (b.protects(pos)) return true;
+        return false;
+    }
+
     /** Record a block a player placed while inside this colony. */
     public boolean recordPlayerPlaced(BlockPos pos) {
         boolean added = playerPlaced.record(pos);
