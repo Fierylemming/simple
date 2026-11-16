@@ -140,6 +140,20 @@ public class ColonyCommand {
                                     return tryBuy(ctx.getSource(), colony.get(), uid, p);
                                 }))
                         ))
+                .then(Commands.literal("cancel_research")
+                        .executes(ctx -> {
+                            ServerPlayer player = ctx.getSource().getPlayerOrException();
+                            var colony = ColonyManager.getInstance().getColonyAt(player.level().dimension(), player.blockPosition());
+                            if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony")); return 0; }
+                            return cancelResearch(ctx.getSource(), colony.get(), player);
+                        })
+                        .then(Commands.argument("id", IntegerArgumentType.integer()).executes(ctx -> {
+                            int id = IntegerArgumentType.getInteger(ctx, "id");
+                            var colony = ColonyManager.getInstance().getColony(id);
+                            if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("No colony #" + id)); return 0; }
+                            ServerPlayer player = null; try { player = ctx.getSource().getPlayerOrException(); } catch (Exception ignored) {}
+                            return cancelResearch(ctx.getSource(), colony.get(), player);
+                        })))
                 .then(Commands.literal("tickprogress").requires(src -> src.hasPermission(2))
                         .executes(ctx -> {
                             ServerPlayer p = ctx.getSource().getPlayerOrException();
@@ -334,11 +348,11 @@ public class ColonyCommand {
         var pending = c.getResearch().getPending();
         if (pending != null) src.sendSuccess(() -> Component.literal("§eQueued: " + pending.displayName
                 + (c.getResearch().getAssignedWorker() == null ? " — waiting for a builder" : " — assigned to a builder")
-                + "; cancel in the town hall Research tab."), false);
+                + "; cancel in the hall or with /colony cancel_research."), false);
         var avail = c.getResearch().getAvailableToBuy();
         if (avail.isEmpty()) src.sendSuccess(() -> Component.literal("§eNo more unlockable upgrades — need prereqs or already maxed"), false);
         else {
-            src.sendSuccess(() -> Component.literal("§eAvailable to buy (prereqs met — check costs in Town Hall Research tab):"), false);
+            src.sendSuccess(() -> Component.literal("§eAvailable to queue (prerequisites met; use loaded shared storage):"), false);
             for (var up : avail) {
                 ServerLevel lvl = p != null ? p.serverLevel() : src.getServer().overworld();
                 boolean canAfford = c.getResearch().canAfford(up, lvl);
@@ -347,7 +361,7 @@ public class ColonyCommand {
                 String lineFinal = line;
                 src.sendSuccess(() -> Component.literal(lineFinal), false);
             }
-            src.sendSuccess(() -> Component.literal("§7Buy with: /colony buy <UPGRADE_ID> or Town Hall → Research tab | Test afford: /colony give cobblestone 64"), false);
+            src.sendSuccess(() -> Component.literal("§7Queue with /colony buy <UPGRADE_ID> or Town Hall → Research. Virtual /colony give stock cannot fund research."), false);
         }
         return 1;
     }
@@ -376,6 +390,8 @@ public class ColonyCommand {
             var f = c.getResearch().getClass().getDeclaredField("unlocked");
             f.setAccessible(true);
             ((java.util.Set<ColonyUpgrade>)f.get(c.getResearch())).add(up);
+            // Return any in-flight inputs if an operator bypasses this same order.
+            if (c.getResearch().getPending() == up) c.getResearch().cancelPending();
             ColonyManager.getInstance().markDirty(c);
             src.sendSuccess(() -> Component.literal("Force-unlocked " + up.displayName + " for colony #" + c.getId()), true);
             return 1;
@@ -383,6 +399,19 @@ public class ColonyCommand {
             src.sendFailure(Component.literal("Unknown upgrade: " + uid + " — try one of " + java.util.Arrays.stream(ColonyUpgrade.values()).map(x->x.name()).reduce((a,b)->a+", "+b).orElse("")));
             return 0;
         }
+    }
+
+    static int cancelResearch(CommandSourceStack src, Colony colony, ServerPlayer player) {
+        if (!src.hasPermission(2) && (player == null || !colony.isLeader(player))) {
+            src.sendFailure(Component.literal("Only the colony leader or an operator may cancel research."));
+            return 0;
+        }
+        if (!colony.getResearch().cancelPending()) {
+            src.sendFailure(Component.literal("No research is queued."));
+            return 0;
+        }
+        src.sendSuccess(() -> Component.literal("Research cancelled; the builder will return carried inputs when possible."), true);
+        return 1;
     }
 
     static int tryBuy(CommandSourceStack src, Colony c, String uid, ServerPlayer p) {

@@ -23,7 +23,8 @@ public class ColonyCommandGameTests {
             var command = root.getChild(name);
             if (command == null || command.canUse(ordinary) || !command.canUse(operator)) helper.fail("Wrong permissions for " + name);
         }
-        if (!root.getChild("buy").canUse(ordinary)) helper.fail("Leader research command was hidden from players");
+        if (!root.getChild("buy").canUse(ordinary) || !root.getChild("cancel_research").canUse(ordinary))
+            helper.fail("Leader research commands were hidden from players");
         var chestPos = new BlockPos(8, 1, 8); helper.setBlock(chestPos, net.minecraft.world.level.block.Blocks.CHEST);
         var chest = (net.minecraft.world.Container) helper.getBlockEntity(chestPos);
         chest.setItem(0, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE, 32));
@@ -36,6 +37,11 @@ public class ColonyCommandGameTests {
         if (ColonyCommand.tryBuy(operator, colony, "TOOL_STONE", null) != 1
                 || colony.getResearch().getPending() != com.simplecolonies.progression.ColonyUpgrade.TOOL_STONE
                 || chest.countItem(net.minecraft.world.item.Items.COBBLESTONE) != 32) helper.fail("Operator could not queue research safely");
+        if (ColonyCommand.cancelResearch(ordinary, colony, null) != 0 || colony.getResearch().getPending() == null)
+            helper.fail("Non-leader cancelled research");
+        if (ColonyCommand.cancelResearch(operator, colony, null) != 1 || colony.getResearch().getPending() != null
+                || chest.countItem(net.minecraft.world.item.Items.COBBLESTONE) != 32)
+            helper.fail("Operator could not cancel research safely");
         helper.succeed();
     }
 }
