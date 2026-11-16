@@ -359,7 +359,7 @@ public class Colony {
 
     public @Nullable MealSource findMealSource(ServerLevel level, BlockPos from) {
         MealSource best = null;
-        long bestDistance = Long.MAX_VALUE;
+        double bestDistance = Double.MAX_VALUE;
         for (BlockPos pos : warehouseManager.courierStoragePositions(level)) {
             var container = warehouseManager.courierContainer(level, pos);
             if (container == null) continue;
@@ -368,7 +368,7 @@ public class Colony {
                 if (stack.isEmpty()) continue;
                 String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
                 if (!isFood(id)) continue;
-                long distance = from.distSqr(pos);
+                double distance = from.distSqr(pos);
                 if (distance < bestDistance) { bestDistance = distance; best = new MealSource(pos, stack.getItem()); }
                 break;
             }
