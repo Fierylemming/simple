@@ -122,7 +122,7 @@ public class BuilderJob extends AbstractJob {
                 return;
             }
             if (!level.isLoaded(next.pos)) { state = JobState.STUCK; deferCurrent(level, 200); return; }
-            if (colony.isProtectedPlot(next.pos)) {
+            if (colony.isProtectedPlot(next.pos) || colony.isPlayerPropertyNear(next.pos, 0)) {
                 currentJob.setState(BuildingState.BLOCKED); state = JobState.STUCK;
                 ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 200); ticksUntilNextWork = 40; return;
             }
@@ -175,7 +175,8 @@ public class BuilderJob extends AbstractJob {
             if (door) {
                 BlockPos upper = next.pos.above();
                 if (!level.isLoaded(upper) || level.isOutsideBuildHeight(upper) || !level.getWorldBorder().isWithinBounds(upper)
-                        || colony.isProtectedPlot(upper) || (imported && !colony.isInside(upper))) {
+                        || colony.isProtectedPlot(upper) || colony.isPlayerPropertyNear(upper, 0)
+                        || (imported && !colony.isInside(upper))) {
                     currentJob.setState(BuildingState.BLOCKED); state = JobState.STUCK;
                     ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 200); return;
                 }

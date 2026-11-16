@@ -54,7 +54,7 @@ public class VillagerInteractionScreen extends AbstractContainerScreen<VillagerI
             int id = ids[i];
             addRenderableWidget(Button.builder(Component.literal(labels[i]),b->sendBtn(id)).bounds(bx,by,64,18).build());
         }
-        addRenderableWidget(Button.builder(Component.literal("Trade (vanilla)"), b->sendBtn(VillagerInteractionMenu.BTN_TRADE)).bounds(x+8,y+180, 130,18).build());
+        addRenderableWidget(Button.builder(Component.literal("Trade"), b->sendBtn(VillagerInteractionMenu.BTN_TRADE)).bounds(x+8,y+180, 130,18).build());
         addRenderableWidget(Button.builder(Component.literal("Follow Me"), b->sendBtn(VillagerInteractionMenu.BTN_COMMAND_FOLLOW)).bounds(x+142,y+180, 130,18).build());
         addRenderableWidget(Button.builder(Component.literal("Level Job"), b->sendBtn(VillagerInteractionMenu.BTN_LEVEL_UP_JOB)).bounds(x+8,y+202, 130,18).build());
         addRenderableWidget(Button.builder(Component.literal("Close"), b->onClose()).bounds(x+142,y+202, 130,18).build());

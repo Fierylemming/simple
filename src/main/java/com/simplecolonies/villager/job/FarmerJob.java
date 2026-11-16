@@ -211,6 +211,7 @@ public class FarmerJob extends AbstractJob {
      * a block or charge for a failed placement. */
     boolean plantCarriedSeed(ServerLevel level, BlockPos pos) {
         if (!level.isLoaded(pos) || !level.isLoaded(pos.below()) || !colony.isInside(pos) || colony.isProtectedPlot(pos)
+                || colony.isPlayerPropertyNear(pos, 0)
                 || !level.getBlockState(pos).isAir() || !level.getBlockState(pos.below()).is(Blocks.FARMLAND)) return false;
         var stack = worker().getPlantingSeeds();
         Block crop = cropForSeed(stack);
@@ -260,7 +261,7 @@ public class FarmerJob extends AbstractJob {
     }
 
     private boolean eligible(ServerLevel level, BlockPos pos, BlockPos farm) {
-        if (colony.isProtectedPlot(pos)) return false;
+        if (colony.isProtectedPlot(pos) || colony.isPlayerPropertyNear(pos, 0)) return false;
         if (Math.abs(pos.getX() - farm.getX()) > 5 || Math.abs(pos.getZ() - farm.getZ()) > 5
                 || Math.abs(pos.getY() - farm.getY()) > 3) return false;
         if (!level.getBlockState(pos.below()).is(Blocks.FARMLAND)) return false;

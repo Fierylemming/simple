@@ -31,13 +31,13 @@ public class SimpleColonies {
 
         com.simplecolonies.villager.ColonyProfessions.POIS.register(modEventBus);
         com.simplecolonies.villager.ColonyProfessions.PROFESSIONS.register(modEventBus);
-        NeoForge.EVENT_BUS.addListener(com.simplecolonies.villager.ColonyProfessions::addTrades);
         ModBlocks.BLOCKS.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
         ModEntities.ENTITY_TYPES.register(modEventBus);
         ModBlocks.BLOCK_ENTITIES.register(modEventBus);
         ModCreativeTabs.TABS.register(modEventBus);
         ModMenuTypes.MENUS.register(modEventBus);
+        ModWorldGen.STRUCTURE_MODIFIER_SERIALIZERS.register(modEventBus);
 
         modContainer.registerConfig(ModConfig.Type.COMMON, ColonyConfig.SPEC, "simplecolonies-common.toml");
         modContainer.registerConfig(ModConfig.Type.CLIENT, ColonyConfig.CLIENT_SPEC, "simplecolonies-client.toml");

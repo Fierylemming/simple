@@ -23,6 +23,9 @@ import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.trading.ItemCost;
+import net.minecraft.world.item.trading.MerchantOffer;
+import net.minecraft.world.item.trading.MerchantOffers;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
 import org.jetbrains.annotations.Nullable;
@@ -30,7 +33,8 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Custom villager that belongs to a colony, has a job, needs food/housing,
  * and participates in supply chain + warfare.
- * NEW: shift-right-click opens custom job GUI (playable), normal right-click opens vanilla trades.
+ * Shift-right-click opens the job menu; a normal right-click opens the
+ * villager's colony trade list (see {@code ColonyTradeTable}).
  */
 public class ColonyVillager extends Villager {
     private int colonyId = -1;
@@ -51,6 +55,10 @@ public class ColonyVillager extends Villager {
     private final net.minecraft.world.SimpleContainer researchMaterials = new net.minecraft.world.SimpleContainer(9);
     private CompoundTag minerMemory = new CompoundTag();
     private CompoundTag woodcutterMemory = new CompoundTag();
+    // Job level the current trade list was built for; vanilla increments it as
+    // the citizen trades, and the table unlocks more rows with each level.
+    private int offersBuiltAtLevel = -1;
+    private JobType offersBuiltForJob;
     private long nextConversationTime;
     private long nextShelterAttempt;
     // Session-local interior candidates; revalidated before redirecting a walk.
@@ -108,7 +116,10 @@ public class ColonyVillager extends Villager {
     public String getWorkStatus() {
         if (isBaby()) return "CHILD";
         if (job != JobType.UNEMPLOYED && !job.isCombat && !getBrain().hasMemoryValue(MemoryModuleType.JOB_SITE)) return "WAITING_FOR_WORKSTATION";
-        return jobInstance == null ? "IDLE" : jobInstance.getState().name();
+        if (jobInstance == null) return "IDLE";
+        String detail = jobInstance.diagnostic();
+        return detail == null || detail.isBlank() ? jobInstance.getState().name()
+                : jobInstance.getState().name() + " (" + detail + ")";
     }
     public boolean isColonyCitizen() { return colonyId != -1; }
     /** Villager brains use the PANIC activity, not necessarily IS_PANICKING memory. */
@@ -209,7 +220,12 @@ public class ColonyVillager extends Villager {
         }
         this.job = newJob;
         this.jobInstance = createJobInstance(newJob);
-        if (!level().isClientSide) syncProfession(changed);
+        if (!level().isClientSide) {
+            syncProfession(changed);
+            // Rebuild after the profession/level are final so the offers match
+            // the new job table rather than the previous profession.
+            refreshColonyOffers();
+        }
         // Update citizen record
         Colony colony = ColonyManager.getInstance().getColony(colonyId).orElse(null);
         if (colony != null) {
@@ -679,6 +695,58 @@ public class ColonyVillager extends Villager {
         ColonyManager.getInstance().getColony(colonyId).ifPresent(ColonyManager.getInstance()::markDirty);
     }
 
+    /**
+     * Rebuild the curated colony trade list from the job table. Called when the
+     * job changes and lazily when the offers are first needed.
+     */
+    public void refreshColonyOffers() {
+        MerchantOffers built = new MerchantOffers();
+        int level = Math.max(1, getVillagerData().getLevel());
+        for (var spec : com.simplecolonies.villager.trade.ColonyTradeTable.offers(job, level)) {
+            var costId = net.minecraft.resources.ResourceLocation.tryParse(spec.costItem());
+            var resultId = net.minecraft.resources.ResourceLocation.tryParse(spec.resultItem());
+            if (costId == null || resultId == null) continue;
+            var costItem = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(costId);
+            var resultItem = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(resultId);
+            // Unknown or removed items are skipped rather than crashing a trade.
+            if (costItem == null || resultItem == null
+                    || costItem == net.minecraft.world.item.Items.AIR
+                    || resultItem == net.minecraft.world.item.Items.AIR) continue;
+            built.add(new MerchantOffer(new ItemCost(costItem, spec.costCount()),
+                    new net.minecraft.world.item.ItemStack(resultItem, spec.resultCount()),
+                    spec.maxUses(), spec.xp(), 0.05f));
+        }
+        this.offers = built;
+        this.offersBuiltAtLevel = level;
+        this.offersBuiltForJob = job;
+    }
+
+    private void ensureColonyOffers() {
+        int level = Math.max(1, getVillagerData().getLevel());
+        if (this.offers == null || this.offers.isEmpty()
+                || this.offersBuiltAtLevel != level || this.offersBuiltForJob != job) refreshColonyOffers();
+    }
+
+    @Override
+    public MerchantOffers getOffers() {
+        if (!level().isClientSide) ensureColonyOffers();
+        return super.getOffers();
+    }
+
+    /**
+     * Open the colony trade screen. Vanilla refuses to trade with a villager whose
+     * offer list is empty, so colony offers are built first and the screen opened
+     * explicitly; the same merchant menu, restock and level rules still apply.
+     */
+    public boolean openTrades(ServerPlayer player) {
+        if (level().isClientSide || !isAlive() || isBaby() || isTrading()) return false;
+        ensureColonyOffers();
+        if (this.offers == null || this.offers.isEmpty()) return false;
+        setTradingPlayer(player);
+        openTradingScreen(player, getDisplayName(), Math.max(1, getVillagerData().getLevel()));
+        return true;
+    }
+
     @Override
     public InteractionResult mobInteract(Player player, InteractionHand hand) {
         if (hand != InteractionHand.MAIN_HAND) return super.mobInteract(player, hand);
@@ -711,11 +779,12 @@ public class ColonyVillager extends Villager {
             }
             return InteractionResult.SUCCESS;
         }
-        // Normal right-click: keep vanilla trading if villager has trades (we give default trades per job)
-        // If colony villager, still allow vanilla trade plus show hint
-        if (!level().isClientSide && colony != null && player instanceof ServerPlayer sp) {
-            // Give hint once
-            // sp.displayClientMessage(Component.literal("§7Shift+right-click to manage job/commands"), true);
+        // Normal right-click: open the colony trade list for adults. Children have
+        // no trades, so vanilla interaction (and its refusal) is left in place.
+        if (!level().isClientSide && colony != null && player instanceof ServerPlayer sp && !isBaby()) {
+            if (openTrades(sp)) return InteractionResult.SUCCESS;
+            sp.displayClientMessage(Component.literal("§7This villager cannot trade right now."), true);
+            return InteractionResult.SUCCESS;
         }
         return super.mobInteract(player, hand);
     }
@@ -764,6 +833,16 @@ public class ColonyVillager extends Villager {
                 : net.minecraft.world.item.ItemStack.EMPTY;
         builderMaterials.fromTag(tag.getList("builderMaterials", net.minecraft.nbt.Tag.TAG_COMPOUND), registryAccess());
         researchMaterials.fromTag(tag.getList("researchMaterials", net.minecraft.nbt.Tag.TAG_COMPOUND), registryAccess());
+        // Saved offers (and their remaining uses) are valid for this level; only a
+        // genuine level change rebuilds the table.
+        offersBuiltAtLevel = Math.max(1, getVillagerData().getLevel());
+        offersBuiltForJob = job;
+        // Saves written before the colony trade table existed hold borrowed vanilla
+        // offers. Rebuild when the saved list is shorter than this job's table.
+        if (!level().isClientSide && this.offers != null) {
+            int expected = com.simplecolonies.villager.trade.ColonyTradeTable.offers(job, offersBuiltAtLevel).size();
+            if (this.offers.size() < expected) refreshColonyOffers();
+        }
     }
 
     @Override

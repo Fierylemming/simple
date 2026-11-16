@@ -99,6 +99,22 @@ public class ColonyEventHandler {
         return null;
     }
 
+    /** Remember blocks players physically place inside a colony so workers can
+     * leave player buildings alone even when the block looks natural. */
+    @SubscribeEvent
+    public static void onPlayerPlacedBlock(net.neoforged.neoforge.event.level.BlockEvent.EntityPlaceEvent event) {
+        if (!(event.getLevel() instanceof ServerLevel level)) return;
+        if (!(event.getEntity() instanceof net.minecraft.server.level.ServerPlayer)) return;
+        ColonyManager.getInstance().recordPlayerPlaced(level, event.getPos());
+    }
+
+    /** A removed player block must not keep protecting an empty position. */
+    @SubscribeEvent
+    public static void onPlayerBrokeBlock(net.neoforged.neoforge.event.level.BlockEvent.BreakEvent event) {
+        if (!(event.getLevel() instanceof ServerLevel)) return;
+        ColonyManager.getInstance().forgetPlayerPlaced(event.getPos());
+    }
+
     @SubscribeEvent
     public static void onFinalizeSpawn(FinalizeSpawnEvent event) {
         if (event.getEntity() instanceof ColonyVillager cv) {

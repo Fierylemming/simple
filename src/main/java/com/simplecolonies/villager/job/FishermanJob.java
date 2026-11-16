@@ -22,6 +22,7 @@ public class FishermanJob extends AbstractJob {
     private static final double REACH_SQ = 6.25;
     private net.minecraft.world.level.pathfinder.Path jobPath;
     private String lastSearch = "not searched";
+    @Override
     public String diagnostic() { return lastSearch; }
     private final PhysicalJobCargo cargo;
     public FishermanJob(ColonyVillager villager, Colony colony) {

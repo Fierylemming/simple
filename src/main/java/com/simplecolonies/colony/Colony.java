@@ -42,6 +42,8 @@ public class Colony {
     // New: distributed chest network
     private final WarehouseManager warehouseManager;
     private final ResearchManager researchManager;
+    // Player-placed blocks inside this colony; kept so workers leave them alone.
+    private final PropertyClaims playerPlaced = new PropertyClaims();
     private final Map<UUID, Integer> reputation = new HashMap<>(); // player -> 0..100
     private UUID leaderId; // player who is leader
     private final Diplomacy diplomacy = new Diplomacy();
@@ -119,6 +121,30 @@ public class Colony {
         return protectsPlotLocally(pos) || ColonyManager.getInstance().isProtectedPlot(pos);
     }
 
+    public PropertyClaims getPlayerPlaced() { return playerPlaced; }
+
+    /** Record a block a player placed while inside this colony. */
+    public boolean recordPlayerPlaced(BlockPos pos) {
+        boolean added = playerPlaced.record(pos);
+        if (added) ColonyManager.getInstance().markDirty(this);
+        return added;
+    }
+
+    public boolean forgetPlayerPlaced(BlockPos pos) {
+        boolean removed = playerPlaced.remove(pos);
+        if (removed) ColonyManager.getInstance().markDirty(this);
+        return removed;
+    }
+
+    public boolean isPlayerPlaced(BlockPos pos) {
+        return !playerPlaced.isEmpty() && playerPlaced.contains(pos);
+    }
+
+    /** True when a player-placed block is at or within {@code margin} of the position. */
+    public boolean isPlayerPropertyNear(BlockPos pos, int margin) {
+        return !playerPlaced.isEmpty() && playerPlaced.near(pos, margin);
+    }
+
     boolean protectsPlotLocally(BlockPos pos) {
         for (var building : buildings) {
             if (!building.isPlayerPlaced || building.getType() != BuildingType.PROTECTED_PLOT
@@ -143,6 +169,12 @@ public class Colony {
         reconcileHomes();
         // Scan warehouse chests periodically
         warehouseManager.scan(level);
+        // Forget player blocks that no longer exist, but never drop claims for
+        // unloaded chunks: a chunk may simply be out of range right now.
+        if (!playerPlaced.isEmpty()) {
+            int pruned = playerPlaced.prune(pos -> !level.isLoaded(pos) || !level.getBlockState(pos).isAir());
+            if (pruned > 0) ColonyManager.getInstance().markDirty(this);
+        }
 
         long dayTime = level.getDayTime();
         long day = Math.floorDiv(dayTime, 24000L);
@@ -464,7 +496,8 @@ public class Colony {
         if (!clearEntrance(level, station.north(3))) return false;
         for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
             BlockPos ground = station.offset(x, -1, z);
-            if (!level.isLoaded(ground) || !isInside(ground) || isProtectedPlot(ground)) return false;
+            if (!level.isLoaded(ground) || !isInside(ground) || isProtectedPlot(ground)
+                    || isPlayerPropertyNear(ground, 1)) return false;
             var soil = level.getBlockState(ground);
             if (!NaturalGround.supportsConstruction(soil)) return false;
             for (int y = 0; y <= 3; y++) {
@@ -571,7 +604,8 @@ public class Colony {
             // Leave unused terrain and structures untouched instead of rejecting it.
             if (!Building.newHouseFootprint(pos, x, z)) continue;
             BlockPos ground = pos.offset(x, -1, z);
-            if (!level.isLoaded(ground) || !isInside(ground) || isProtectedPlot(ground)) return false;
+            if (!level.isLoaded(ground) || !isInside(ground) || isProtectedPlot(ground)
+                    || isPlayerPropertyNear(ground, 1)) return false;
             var soil = level.getBlockState(ground);
             if (!NaturalGround.supportsConstruction(soil)) return false;
             for (int y = 0; y <= 5; y++) {
@@ -867,6 +901,7 @@ public class Colony {
         CompoundTag rep = new CompoundTag();
         reputation.forEach((uuid, val) -> rep.putInt(uuid.toString(), val));
         tag.put("reputation", rep);
+        if (!playerPlaced.isEmpty()) tag.put("playerPlaced", playerPlaced.save());
         tag.put("diplomacy", diplomacy.save());
         tag.put("research", researchManager.save());
         return tag;
@@ -908,6 +943,7 @@ public class Colony {
         for (String k : rep.getAllKeys()) c.reputation.put(UUID.fromString(k), rep.getInt(k));
         c.diplomacy.load(tag.getCompound("diplomacy"));
         if (tag.contains("research")) c.researchManager.load(tag.getCompound("research"));
+        if (tag.contains("playerPlaced")) c.playerPlaced.load(tag.getCompound("playerPlaced"));
         return c;
     }
 }

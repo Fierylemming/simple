@@ -23,6 +23,8 @@ public abstract class AbstractJob {
     private BlockPos claimedSite;
     protected int ticksUntilNextWork = 0;
     protected JobState state = JobState.IDLE;
+    // Shared, bounded walking attempt; cleared when a goal is reached or dropped.
+    protected final TravelWatch travel = new TravelWatch();
 
     public AbstractJob(Villager villager, Colony colony, JobType type) {
         this.villager = villager;
@@ -33,14 +35,18 @@ public abstract class AbstractJob {
     public JobType getType() { return type; }
     public JobState getState() { return state; }
 
+    /** Short, player-facing detail for /colony status; empty when there is none. */
+    public String diagnostic() { return ""; }
+
     public final void tick(ServerLevel level) {
         onTick(level);
         if (ticksUntilNextWork > 0) { ticksUntilNextWork--; return; }
         if (!colony.isInside(villager.blockPosition()) && !mayWorkOutsideColony(level)) {
             state = JobState.GOING_TO_WORK;
-            // Path to colony center — courier is faster
+            // Walk home through a watched attempt: a stalled or unreachable route
+            // is abandoned for a while instead of being re-requested forever.
             double speed = (type == JobType.COURIER) ? 1.2 : 0.6;
-            villager.getNavigation().moveTo(colony.getCenter().getX()+0.5, colony.getCenter().getY(), colony.getCenter().getZ()+0.5, speed);
+            walkTo(level, colony.getCenter(), speed);
             ticksUntilNextWork = 40;
             return;
         }
@@ -66,25 +72,78 @@ public abstract class AbstractJob {
                 .map(com.simplecolonies.building.Building::getPos).orElse(claimedSite);
     }
 
+    /**
+     * Walk to a goal with bounded retries.
+     *
+     * @return true only when the worker is close enough to act at the goal
+     */
+    protected boolean walkTo(ServerLevel level, BlockPos goal, double speed) {
+        return walkTo(travel, level, goal, speed);
+    }
+
+    /** Same bounded walk, using a job-specific watch with its own arrival radius. */
+    protected boolean walkTo(TravelWatch watch, ServerLevel level, BlockPos goal, double speed) {
+        long now = level.getGameTime();
+        boolean freshAttempt = false;
+        if (!watch.isTracking(goal)) {
+            if (!watch.canRetry(now)) return false;
+            watch.begin(goal, now);
+            freshAttempt = true;
+        }
+        double distance = villager.distanceToSqr(goal.getX() + 0.5, goal.getY() + 0.5, goal.getZ() + 0.5);
+        TravelWatch.Status status = watch.observe(distance, now);
+        if (status == TravelWatch.Status.ARRIVED) {
+            watch.clear();
+            return true;
+        }
+        if (status == TravelWatch.Status.GAVE_UP) {
+            watch.giveUp(now);
+            return false;
+        }
+        if (freshAttempt || status == TravelWatch.Status.STALLED || villager.getNavigation().isDone()) {
+            var path = villager.getNavigation().createPath(goal, 1);
+            if (path == null) {
+                // No route at all: stop asking every tick and let the caller choose
+                // another goal. The watch still delays an immediate retry.
+                watch.giveUp(now);
+                return false;
+            }
+            // A partial path is still worth walking: vanilla moveTo() accepts it and
+            // the next attempt continues from wherever it ends.
+            villager.getNavigation().moveTo(path, speed);
+        }
+        return false;
+    }
+
+    /** A blocked route was abandoned; callers can wait before trying it again. */
+    protected boolean travelBlocked(ServerLevel level) {
+        return travel.target() == null && !travel.canRetry(level.getGameTime());
+    }
+
     /** Move to the villager's claimed POI before workstation-based production. */
     protected boolean atClaimedWorkstation(ServerLevel level) {
         var site = villager.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.JOB_SITE);
         if (site.isEmpty() || !site.get().dimension().equals(level.dimension()) || !level.isLoaded(site.get().pos())) {
+            travel.clear();
             state = JobState.STUCK;
             ticksUntilNextWork = 40;
             return false;
         }
         BlockPos target = site.get().pos();
-        if (villager.distanceToSqr(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5) <= 9) return true;
-        var path = villager.getNavigation().createPath(target, 1);
-        if (path == null || !path.canReach()) {
-            state = JobState.STUCK;
-            ticksUntilNextWork = 60;
+        if (villager.distanceToSqr(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5) <= 9) {
+            travel.clearIf(target);
+            return true;
+        }
+        if (!walkTo(level, target, 0.7)) {
+            boolean blocked = travel.target() == null;
+            state = blocked ? JobState.STUCK : JobState.GOING_TO_WORK;
+            ticksUntilNextWork = blocked ? 60 : 20;
             return false;
         }
-        villager.getNavigation().moveTo(path, 0.7);
-        state = JobState.GOING_TO_WORK;
-        ticksUntilNextWork = 20;
+        // Arrived: let the next job tick perform the work from inside the
+        // workstation's reach, matching the previous tick ordering.
+        state = JobState.WORKING;
+        ticksUntilNextWork = 0;
         return false;
     }
 

@@ -29,6 +29,8 @@ public class MinerJob extends AbstractJob {
     private boolean restored;
     private String lastFirstSite = "not checked";
     private String unsafeReason = "";
+    // A quarry step needs the miner inside 0.9 blocks of the standing position.
+    private final TravelWatch quarryTravel = new TravelWatch(80, 600, 3, 0.64);
     private final PhysicalJobCargo cargo;
     private final PhysicalToolPickup toolPickup;
     private final PhysicalBuilderMaterials materials;
@@ -42,7 +44,11 @@ public class MinerJob extends AbstractJob {
         toolPickup = worker == null ? null : new PhysicalToolPickup(worker, colony);
         materials = worker == null ? null : new PhysicalBuilderMaterials(worker, colony);
     }
-    public String diagnostic() { return "entrance=" + entrance + ", direction=" + direction + ", step=" + step + ", nextSite=" + siteIndex + ", firstSite=" + lastFirstSite; }
+    @Override
+    public String diagnostic() {
+        return "entrance=" + entrance + ", direction=" + direction + ", step=" + step + ", nextSite=" + siteIndex
+                + ", firstSite=" + lastFirstSite + (unsafeReason.isEmpty() ? "" : ", reason=" + unsafeReason);
+    }
 
     @Override protected void doWork(ServerLevel level) {
         if (!restored) { readMemory(); restored = true; }
@@ -91,10 +97,20 @@ public class MinerJob extends AbstractJob {
         BlockPos stand = entrance.relative(direction, step).below(step);
         if (!level.isLoaded(stand) || !colony.isInside(stand)) { state = JobState.STUCK; ticksUntilNextWork = 80; return; }
         if (villager.distanceToSqr(stand.getX() + 0.5, stand.getY(), stand.getZ() + 0.5) > 0.81) {
-            var path = villager.getNavigation().createPath(stand, 0);
-            if (path == null || !path.canReach()) { state = JobState.STUCK; ticksUntilNextWork = 60; return; }
-            villager.getNavigation().moveTo(path, 0.7);
-            state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10; return;
+            if (!walkTo(quarryTravel, level, stand, 0.7)) {
+                if (quarryTravel.target() == null) {
+                    // This step is unreachable or the walk stalled out: move to the
+                    // next quarry site instead of retrying the same route forever.
+                    siteIndex = (siteIndex + 1) % SITES.length;
+                    resetSite();
+                    state = JobState.STUCK; ticksUntilNextWork = 60;
+                } else {
+                    state = JobState.GOING_TO_WORK; ticksUntilNextWork = 10;
+                }
+                return;
+            }
+            // Reached the standing spot; dig on the next tick.
+            state = JobState.WORKING; ticksUntilNextWork = 0; return;
         }
         if (step >= MAX_STEPS) { resetSite(); state = JobState.IDLE; ticksUntilNextWork = 60; return; }
         BlockPos next = entrance.relative(direction, step + 1).below(step + 1);
@@ -185,6 +201,9 @@ public class MinerJob extends AbstractJob {
     }
     private boolean safeArea(ServerLevel level, BlockPos pos) {
         if (colony.isProtectedPlot(pos)) { unsafeReason = "protected plot"; return false; }
+        // Player-placed stone, sand and dirt are indistinguishable by block type,
+        // so honour the colony's record of blocks a player actually placed.
+        if (colony.isPlayerPropertyNear(pos, 1)) { unsafeReason = "player-placed block"; return false; }
         if (!MinerRules.farFromBuilding(pos.getX(), pos.getZ(), colony.getCenter().getX(), colony.getCenter().getZ(), 12)) return false;
         for (var building : colony.getBuildings()) {
             if (building.importedFootprintNear(pos, 12)) return false;

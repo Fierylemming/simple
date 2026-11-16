@@ -10,11 +10,9 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.ai.village.poi.PoiType;
 import net.minecraft.world.entity.ai.village.poi.PoiTypes;
 import net.minecraft.world.entity.npc.VillagerProfession;
-import net.minecraft.world.entity.npc.VillagerTrades;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CampfireBlock;
-import net.neoforged.neoforge.event.village.VillagerTradesEvent;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import java.util.EnumMap;
@@ -59,28 +57,6 @@ public final class ColonyProfessions {
     public static VillagerProfession profession(JobType job) {
         var holder = JOBS.get(job);
         return holder == null ? VillagerProfession.NONE : holder.get();
-    }
-    public static void addTrades(VillagerTradesEvent event) {
-        for (var entry : JOBS.entrySet()) {
-            if (event.getType() != entry.getValue().get()) continue;
-            VillagerProfession base = switch (entry.getKey()) {
-                case FARMER, BAKER -> VillagerProfession.FARMER;
-                case LUMBERJACK -> VillagerProfession.FLETCHER;
-                case MINER, BUILDER -> VillagerProfession.MASON;
-                case BUTCHER -> VillagerProfession.BUTCHER;
-                case LEATHERWORKER -> VillagerProfession.LEATHERWORKER;
-                case BLACKSMITH -> VillagerProfession.TOOLSMITH;
-                case SOLDIER, GUARD -> VillagerProfession.WEAPONSMITH;
-                case FISHERMAN, COURIER -> VillagerProfession.FISHERMAN;
-                case SHEPHERD -> VillagerProfession.SHEPHERD;
-                default -> VillagerProfession.NONE;
-            };
-            var trades = VillagerTrades.TRADES.get(base);
-            if (trades != null) for (int level = 1; level <= 5; level++) {
-                var listings = trades.get(level);
-                if (listings != null) java.util.Collections.addAll(event.getTrades().get(level), listings);
-            }
-        }
     }
     private ColonyProfessions() {}
 }

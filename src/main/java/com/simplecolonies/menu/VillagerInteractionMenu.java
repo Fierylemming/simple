@@ -114,7 +114,18 @@ public class VillagerInteractionMenu extends AbstractContainerMenu {
             return true;
         }
         if (id == BTN_TRADE) {
-            player.displayClientMessage(net.minecraft.network.chat.Component.literal("§eClose this and right-click without shift for vanilla trades"), false);
+            if (!(player instanceof net.minecraft.server.level.ServerPlayer sp)) return true;
+            var target = player.level().getEntity(entityId);
+            if (!(target instanceof com.simplecolonies.entity.ColonyVillager cv) || !cv.isAlive()
+                    || !cv.getUUID().equals(citizen.uuid) || cv.getColonyId() != colony.getId() || !stillValid(player)) {
+                player.displayClientMessage(net.minecraft.network.chat.Component.literal("§cVillager is no longer available"), true);
+                return true;
+            }
+            // The job menu is a snapshot; close it before the merchant screen opens.
+            player.closeContainer();
+            if (!cv.openTrades(sp)) {
+                player.displayClientMessage(net.minecraft.network.chat.Component.literal("§7This villager cannot trade right now."), true);
+            }
             return true;
         }
         if (id == BTN_COMMAND_FOLLOW) {
