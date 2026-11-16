@@ -56,12 +56,13 @@ public class TradeAndMealGameTests {
     }
 
     /**
-     * The colony watches the clock on its first tick and simulates a day only once
-     * the day counter moves, so advance the calendar and give the manager time to
-     * tick the fixture colony.
+     * A colony watches the clock on its first tick and simulates a day only once the
+     * day counter moves. Cross two boundaries so the observation window can never
+     * swallow the only day that was skipped.
      */
-    private static void advanceOneDay(GameTestHelper helper) {
+    private static void advanceDays(GameTestHelper helper) {
         helper.runAfterDelay(100, () -> helper.getLevel().setDayTime(helper.getLevel().getDayTime() + 24000));
+        helper.runAfterDelay(400, () -> helper.getLevel().setDayTime(helper.getLevel().getDayTime() + 24000));
     }
 
     @GameTest(template = "empty", timeoutTicks = 1200)
@@ -77,19 +78,22 @@ public class TradeAndMealGameTests {
                 helper.fail("Could not share the harbor chest");
             storage.setItem(0, new ItemStack(Items.COD, 40));
             storage.setChanged();
-            advanceOneDay(helper);
+            advanceDays(helper);
             // Day simulation runs from the colony manager every 200 ticks; allow a
             // full window, then force one tick in case the manager just ran.
             helper.runAfterDelay(900, () -> {
                 try {
                     colony.tick(helper.getLevel());
-                    if (colony.getWarehouseCount(helper.getLevel(), "minecraft:emerald") < 1)
+                    int emeralds = colony.getWarehouseCount(helper.getLevel(), "minecraft:emerald");
+                    if (emeralds < 1)
                         helper.fail("A harbor with surplus cod paid no emeralds: " + colony.getTradeReport()
                                 + " buildings=" + colony.getBuildings().size()
                                 + " day=" + helper.getLevel().getDayTime()
                                 + " stock=" + colony.getWarehouseSnapshot(helper.getLevel()));
-                    if (colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") != 32)
-                        helper.fail("Harbor exported the wrong amount: " + colony.getWarehouseSnapshot(helper.getLevel()));
+                    // Every visit sells exactly eight cod for one emerald.
+                    if (colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") != 40 - 8 * emeralds)
+                        helper.fail("Harbor exported the wrong amount: " + colony.getWarehouseSnapshot(helper.getLevel())
+                                + " emeralds=" + emeralds);
                     helper.succeed();
                 } finally { uninstall(); }
             });
@@ -111,7 +115,7 @@ public class TradeAndMealGameTests {
                 helper.fail("Could not share the market chest");
             storage.setItem(0, new ItemStack(Items.EMERALD, 8));
             storage.setChanged();
-            advanceOneDay(helper);
+            advanceDays(helper);
             helper.runAfterDelay(900, () -> {
                 try {
                     colony.tick(helper.getLevel());
@@ -143,7 +147,7 @@ public class TradeAndMealGameTests {
             helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 12));
         worker.setColony(colony);
-        advanceOneDay(helper);   // one simulated day: one meal is scheduled
+        advanceDays(helper);   // one simulated day: one meal is scheduled
         helper.runAfterDelay(900, () -> {
             try {
                 if (colony.getCitizens().stream().allMatch(c -> c.pendingMeals > 0))
