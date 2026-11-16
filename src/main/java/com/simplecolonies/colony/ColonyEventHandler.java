@@ -140,6 +140,11 @@ public class ColonyEventHandler {
         var helper = event.getStructureHelper();
         if (helper == null || !helper.resolve()) return;
         ColonyProtection.countPistonResolved();
+        var detail = new StringBuilder("dir=").append(event.getDirection())
+                .append(" type=").append(event.getPistonMoveType());
+        for (var pos : helper.getToPush()) detail.append(" push=").append(pos).append(ColonyProtection.protectsBlock(level, pos) ? "+" : "-");
+        for (var pos : helper.getToDestroy()) detail.append(" destroy=").append(pos).append(ColonyProtection.protectsBlock(level, pos) ? "+" : "-");
+        ColonyProtection.recordPistonDetail(detail.toString());
         for (var pos : helper.getToPush()) if (ColonyProtection.protectsBlock(level, pos)) {
             ColonyProtection.countPistonBlocked();
             event.setCanceled(true);

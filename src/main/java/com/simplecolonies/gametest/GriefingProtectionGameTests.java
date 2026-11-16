@@ -107,6 +107,7 @@ public class GriefingProtectionGameTests {
                                 + " events=" + com.simplecolonies.colony.ColonyProtection.pistonEvents()
                                 + " resolved=" + com.simplecolonies.colony.ColonyProtection.pistonResolved()
                                 + " blocked=" + com.simplecolonies.colony.ColonyProtection.pistonBlocked()
+                                + " detail=" + com.simplecolonies.colony.ColonyProtection.lastPistonDetail()
                                 + " piston=" + helper.getBlockState(new BlockPos(7, 1, 8)));
                     if (helper.getBlockState(new BlockPos(7, 1, 8)).getValue(PistonBaseBlock.EXTENDED))
                         helper.fail("A protected piston still extended");

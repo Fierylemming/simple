@@ -47,6 +47,9 @@ public final class ColonyProtection {
     public static void countPistonEvent() { pistonEvents++; }
     public static void countPistonResolved() { pistonResolved++; }
     public static void countPistonBlocked() { pistonBlocked++; }
+    private static String lastPistonDetail = "";
+    public static String lastPistonDetail() { return lastPistonDetail; }
+    public static void recordPistonDetail(String detail) { lastPistonDetail = detail; }
 
     /** True when a colony owns this block for griefing purposes. */
     public static boolean protectsBlock(ServerLevel level, BlockPos pos) {
