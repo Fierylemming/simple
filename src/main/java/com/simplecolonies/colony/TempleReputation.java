@@ -12,8 +12,8 @@ public final class TempleReputation {
     private TempleReputation() {}
 
     public static int boost(int reputation, boolean hasTemple) {
-        if (!hasTemple) return reputation;
-        int base = Math.max(0, reputation);
-        return Math.min(TEMPLE_CAP, base + DAILY_GAIN);
+        // A temple cannot win over a player who is still hostile to the colony.
+        if (!hasTemple || reputation < 0) return reputation;
+        return Math.min(TEMPLE_CAP, reputation + DAILY_GAIN);
     }
 }

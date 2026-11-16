@@ -9,7 +9,7 @@ class TempleReputationTest {
         assertEquals(11, TempleReputation.boost(10, true));
         assertEquals(TempleReputation.TEMPLE_CAP, TempleReputation.boost(TempleReputation.TEMPLE_CAP, true));
         assertEquals(10, TempleReputation.boost(10, false), "without a temple nothing changes");
-        assertEquals(0, TempleReputation.boost(-5, true));
+        assertEquals(-5, TempleReputation.boost(-5, true), "a hostile player gains nothing from a temple");
     }
 
     @Test void templeGrowthStaysBelowLeadership() {
