@@ -17,6 +17,7 @@ public class BuilderJob extends AbstractJob {
     // Real colony villagers carry all inputs; the legacy path below remains for
     // isolated vanilla-villager construction fixtures, not in-game workers.
     private final PhysicalBuilderMaterials physical;
+    private final PhysicalResearch research;
     // Per-worker, transient retry times. Never discard a plan just because it
     // is obstructed, unloaded, unreachable, or waiting for materials.
     private final java.util.Map<Building, Long> retryAfter = new java.util.IdentityHashMap<>();
@@ -35,6 +36,8 @@ public class BuilderJob extends AbstractJob {
         super(villager, colony, JobType.BUILDER);
         physical = villager instanceof com.simplecolonies.entity.ColonyVillager worker
                 ? new PhysicalBuilderMaterials(worker, colony) : null;
+        research = villager instanceof com.simplecolonies.entity.ColonyVillager worker
+                ? new PhysicalResearch(worker, colony) : null;
     }
 
     /** Find an actual standing position in reach, on either side of a wall. */
@@ -63,6 +66,19 @@ public class BuilderJob extends AbstractJob {
     }
 
     @Override protected void doWork(ServerLevel level) {
+        if (research != null) {
+            var result = research.tick(level);
+            if (result != PhysicalResearch.Result.NONE) {
+                state = switch (result) {
+                    case MOVING -> JobState.GOING_TO_WORK;
+                    case WORKING -> JobState.WORKING;
+                    case MISSING -> JobState.NEEDS_RESOURCE;
+                    default -> JobState.STUCK;
+                };
+                ticksUntilNextWork = result == PhysicalResearch.Result.MOVING ? 10 : 40;
+                return;
+            }
+        }
         if (currentJob == null || currentJob.getState() == BuildingState.COMPLETE
                 || !colony.getBuildings().contains(currentJob)) {
             retryAfter.keySet().removeIf(b -> !colony.getBuildings().contains(b));

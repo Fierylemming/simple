@@ -93,6 +93,7 @@ public abstract class AbstractJob {
 
     private PhysicalJobCargo recoveryCargo;
     private PhysicalBuilderMaterials recoveryMaterials;
+    private PhysicalResearch recoveryResearch;
 
     /** A missing POI must stop production, not strand physical items on a worker.
      * This deliberately performs only returns and never calls profession work. */
@@ -102,6 +103,14 @@ public abstract class AbstractJob {
         if (recoveryCargo == null) {
             recoveryCargo = new PhysicalJobCargo(worker, colony);
             recoveryMaterials = new PhysicalBuilderMaterials(worker, colony);
+            recoveryResearch = new PhysicalResearch(worker, colony);
+        }
+        if (!worker.getResearchMaterials().isEmpty()) {
+            var returned = recoveryResearch.returnCargo(level);
+            state = returned == PhysicalResearch.Result.MOVING ? JobState.GOING_TO_WORK
+                    : returned == PhysicalResearch.Result.WORKING ? JobState.WORKING : JobState.WAITING_FOR_CHEST;
+            ticksUntilNextWork = returned == PhysicalResearch.Result.MOVING ? 10 : 40;
+            return;
         }
         var delivery = recoveryCargo.deliver(level);
         if (delivery != PhysicalJobCargo.Delivery.NONE) {

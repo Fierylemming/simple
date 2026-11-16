@@ -65,6 +65,7 @@ public class TownHallMenu extends AbstractContainerMenu {
     public static final int BTN_RALLY_SOLDIERS = 21;
     public static final int BTN_CLAIM_LEADER = 40;
     public static final int BTN_DONATE_FOOD = 41;
+    public static final int BTN_CANCEL_RESEARCH = 42;
 
     // New: research 100-119, building upgrade 200+index, create schematic 300
     public static final int BTN_RESEARCH_BASE = 100; // + ordinal
@@ -165,6 +166,14 @@ public class TownHallMenu extends AbstractContainerMenu {
                             && villager.getColonyId() == colony.getId() && villager.commandFollow(player, true)) rallied++;
                 }
                 player.displayClientMessage(net.minecraft.network.chat.Component.literal("§6Rallied " + rallied + " loaded defenders."), false);
+                return true;
+            }
+            case BTN_CANCEL_RESEARCH -> {
+                if (!isLeader) { deny(player); return true; }
+                boolean cancelled = colony.getResearch().cancelPending();
+                player.displayClientMessage(net.minecraft.network.chat.Component.literal(cancelled
+                        ? "Research cancelled; the builder will return any carried supplies."
+                        : "No research is currently queued."), false);
                 return true;
             }
             case BTN_CREATE_SCHEMATIC -> {

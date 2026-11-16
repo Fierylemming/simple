@@ -1,15 +1,21 @@
 package com.simplecolonies.gametest;
 
+import com.simplecolonies.building.Building;
+import com.simplecolonies.building.BuildingState;
+import com.simplecolonies.building.BuildingType;
 import com.simplecolonies.colony.Colony;
 import com.simplecolonies.culture.CultureType;
+import com.simplecolonies.entity.ColonyVillager;
+import com.simplecolonies.entity.ModEntities;
 import com.simplecolonies.progression.ColonyUpgrade;
+import com.simplecolonies.villager.job.BuilderJob;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -17,197 +23,151 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder("simplecolonies")
 @PrefixGameTestTemplate(false)
 public class ResearchGameTests {
-    @GameTest(template = "empty")
-    public static void tightHousingResearchAddsRealShelterCapacityWithoutBeds(GameTestHelper helper) {
-        BlockPos center = helper.absolutePos(new BlockPos(8, 1, 8));
-        Colony colony = new Colony(0, CultureType.ROMAN, center);
-        colony.registerPlayerBuilding(new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.HOUSE,
-                center, CultureType.ROMAN, true));
-        for (int i = 0; i < 6; i++) colony.addCitizen(new com.simplecolonies.colony.CitizenData(
-                java.util.UUID.randomUUID(), "Resident", com.simplecolonies.villager.job.JobType.UNEMPLOYED));
-        colony.reconcileHomes();
-        if (colony.getShelterCapacity() != 4 || colony.getCitizens().stream().filter(c -> c.home != null).count() != 4)
-            helper.fail("Base shelter assignment incorrect");
-        colony.depositToWarehouse("minecraft:cobblestone", 32);
-        colony.depositToWarehouse("minecraft:oak_planks", 32);
-        colony.depositToWarehouse("minecraft:coal", 4);
-        colony.depositToWarehouse("minecraft:white_wool", 8);
-        if (!colony.getResearch().tryBuy(ColonyUpgrade.TOOL_STONE, helper.getLevel(), null)
-                || !colony.getResearch().tryBuy(ColonyUpgrade.HOUSING_EFFICIENT, helper.getLevel(), null))
-            helper.fail("Could not buy housing research using actual white wool");
-        colony.reconcileHomes();
-        if (colony.getShelterCapacity() != 6 || colony.getCitizens().stream().filter(c -> c.home != null).count() != 6
-                || colony.getWarehouseCount(helper.getLevel(), "minecraft:white_wool") != 0
-                || colony.getWarehouseCount(helper.getLevel(), "minecraft:oak_planks") != 0)
-            helper.fail("Research did not charge or update shelter assignments");
-        var restored = Colony.load(colony.save());
-        restored.reconcileHomes();
-        if (restored.getShelterCapacity() != 6 || restored.getCitizens().stream().filter(c -> c.home != null).count() != 6)
-            helper.fail("Researched shelter and assignments did not survive reload");
-        helper.succeed();
-    }
-
-    @GameTest(template = "empty")
-    public static void courierResearchCostsStockButUnsupportedSchematicCannotCharge(GameTestHelper helper) {
-        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
-        var tag = colony.getResearch().save();
-        var unlocked = new net.minecraft.nbt.ListTag();
-        for (var up : ColonyUpgrade.values()) if (up != ColonyUpgrade.SCHEMATIC_CANNON && up != ColonyUpgrade.WAREHOUSE_CAPACITY)
-            unlocked.add(net.minecraft.nbt.StringTag.valueOf(up.name()));
-        tag.put("unlocked", unlocked); tag.putInt("autoCooldown", 0);
-        colony.getResearch().load(tag);
-        colony.depositToWarehouse("minecraft:chest", 8);
-        colony.depositToWarehouse("minecraft:oak_planks", 40);
-        colony.depositToWarehouse("minecraft:iron_block", 2);
-        colony.depositToWarehouse("minecraft:redstone", 8);
-        if (!colony.getResearch().tryBuy(ColonyUpgrade.WAREHOUSE_CAPACITY, helper.getLevel(), null)
-                || colony.getWarehouseCount(helper.getLevel(), "minecraft:chest") != 0
-                || colony.getWarehouseCount(helper.getLevel(), "minecraft:oak_planks") != 8)
-            helper.fail("Courier research did not charge real stock");
-        var before = colony.getWarehouseSnapshot(helper.getLevel());
-        if (colony.getResearch().tryBuy(ColonyUpgrade.SCHEMATIC_CANNON, helper.getLevel(), null))
-            helper.fail("Paid for unsupported schematic research");
-        colony.getResearch().tickAutoProgress(helper.getLevel());
-        if (!before.equals(colony.getWarehouseSnapshot(helper.getLevel()))
-                || colony.getResearch().isUnlocked(ColonyUpgrade.SCHEMATIC_CANNON)) helper.fail("Auto research paid for unsupported research");
-        unlocked.add(net.minecraft.nbt.StringTag.valueOf("WAREHOUSE_CAPACITY"));
-        unlocked.add(net.minecraft.nbt.StringTag.valueOf("SCHEMATIC_CANNON"));
-        tag.put("unlocked", unlocked);
-        colony.getResearch().load(tag);
-        var restored = Colony.load(colony.save());
-        if (!restored.getResearch().isUnlocked(ColonyUpgrade.WAREHOUSE_CAPACITY)
-                || !restored.getResearch().isUnlocked(ColonyUpgrade.SCHEMATIC_CANNON)) helper.fail("Old unlock was lost on reload");
-        helper.succeed();
-    }
-
-    @GameTest(template = "empty")
-    public static void completedLibraryShortensResearchIntervalAndSurvivesReload(GameTestHelper helper) {
-        var plain = researchColony(helper, false);
-        var library = researchColony(helper, true);
-        for (var colony : new Colony[]{plain, library}) {
-            var saved = colony.getResearch().save();
-            saved.putInt("autoCooldown", 0);
-            colony.getResearch().load(saved);
-            colony.depositToWarehouse("minecraft:cobblestone", 64);
-            colony.depositToWarehouse("minecraft:oak_planks", 64);
-            colony.depositToWarehouse("minecraft:coal", 16);
-            colony.depositToWarehouse("minecraft:wheat", 32);
-            colony.getResearch().tickAutoProgress(helper.getLevel());
-            if (!colony.getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE)) helper.fail("First research did not unlock");
-        }
-        library = Colony.load(library.save());
-        for (int day = 0; day < 3; day++) {
-            plain.getResearch().tickAutoProgress(helper.getLevel());
-            library.getResearch().tickAutoProgress(helper.getLevel());
-        }
-        if (plain.getResearch().isUnlocked(ColonyUpgrade.EFFICIENCY_1)
-                || !library.getResearch().isUnlocked(ColonyUpgrade.EFFICIENCY_1))
-            helper.fail("Completed library did not shorten research cooldown after reload");
-        if (library.getWarehouseCount(helper.getLevel(), "minecraft:wheat") != 16
-                || library.getWarehouseCount(helper.getLevel(), "minecraft:oak_planks") != 32
-                || library.getWarehouseCount(helper.getLevel(), "minecraft:coal") != 8)
-            helper.fail("Library research did not spend actual materials");
-        helper.succeed();
-    }
-
-    private static Colony researchColony(GameTestHelper helper, boolean completedLibrary) {
-        BlockPos center = helper.absolutePos(new BlockPos(8, 1, 8));
-        Colony colony = new Colony(0, CultureType.ROMAN, center);
-        var library = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.LIBRARY,
-                center.east(5), CultureType.ROMAN, completedLibrary);
-        colony.registerPlayerBuilding(library);
+    private static Colony colony(GameTestHelper helper, BlockPos hall) {
+        BlockPos site = helper.absolutePos(hall);
+        var colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, site);
+        colony.registerPlayerBuilding(new Building(BuildingType.TOWN_HALL, site, CultureType.ROMAN, true));
         return colony;
     }
 
+    private static void stock(Container chest, int factor) {
+        chest.setItem(0, new ItemStack(Items.COBBLESTONE, 32 * factor));
+        chest.setItem(1, new ItemStack(Items.OAK_PLANKS, 16 * factor));
+        chest.setItem(2, new ItemStack(Items.COAL, 4 * factor));
+        chest.setChanged();
+    }
+
+    @GameTest(template = "isolated", timeoutTicks = 1600)
+    public static void builderCarriesResearchAndOrderSurvivesReload(GameTestHelper helper) {
+        for (int x = 45; x <= 68; x++) for (int z = 50; z <= 62; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos chestPos = new BlockPos(50, 1, 56), hall = new BlockPos(62, 1, 56);
+        helper.setBlock(chestPos, Blocks.CHEST);
+        Container chest = (Container) helper.getBlockEntity(chestPos); stock(chest, 1);
+        Colony[] colony = {colony(helper, hall)};
+        if (!colony[0].getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chestPos))) helper.fail("Could not share research chest");
+        if (!colony[0].getResearch().tryBuy(ColonyUpgrade.TOOL_STONE, helper.getLevel(), null)
+                || colony[0].getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE) || chest.countItem(Items.COAL) != 4)
+            helper.fail("Queueing research remotely spent items or unlocked it");
+        ColonyVillager[] worker = {helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(52, 1, 56))};
+        BuilderJob[] job = {new BuilderJob(worker[0], colony[0])};
+        boolean[] reloaded = {false}, sawTravel = {false}, checkedCompletion = {false};
+        for (int tick = 1; tick < 1600; tick++) helper.runAtTickTime(tick, () -> {
+            int before = chest.countItem(Items.COBBLESTONE) + chest.countItem(Items.OAK_PLANKS) + chest.countItem(Items.COAL);
+            job[0].tick(helper.getLevel());
+            int after = chest.countItem(Items.COBBLESTONE) + chest.countItem(Items.OAK_PLANKS) + chest.countItem(Items.COAL);
+            BlockPos source = helper.absolutePos(chestPos);
+            if (after < before && worker[0].distanceToSqr(source.getX()+.5, source.getY()+.5, source.getZ()+.5) > 9)
+                helper.fail("Research inputs were picked up remotely");
+            if (!reloaded[0] && !worker[0].getResearchMaterials().isEmpty()) {
+                CompoundTag data = new CompoundTag(); worker[0].saveWithoutId(data);
+                var replacement = ModEntities.COLONY_VILLAGER.get().create(helper.getLevel());
+                if (replacement == null) { helper.fail("Could not reload researcher"); return; }
+                var savedColony = colony[0].save();
+                worker[0].discard(); replacement.load(data); helper.getLevel().addFreshEntity(replacement);
+                colony[0] = Colony.load(savedColony); worker[0] = replacement; job[0] = new BuilderJob(replacement, colony[0]);
+                if (!worker[0].getUUID().equals(colony[0].getResearch().getAssignedWorker())
+                        || worker[0].getResearchMaterials().isEmpty()) helper.fail("Research ownership or carried materials did not reload");
+                reloaded[0] = true;
+            }
+            if (reloaded[0] && !worker[0].getResearchMaterials().isEmpty()
+                    && worker[0].distanceToSqr(helper.absolutePos(hall).getX()+.5, helper.absolutePos(hall).getY()+.5, helper.absolutePos(hall).getZ()+.5) > 9)
+                sawTravel[0] = true;
+            if (!checkedCompletion[0] && colony[0].getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE)) {
+                BlockPos target = helper.absolutePos(hall);
+                if (worker[0].distanceToSqr(target.getX()+.5, target.getY()+.5, target.getZ()+.5) > 9)
+                    helper.fail("Research was completed remotely");
+                checkedCompletion[0] = true;
+            }
+        });
+        helper.succeedWhen(() -> {
+            if (!reloaded[0] || !sawTravel[0] || !colony[0].getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE)
+                    || colony[0].getResearch().getPending() != null || !worker[0].getResearchMaterials().isEmpty()
+                    || chest.countItem(Items.COBBLESTONE) != 0 || chest.countItem(Items.OAK_PLANKS) != 0 || chest.countItem(Items.COAL) != 0)
+                helper.fail("Physical research incomplete: " + job[0].getState());
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 700)
+    public static void cancelledResearchReturnsCarriedInputs(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos chestPos = new BlockPos(6, 1, 8), hall = new BlockPos(9, 1, 8);
+        helper.setBlock(chestPos, Blocks.CHEST); Container chest = (Container) helper.getBlockEntity(chestPos); stock(chest, 1);
+        Colony colony = colony(helper, hall);
+        colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chestPos));
+        if (!colony.getResearch().tryBuy(ColonyUpgrade.TOOL_STONE, helper.getLevel(), null)) helper.fail("Could not queue research");
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(7, 1, 8)); worker.setNoAi(true);
+        var job = new BuilderJob(worker, colony); boolean[] cancelled = {false};
+        for (int tick = 1; tick < 700; tick++) helper.runAtTickTime(tick, () -> {
+            job.tick(helper.getLevel());
+            if (!cancelled[0] && !worker.getResearchMaterials().isEmpty()) {
+                if (!colony.getResearch().cancelPending()) helper.fail("Could not cancel pending research");
+                cancelled[0] = true;
+            }
+        });
+        helper.succeedWhen(() -> {
+            if (!cancelled[0] || colony.getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE)
+                    || !worker.getResearchMaterials().isEmpty() || chest.countItem(Items.COBBLESTONE) != 32
+                    || chest.countItem(Items.OAK_PLANKS) != 16 || chest.countItem(Items.COAL) != 4)
+                helper.fail("Cancelled inputs were not physically returned: " + job.getState());
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 900)
+    public static void automaticResearchRechecksReserveAfterPickup(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos chestPos = new BlockPos(6, 1, 8), hall = new BlockPos(9, 1, 8);
+        helper.setBlock(chestPos, Blocks.CHEST); Container chest = (Container) helper.getBlockEntity(chestPos); stock(chest, 1);
+        Colony colony = colony(helper, hall); colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chestPos));
+        var tag = colony.getResearch().save(); tag.putInt("autoCooldown", 0); colony.getResearch().load(tag);
+        colony.getResearch().tickAutoProgress(helper.getLevel());
+        if (colony.getResearch().getPending() != null) helper.fail("Automatic research queued without its reserve");
+        stock(chest, 2); tag = colony.getResearch().save(); tag.putInt("autoCooldown", 0); colony.getResearch().load(tag);
+        colony.getResearch().tickAutoProgress(helper.getLevel());
+        if (colony.getResearch().getPending() != ColonyUpgrade.TOOL_STONE) helper.fail("Automatic research did not queue with surplus");
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(7, 1, 8)); worker.setNoAi(true);
+        var job = new BuilderJob(worker, colony); boolean[] withheld = {false}, restored = {false};
+        for (int tick = 1; tick < 900; tick++) helper.runAtTickTime(tick, () -> {
+            job.tick(helper.getLevel());
+            if (!withheld[0] && chest.countItem(Items.COBBLESTONE) == 32 && chest.countItem(Items.OAK_PLANKS) == 16 && chest.countItem(Items.COAL) == 4) {
+                chest.setItem(2, ItemStack.EMPTY); chest.setChanged(); withheld[0] = true;
+            }
+        });
+        helper.runAtTickTime(400, () -> {
+            if (!withheld[0] || colony.getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE)) helper.fail("Research spent a removed reserve");
+            chest.setItem(2, new ItemStack(Items.COAL, 4)); chest.setChanged(); restored[0] = true;
+        });
+        helper.succeedWhen(() -> {
+            if (!restored[0] || !colony.getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE)
+                    || chest.countItem(Items.COBBLESTONE) != 32 || chest.countItem(Items.OAK_PLANKS) != 16 || chest.countItem(Items.COAL) != 4)
+                helper.fail("Research did not preserve its restored reserve: " + job.getState());
+        });
+    }
+
     @GameTest(template = "empty")
-    public static void automaticResearchPreservesItsSurplus(GameTestHelper helper) {
-        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
-        var saved = colony.getResearch().save(); saved.putInt("autoCooldown", 0);
-        colony.getResearch().load(saved);
-        colony.depositToWarehouse("minecraft:cobblestone", 32);
-        colony.depositToWarehouse("minecraft:oak_planks", 16);
-        colony.depositToWarehouse("minecraft:coal", 4);
-        colony.getResearch().tickAutoProgress(helper.getLevel());
-        if (colony.getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE)
-                || colony.getWarehouseCount(helper.getLevel(), "minecraft:cobblestone") != 32)
-            helper.fail("Automatic research spent the last required supplies");
-        colony.depositToWarehouse("minecraft:cobblestone", 32);
-        colony.depositToWarehouse("minecraft:oak_planks", 16);
-        colony.depositToWarehouse("minecraft:coal", 4);
-        saved = colony.getResearch().save(); saved.putInt("autoCooldown", 0);
-        colony.getResearch().load(saved);
-        colony.getResearch().tickAutoProgress(helper.getLevel());
-        if (!colony.getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE)
-                || colony.getWarehouseCount(helper.getLevel(), "minecraft:cobblestone") != 32
-                || colony.getWarehouseCount(helper.getLevel(), "minecraft:oak_planks") != 16
-                || colony.getWarehouseCount(helper.getLevel(), "minecraft:coal") != 4)
-            helper.fail("Automatic research did not retain its surplus");
+    public static void researchRejectsVirtualStockAndRetainsLegacyUnlocks(GameTestHelper helper) {
+        Colony colony = colony(helper, new BlockPos(8, 1, 8));
+        colony.depositToWarehouse("minecraft:cobblestone", 32); colony.depositToWarehouse("minecraft:oak_planks", 16); colony.depositToWarehouse("minecraft:coal", 4);
+        if (colony.getResearch().tryBuy(ColonyUpgrade.TOOL_STONE, helper.getLevel(), null)
+                || colony.getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE) || colony.getWarehouseCount("minecraft:cobblestone") != 32)
+            helper.fail("Research consumed virtual stock");
+        var tag = colony.getResearch().save();
+        var unlocked = tag.getList("unlocked", net.minecraft.nbt.Tag.TAG_STRING);
+        unlocked.add(net.minecraft.nbt.StringTag.valueOf("SCHEMATIC_CANNON")); tag.put("unlocked", unlocked);
+        colony.getResearch().load(tag);
+        if (!Colony.load(colony.save()).getResearch().isUnlocked(ColonyUpgrade.SCHEMATIC_CANNON)) helper.fail("Legacy unlock was lost");
         helper.succeed();
     }
 
-    @GameTest(template = "isolated")
-    public static void researchRequiresAndConsumesCompleteRealCost(GameTestHelper helper) {
-        BlockPos site = new BlockPos(56, 1, 56);
-        helper.setBlock(site, Blocks.CHEST);
-        Container chest = (Container) helper.getBlockEntity(site);
-        chest.setItem(0, new ItemStack(Items.COBBLESTONE, 32));
-        chest.setItem(1, new ItemStack(Items.OAK_PLANKS, 16));
-        chest.setItem(2, new ItemStack(Items.COAL, 3));
-        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(site));
-        colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(site));
-        var player = helper.makeMockPlayer(GameType.SURVIVAL);
-        var research = colony.getResearch();
-        var level = helper.getLevel();
-        if (research.tryBuy(ColonyUpgrade.TOOL_STONE, level, player) || research.isUnlocked(ColonyUpgrade.TOOL_STONE)
-                || chest.getItem(0).getCount() != 32 || chest.getItem(1).getCount() != 16 || chest.getItem(2).getCount() != 3)
-            helper.fail("Research with missing coal consumed items or unlocked");
-        chest.setItem(2, new ItemStack(Items.COAL, 4));
-        chest.setChanged();
-        if (!research.tryBuy(ColonyUpgrade.TOOL_STONE, level, player) || !research.isUnlocked(ColonyUpgrade.TOOL_STONE)
-                || colony.getWarehouseCount(level, "minecraft:cobblestone") != 0
-                || colony.getWarehouseCount(level, "minecraft:oak_planks") != 0
-                || colony.getWarehouseCount(level, "minecraft:coal") != 0)
-            helper.fail("Research did not consume its full cost exactly once");
-        if (research.tryBuy(ColonyUpgrade.TOOL_STONE, level, player)) helper.fail("Research was purchased twice");
-        helper.succeed();
-    }
     @GameTest(template = "empty")
-    public static void libraryTierReducesResearchInterval(GameTestHelper helper) {
+    public static void libraryTierPreservesResearchInterval(GameTestHelper helper) {
         for (int tier = 1; tier <= 5; tier++) {
-            Colony colony = new Colony(tier, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
-            var library = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.LIBRARY,
-                    colony.getCenter(), CultureType.ROMAN, true);
+            Colony colony = colony(helper, new BlockPos(8, 1, 8));
+            var library = new Building(BuildingType.LIBRARY, colony.getCenter().east(5), CultureType.ROMAN, true);
             library.setLevel(tier); colony.registerPlayerBuilding(library);
             var tag = colony.getResearch().save(); tag.putInt("autoCooldown", 0); colony.getResearch().load(tag);
             colony.getResearch().tickAutoProgress(helper.getLevel());
-            int cooldown = colony.getResearch().save().getInt("autoCooldown");
-            if (cooldown != Math.max(0, 3 - tier)) helper.fail("Wrong library cooldown for tier " + tier + ": " + cooldown);
+            if (colony.getResearch().save().getInt("autoCooldown") != Math.max(0, 3-tier)) helper.fail("Wrong library cooldown");
         }
         helper.succeed();
     }
-
-    @GameTest(template = "empty")
-    public static void upgradedLibraryResearchesMultipleAffordableTopics(GameTestHelper helper) {
-        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
-        var library = new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.LIBRARY,
-                colony.getCenter(), CultureType.ROMAN, true);
-        library.setLevel(5); colony.registerPlayerBuilding(library);
-        colony.depositToWarehouse("minecraft:cobblestone", 128);
-        colony.depositToWarehouse("minecraft:oak_planks", 128);
-        colony.depositToWarehouse("minecraft:coal", 32);
-        colony.depositToWarehouse("minecraft:wheat", 96);
-        colony.depositToWarehouse("minecraft:oak_fence", 16);
-        var tag = colony.getResearch().save(); tag.putInt("autoCooldown", 0); colony.getResearch().load(tag);
-        colony.getResearch().tickAutoProgress(helper.getLevel());
-        if (!colony.getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE)
-                || !colony.getResearch().isUnlocked(ColonyUpgrade.UNLOCK_BUTCHER)
-                || !colony.getResearch().isUnlocked(ColonyUpgrade.EFFICIENCY_1))
-            helper.fail("Tier five library did not fund three eligible topics");
-        if (colony.getWarehouseCount("minecraft:cobblestone") != 96
-                || colony.getWarehouseCount("minecraft:wheat") != 64
-                || colony.getWarehouseCount("minecraft:oak_fence") != 8)
-            helper.fail("Research did not pay each cost exactly once");
-        helper.succeed();
-    }
-
 }

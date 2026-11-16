@@ -1,7 +1,6 @@
 package com.simplecolonies.progression;
 
 import com.simplecolonies.colony.Colony;
-import com.simplecolonies.warehouse.WarehouseManager;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
@@ -14,13 +13,18 @@ import java.util.stream.Collectors;
 
 /**
  * Per-colony research manager for Town Hall upgrades.
- * - Player can buy upgrades in GUI if colony has mats in warehouse/chests.
- * - Village can self-buy when it has surplus (auto-progress every N days if affordable).
+ * - Players queue upgrades using loaded shared storage.
+ * - Builders physically carry the inputs to a hall or library.
+ * - Automatic research queues when a physical reserve exists.
  */
 public class ResearchManager {
     private final Colony colony;
     private final Set<ColonyUpgrade> unlocked = new HashSet<>();
     private int autoProgressCooldown = 5; // days
+    private ColonyUpgrade pending;
+    private UUID assignedWorker;
+    private boolean pendingAutomatic;
+    private int automaticSlotsRemaining;
 
     public ResearchManager(Colony colony) {
         this.colony = colony;
@@ -65,11 +69,17 @@ public class ResearchManager {
         return base;
     }
 
+    /** Only loaded, explicitly shared physical containers can supply new research.
+     * Legacy abstract stock is retained, but cannot be materialized by research. */
     private ResearchCosts.Stock stock(ServerLevel level) {
         return new ResearchCosts.Stock() {
-            public int count(String id) { return colony.getWarehouseCount(level, id); }
-            public boolean take(String id, int amount) { return colony.consumeStock(level, id, amount); }
-            public void refund(String id, int amount) { colony.depositToWarehouse(id, amount); }
+            public int count(String id) {
+                if (level == null) return 0;
+                colony.getWarehouseManager().scan(level);
+                return colony.getWarehouseManager().count(id);
+            }
+            public boolean take(String id, int amount) { throw new UnsupportedOperationException(); }
+            public void refund(String id, int amount) { throw new UnsupportedOperationException(); }
         };
     }
 
@@ -78,63 +88,99 @@ public class ResearchManager {
     }
 
     public boolean canUnlock(ColonyUpgrade upgrade) {
-        // Preserve old saved unlocks but never charge for unsupported effects.
-        if (upgrade == ColonyUpgrade.SCHEMATIC_CANNON) return false;
-        if (isUnlocked(upgrade)) return false;
+        if (upgrade == ColonyUpgrade.SCHEMATIC_CANNON || isUnlocked(upgrade)) return false;
         for (var pre : upgrade.prerequisites) if (!isUnlocked(pre)) return false;
         return true;
     }
 
-    /** Player buys upgrade — consumes mats from chests/warehouse. */
+    public ColonyUpgrade getPending() { return pending; }
+    public UUID getAssignedWorker() { return assignedWorker; }
+    public boolean isPendingAutomatic() { return pendingAutomatic; }
+
+    /** Queue, rather than remotely withdrawing from storage. One builder owns the
+     * order until completion, reassignment, death or explicit cancellation. */
     public boolean tryBuy(ColonyUpgrade upgrade, ServerLevel level, Player player) {
-        if (!canUnlock(upgrade)) {
-            if (player != null) player.displayClientMessage(Component.literal("§cResearch unavailable or missing prerequisites for " + upgrade.displayName), true);
+        if (pending != null || !canUnlock(upgrade)) {
+            if (player != null) player.displayClientMessage(Component.literal("§cAnother topic is queued or this research is unavailable"), true);
             return false;
         }
         if (!canAfford(upgrade, level)) {
-            if (player != null) {
-                player.displayClientMessage(Component.literal("§cNot enough resources in warehouse/chests for " + upgrade.displayName), true);
-                for (var e : upgrade.cost.entrySet()) {
-                    int have = colony.getWarehouseCount(level, e.getKey());
-                    if (have < e.getValue()) player.displayClientMessage(Component.literal("  Need " + e.getValue() + "x " + e.getKey() + " (have " + have + ")"), false);
-                }
-            }
+            if (player != null) player.displayClientMessage(Component.literal("§cPut the full cost in loaded shared storage first"), true);
             return false;
         }
-        if (!ResearchCosts.pay(stock(level), upgrade.cost)) {
-            if (player != null) player.displayClientMessage(Component.literal("§cResources changed before research could be paid for"), true);
-            return false;
-        }
-        unlocked.add(upgrade);
-        colony.broadcast(Component.literal("§6Colony #" + colony.getId() + " unlocked " + upgrade.displayName + " — " + upgrade.description));
-        if (player != null) player.displayClientMessage(Component.literal("§aUnlocked " + upgrade.displayName + "!"), false);
+        pending = upgrade; assignedWorker = null; pendingAutomatic = false; automaticSlotsRemaining = 0;
+        com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
+        if (player != null) player.displayClientMessage(Component.literal("§aQueued " + upgrade.displayName + "; a builder must carry the materials to a hall or library."), false);
+        return true;
+    }
+
+    public boolean cancelPending() {
+        if (pending == null) return false;
+        pending = null; assignedWorker = null; pendingAutomatic = false; automaticSlotsRemaining = 0;
         com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
         return true;
     }
 
-    /** Called daily in Colony.tick — auto-progress if village has surplus. */
+    public boolean claimWorker(UUID worker) {
+        if (pending == null || (assignedWorker != null && !assignedWorker.equals(worker))) return false;
+        if (assignedWorker == null) {
+            assignedWorker = worker;
+            com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
+        }
+        return true;
+    }
+
+    public void releaseWorker(UUID worker) {
+        if (worker != null && worker.equals(assignedWorker)) {
+            assignedWorker = null;
+            com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
+        }
+    }
+
+    public boolean canComplete(UUID worker, ColonyUpgrade topic) {
+        return topic != null && topic == pending && worker.equals(assignedWorker) && canUnlock(topic);
+    }
+
+    /** Called only after the assigned builder has delivered and consumed the full
+     * physical cost in the same server tick. */
+    public boolean complete(UUID worker, ColonyUpgrade topic, ServerLevel level) {
+        if (!canComplete(worker, topic)) return false;
+        boolean wasAutomatic = pendingAutomatic;
+        pending = null; assignedWorker = null; pendingAutomatic = false;
+        unlocked.add(topic);
+        colony.broadcast(Component.literal("§6Colony #" + colony.getId() + " unlocked " + topic.displayName + " — " + topic.description));
+        if (wasAutomatic && automaticSlotsRemaining > 0) queueNextAutomatic(level);
+        else automaticSlotsRemaining = 0;
+        com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
+        return true;
+    }
+
+    /** A completed library affects the interval and number of sequential orders. */
     public void tickAutoProgress(ServerLevel level) {
-        if (autoProgressCooldown-- > 0) return;
-        // Completed physical library wings improve research; a wing under
-        // construction does not award its tier, but the parent remains useful.
-        // Time skips still catch up daily simulation in bounded batches.
+        if (pending != null || autoProgressCooldown-- > 0) return;
         int libraryLevel = colony.getBuildings().stream()
                 .filter(b -> b.getType() == com.simplecolonies.building.BuildingType.LIBRARY && b.isOperational())
                 .mapToInt(com.simplecolonies.building.Building::getLevel).max().orElse(0);
         autoProgressCooldown = libraryLevel == 0 ? 5 : Math.max(0, 3 - libraryLevel);
-        int remainingUnlocks = Math.max(1, libraryLevel - 2);
-        // Find cheapest unlockable upgrade we can afford (cheapest first = tier order)
+        automaticSlotsRemaining = Math.max(1, libraryLevel - 2);
+        queueNextAutomatic(level);
+        com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
+    }
+
+    private void queueNextAutomatic(ServerLevel level) {
         for (ColonyUpgrade up : ColonyUpgrade.values()) {
             if (canUnlock(up) && ResearchCosts.hasSurplus(stock(level), up.cost)) {
-                // Keep a full second cost in stock; manual research can still
-                // be bought with the exact cost if the leader chooses.
-                if (!ResearchCosts.pay(stock(level), up.cost)) continue;
-                unlocked.add(up);
-                colony.broadcast(Component.literal("§eColony #" + colony.getId() + " self-unlocked " + up.displayName + " (had enough resources)"));
-                com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
-                if (--remainingUnlocks == 0) break;
+                pending = up; assignedWorker = null; pendingAutomatic = true; automaticSlotsRemaining--;
+                colony.broadcast(Component.literal("§eColony #" + colony.getId() + " queued research: " + up.displayName));
+                return;
             }
         }
+        automaticSlotsRemaining = 0;
+    }
+
+    /** Recheck the auto-research reserve after pickup, not just when queued. */
+    public boolean hasAutomaticReserve(ServerLevel level, ColonyUpgrade topic) {
+        return !pendingAutomatic || ResearchCosts.affordable(stock(level), topic.cost);
     }
 
     public List<ColonyUpgrade> getAvailableToBuy() {
@@ -150,6 +196,12 @@ public class ResearchManager {
         for (var u : unlocked) list.add(StringTag.valueOf(u.name()));
         tag.put("unlocked", list);
         tag.putInt("autoCooldown", autoProgressCooldown);
+        if (pending != null) {
+            tag.putString("pending", pending.name());
+            tag.putBoolean("pendingAutomatic", pendingAutomatic);
+            tag.putInt("automaticSlotsRemaining", automaticSlotsRemaining);
+            if (assignedWorker != null) tag.putUUID("assignedWorker", assignedWorker);
+        }
         return tag;
     }
 
@@ -162,5 +214,17 @@ public class ResearchManager {
         // Existing colonies also get the free starter professions on upgrade.
         unlocked.addAll(ColonyUpgrade.defaultsUnlocked());
         autoProgressCooldown = tag.getInt("autoCooldown");
+        pending = null; assignedWorker = null; pendingAutomatic = false; automaticSlotsRemaining = 0;
+        if (tag.contains("pending")) {
+            try {
+                var saved = ColonyUpgrade.valueOf(tag.getString("pending"));
+                if (canUnlock(saved)) {
+                    pending = saved;
+                    pendingAutomatic = tag.getBoolean("pendingAutomatic");
+                    automaticSlotsRemaining = pendingAutomatic ? Math.clamp(tag.getInt("automaticSlotsRemaining"), 0, 3) : 0;
+                    if (tag.hasUUID("assignedWorker")) assignedWorker = tag.getUUID("assignedWorker");
+                }
+            } catch (IllegalArgumentException ignored) {}
+        }
     }
 }

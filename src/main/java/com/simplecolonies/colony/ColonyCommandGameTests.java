@@ -24,14 +24,18 @@ public class ColonyCommandGameTests {
             if (command == null || command.canUse(ordinary) || !command.canUse(operator)) helper.fail("Wrong permissions for " + name);
         }
         if (!root.getChild("buy").canUse(ordinary)) helper.fail("Leader research command was hidden from players");
-        Colony colony = new Colony(0, CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
-        colony.depositToWarehouse("minecraft:cobblestone", 32);
-        colony.depositToWarehouse("minecraft:oak_planks", 16);
-        colony.depositToWarehouse("minecraft:coal", 4);
+        var chestPos = new BlockPos(8, 1, 8); helper.setBlock(chestPos, net.minecraft.world.level.block.Blocks.CHEST);
+        var chest = (net.minecraft.world.Container) helper.getBlockEntity(chestPos);
+        chest.setItem(0, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE, 32));
+        chest.setItem(1, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.OAK_PLANKS, 16));
+        chest.setItem(2, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COAL, 4));
+        Colony colony = new Colony(com.simplecolonies.gametest.GameTestColonyIds.next(), CultureType.ROMAN, helper.absolutePos(chestPos));
+        colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chestPos));
         if (ColonyCommand.tryBuy(ordinary, colony, "TOOL_STONE", null) != 0
-                || colony.getWarehouseCount("minecraft:cobblestone") != 32) helper.fail("Non-leader spent colony stock");
+                || chest.countItem(net.minecraft.world.item.Items.COBBLESTONE) != 32) helper.fail("Non-leader queued research");
         if (ColonyCommand.tryBuy(operator, colony, "TOOL_STONE", null) != 1
-                || colony.getWarehouseCount("minecraft:cobblestone") != 0) helper.fail("Operator could not buy research");
+                || colony.getResearch().getPending() != com.simplecolonies.progression.ColonyUpgrade.TOOL_STONE
+                || chest.countItem(net.minecraft.world.item.Items.COBBLESTONE) != 32) helper.fail("Operator could not queue research safely");
         helper.succeed();
     }
 }

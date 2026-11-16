@@ -336,7 +336,7 @@ public class ColonyCommand {
         else {
             src.sendSuccess(() -> Component.literal("§eAvailable to buy (prereqs met — check costs in Town Hall Research tab):"), false);
             for (var up : avail) {
-                ServerLevel lvl = null; try { if (p != null) lvl = p.serverLevel(); } catch (Exception ignored) {}
+                ServerLevel lvl = p != null ? p.serverLevel() : src.getServer().overworld();
                 boolean canAfford = c.getResearch().canAfford(up, lvl);
                 String costStr = up.cost.entrySet().stream().map(e -> e.getValue() + "x " + e.getKey()).reduce((a,b)->a+", "+b).orElse("free");
                 String line = (canAfford ? "§a✓ " : "§c✗ ") + up.name() + " [" + up.tier + "] " + up.displayName + " — cost: " + costStr + (up.prerequisites.isEmpty() ? "" : " | needs: " + up.prerequisites.stream().map(x->x.name()).reduce((a,b)->a+", "+b).orElse(""));
@@ -394,8 +394,8 @@ public class ColonyCommand {
             ColonyUpgrade up = ColonyUpgrade.valueOf(uid.toUpperCase());
             ServerLevel lvl = src.getServer().overworld();
             boolean ok = c.getResearch().tryBuy(up, lvl, p);
-            if (ok) src.sendSuccess(() -> Component.literal("Bought " + up.displayName + " — check /colony research for new avail"), true);
-            else src.sendFailure(Component.literal("Buy failed — see chat error or /colony warehouse for mats, /colony research for prereqs"));
+            if (ok) src.sendSuccess(() -> Component.literal("Queued " + up.displayName + "; a builder must carry the inputs to a hall or library."), true);
+            else src.sendFailure(Component.literal("Queue failed — check prerequisites, shared physical stock and any existing order."));
             return ok ? 1 : 0;
         } catch (Exception e) {
             src.sendFailure(Component.literal("Unknown upgrade: " + uid));

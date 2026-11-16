@@ -24,10 +24,14 @@ final class PhysicalBuilderMaterials {
     enum Result { READY, MOVING, WORKING, MISSING, BLOCKED }
     private final ColonyVillager worker;
     private final Colony colony;
+    private final SimpleContainer inventory;
     private final Map<BlockPos, Long> unreachable = new HashMap<>();
 
-    PhysicalBuilderMaterials(ColonyVillager worker, Colony colony) { this.worker = worker; this.colony = colony; }
-    private SimpleContainer held() { return worker.getBuilderMaterials(); }
+    PhysicalBuilderMaterials(ColonyVillager worker, Colony colony) { this(worker, colony, worker.getBuilderMaterials()); }
+    PhysicalBuilderMaterials(ColonyVillager worker, Colony colony, SimpleContainer inventory) {
+        this.worker = worker; this.colony = colony; this.inventory = inventory;
+    }
+    private SimpleContainer held() { return inventory; }
     private static boolean plain(ItemStack stack) {
         return !stack.isEmpty() && ItemStack.isSameItemSameComponents(stack, stack.getItem().getDefaultInstance());
     }

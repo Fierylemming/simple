@@ -47,6 +47,8 @@ public class ColonyVillager extends Villager {
     private net.minecraft.world.item.ItemStack plantingSeeds = net.minecraft.world.item.ItemStack.EMPTY;
     // Builder-only physical materials, separate from vanilla inventory and AI.
     private final net.minecraft.world.SimpleContainer builderMaterials = new net.minecraft.world.SimpleContainer(18);
+    // Separate escrow prevents cancelled research inputs becoming construction materials.
+    private final net.minecraft.world.SimpleContainer researchMaterials = new net.minecraft.world.SimpleContainer(9);
     private CompoundTag minerMemory = new CompoundTag();
     private CompoundTag woodcutterMemory = new CompoundTag();
     private long nextConversationTime;
@@ -125,8 +127,17 @@ public class ColonyVillager extends Villager {
     public net.minecraft.world.item.ItemStack getPlantingSeeds() { return plantingSeeds; }
     public void setPlantingSeeds(net.minecraft.world.item.ItemStack seeds) { plantingSeeds = seeds; }
     public net.minecraft.world.SimpleContainer getBuilderMaterials() { return builderMaterials; }
+    public net.minecraft.world.SimpleContainer getResearchMaterials() { return researchMaterials; }
+
+    private void dropResearchMaterials() {
+        for (int i = 0; i < researchMaterials.getContainerSize(); i++) {
+            var stack = researchMaterials.removeItemNoUpdate(i);
+            if (!stack.isEmpty()) spawnAtLocation(stack);
+        }
+    }
 
     private void dropCourierCargo() {
+        dropResearchMaterials();
         if (!courierCargo.isEmpty()) spawnAtLocation(courierCargo);
         if (!courierCargoExtra.isEmpty()) spawnAtLocation(courierCargoExtra);
         if (!workSupplies.isEmpty()) spawnAtLocation(workSupplies);
@@ -154,6 +165,7 @@ public class ColonyVillager extends Villager {
             followCommanderId = null;
             stopShepherdGuidance();
             jobInstance = null;
+            if (!level().isClientSide) dropResearchMaterials();
             ColonyManager.getInstance().getColony(this.colonyId).ifPresent(old -> old.removeCitizen(getUUID()));
         }
         this.colonyId = colony.getId();
@@ -176,6 +188,7 @@ public class ColonyVillager extends Villager {
         if (!level().isClientSide) stopShepherdGuidance();
         if (changed && !level().isClientSide) {
             followCommanderId = null;
+            ColonyManager.getInstance().getColony(colonyId).ifPresent(c -> c.getResearch().releaseWorker(getUUID()));
             // Keep real job tools (including their damage/components) when switching
             // professions, instead of leaving an incompatible tool in the main hand.
             var held = getMainHandItem();
@@ -720,6 +733,7 @@ public class ColonyVillager extends Villager {
         if (!workSupplies.isEmpty()) tag.put("workSupplies", workSupplies.save(registryAccess()));
         if (!plantingSeeds.isEmpty()) tag.put("plantingSeeds", plantingSeeds.save(registryAccess()));
         if (!builderMaterials.isEmpty()) tag.put("builderMaterials", builderMaterials.createTag(registryAccess()));
+        if (!researchMaterials.isEmpty()) tag.put("researchMaterials", researchMaterials.createTag(registryAccess()));
         if (!minerMemory.isEmpty()) tag.put("minerMemory", minerMemory.copy());
         if (!woodcutterMemory.isEmpty()) tag.put("woodcutterMemory", woodcutterMemory.copy());
     }
@@ -749,6 +763,7 @@ public class ColonyVillager extends Villager {
                 ? net.minecraft.world.item.ItemStack.parseOptional(registryAccess(), tag.getCompound("plantingSeeds"))
                 : net.minecraft.world.item.ItemStack.EMPTY;
         builderMaterials.fromTag(tag.getList("builderMaterials", net.minecraft.nbt.Tag.TAG_COMPOUND), registryAccess());
+        researchMaterials.fromTag(tag.getList("researchMaterials", net.minecraft.nbt.Tag.TAG_COMPOUND), registryAccess());
     }
 
     @Override

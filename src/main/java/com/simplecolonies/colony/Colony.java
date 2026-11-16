@@ -590,6 +590,7 @@ public class Colony {
     }
 
     public void removeCitizen(UUID villagerUuid) {
+        researchManager.releaseWorker(villagerUuid);
         citizens.remove(villagerUuid);
         ColonyManager.getInstance().markDirty(this);
     }

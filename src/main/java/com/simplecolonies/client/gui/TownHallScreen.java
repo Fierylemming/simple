@@ -138,12 +138,14 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
                 }
             }
             case 5 -> {
+                addRenderableWidget(Button.builder(Component.literal("Cancel queued research"), b->send(TownHallMenu.BTN_CANCEL_RESEARCH))
+                        .bounds(x+12, y+235, 150, 16).build());
                 var av = menu.colony.getResearch().getAvailableToBuy();
                 int start = researchScroll*3;
                 for (int i=0;i<Math.min(3, av.size()-start);i++) {
                     ColonyUpgrade up = av.get(start+i);
                     int by = btnY+10 + i*34;
-                    Button buy = Button.builder(Component.literal("Unlock "+up.displayName), bt->send(TownHallMenu.BTN_RESEARCH_BASE+up.ordinal())).bounds(btnX, by, 234, 16).build();
+                    Button buy = Button.builder(Component.literal("Queue "+up.displayName), bt->send(TownHallMenu.BTN_RESEARCH_BASE+up.ordinal())).bounds(btnX, by, 234, 16).build();
                     addRenderableWidget(buy);
                     // price handled in draw
                 }
@@ -354,7 +356,8 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
         String unlocked = r.getUnlocked().stream().map(u->u.displayName).reduce((a,b)->a+", "+b).orElse("none");
         drawWrapped(g, "Unlocked: "+unlocked, x,y,316, C_TEXT_MID); y+=10;
         g.fill(x,y,x+316,y+1, C_DIV); y+=6;
-        g.drawString(font, "Available (leader — auto-buys when surplus):", x,y, C_TEXT,false); y+=10;
+        String pending = r.getPending() == null ? "Available (builder carries supplies):" : "Queued: " + r.getPending().displayName + " (reopen to refresh)";
+        g.drawString(font, pending, x,y, C_TEXT,false); y+=10;
         var av=r.getAvailableToBuy();
         if(av.isEmpty()) drawHintBox(g,x,y,"All research done — build more to raise tier.");
         else{
