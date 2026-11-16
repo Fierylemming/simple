@@ -30,7 +30,8 @@ Tier 2 — Iron Age (needs raw_iron from Tier1 Miner, leather from Tier1 Butcher
 Tier 3 — Diamond/Advanced (needs diamonds/redstone — only mineable with iron pick from Tier2):
   TOOL_DIAMOND [4 diamond,8 iron] → needs Iron
   EFFICIENCY_2 [8 emerald,1 diamond] → needs Eff1+Iron (emeralds via trading, but village can wait)
-  SCHEMATIC_CANNON [2 iron_block,8 redstone] → needs Builder+Iron (redstone needs iron pick)
+  SCHEMATIC_CANNON [2 iron_block,8 redstone,8 planks] → needs Builder+Iron (redstone needs iron pick);
+    doubles the Create blueprint a builder accepts (16k → 32k blocks, 32k → 64k volume)
 ```
 
 **Key change:** Blacksmith no longer needs Iron tools — it’s the *producer* of Iron tools. Courier no longer needs Builder-only, needs Builder+Butcher so leather already available. Butcher/Baker moved to Tier1 so Tier2 courier/leather have leather/wheat. Efficiency_1 no longer needs emerald (village can self-buy without trading).

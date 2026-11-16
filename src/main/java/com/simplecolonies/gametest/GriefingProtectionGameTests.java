@@ -105,11 +105,8 @@ public class GriefingProtectionGameTests {
             helper.runAfterDelay(60, () -> {
                 try {
                     if (!helper.getBlockState(new BlockPos(8, 1, 8)).is(Blocks.STONE_BRICKS))
-                        helper.fail("A piston moved a colony block: protected=" + colony.protectsStructure(target)
-                                + " events=" + com.simplecolonies.colony.ColonyProtection.pistonEvents()
-                                + " resolved=" + com.simplecolonies.colony.ColonyProtection.pistonResolved()
-                                + " blocked=" + com.simplecolonies.colony.ColonyProtection.pistonBlocked()
-                                + " detail=" + com.simplecolonies.colony.ColonyProtection.lastPistonDetail()
+                        helper.fail("A piston moved a colony block: direct=" + colony.protectsStructure(target)
+                                + " manager=" + ColonyManager.getInstance().protectsStructure(helper.getLevel(), target)
                                 + " piston=" + helper.getBlockState(new BlockPos(7, 1, 8)));
                     if (helper.getBlockState(new BlockPos(7, 1, 8)).getValue(PistonBaseBlock.EXTENDED))
                         helper.fail("A protected piston still extended");

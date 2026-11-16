@@ -27,7 +27,6 @@ import java.util.Map;
  * The supported subset is deliberately conservative: all unsupported content is
  * rejected before queueing, never silently omitted or built for free. */
 public final class CreateSchematicIntegration {
-    private static final int MAX_VOLUME = 32768, MAX_BLOCKS = 16384;
     public record Result(Building task, String message) {}
 
     public static boolean isCreateLoaded() { return ModList.get().isLoaded("create"); }
@@ -60,7 +59,7 @@ public final class CreateSchematicIntegration {
                 if (colony.getBuildings().stream().anyMatch(b -> b.hasImportedSource(source))) continue;
                 if (!retryCancelled && colony.isCancelledSchematic(source)) continue;
                 try {
-                    var decoded = decode(level, stack);
+                    var decoded = decode(level, stack, colony.schematicVolumeLimit(), colony.schematicBlockLimit());
                     String obstacle = validateSite(colony, level, decoded.blocks());
                     if (obstacle != null) { reason = obstacle; continue; }
                     Building task = Building.imported(decoded.anchor(), colony.getCulture(), source, decoded.blocks());
@@ -91,7 +90,8 @@ public final class CreateSchematicIntegration {
     }
 
     @SuppressWarnings("unchecked")
-    private static Decoded decode(ServerLevel level, ItemStack blueprint) throws ReflectiveOperationException, UnsupportedSchematic {
+    private static Decoded decode(ServerLevel level, ItemStack blueprint, int maxVolume, int maxBlocks)
+            throws ReflectiveOperationException, UnsupportedSchematic {
         Class<?> components = Class.forName("com.simibubi.create.AllDataComponents");
         var deployedType = (DataComponentType<Boolean>) components.getField("SCHEMATIC_DEPLOYED").get(null);
         var anchorType = (DataComponentType<BlockPos>) components.getField("SCHEMATIC_ANCHOR").get(null);
@@ -102,7 +102,7 @@ public final class CreateSchematicIntegration {
         var template = (StructureTemplate) itemClass.getMethod("loadSchematic", Level.class, ItemStack.class).invoke(null, level, blueprint);
         var size = template.getSize();
         long volume = (long) size.getX() * size.getY() * size.getZ();
-        if (size.getX() <= 0 || size.getY() <= 0 || size.getZ() <= 0 || volume > MAX_VOLUME
+        if (size.getX() <= 0 || size.getY() <= 0 || size.getZ() <= 0 || volume > maxVolume
                 || size.getX() > 64 || size.getY() > 32 || size.getZ() > 64)
             throw new UnsupportedSchematic("Schematic file missing, empty, or too large");
         Class<?> printerClass = Class.forName("com.simibubi.create.content.schematics.SchematicPrinter");
@@ -130,7 +130,7 @@ public final class CreateSchematicIntegration {
         Map<BlockPos, BlockState> lowerDoors = new HashMap<>();
         int inspected = 0;
         while ((boolean) advance.invoke(printer)) {
-            if (++inspected > MAX_VOLUME * 2) throw new UnsupportedSchematic("Schematic has too many positions");
+            if (++inspected > maxVolume * 2) throw new UnsupportedSchematic("Schematic has too many positions");
             current[0] = current[1] = current[2] = null;
             handle.invoke(printer, onBlock, onEntity);
             if (stage.invoke(printer).toString().equals("ENTITIES"))
@@ -161,7 +161,7 @@ public final class CreateSchematicIntegration {
                     || !ItemStack.isSameItemSameComponents(item, item.getItem().getDefaultInstance()))
                 throw new UnsupportedSchematic("Schematic has a special material requirement");
             plan.add(new Building.BlockPlacement(pos, state, BuiltInRegistries.ITEM.getKey(item.getItem()).toString(), item.getCount()));
-            if (plan.size() > MAX_BLOCKS) throw new UnsupportedSchematic("Schematic contains too many blocks");
+            if (plan.size() > maxBlocks) throw new UnsupportedSchematic("Schematic contains too many blocks");
         }
         if (plan.isEmpty()) throw new UnsupportedSchematic("Schematic contains no supported blocks");
         if (lowerDoors.size() != upperDoors.size()) throw new UnsupportedSchematic("Schematic has an incomplete door");

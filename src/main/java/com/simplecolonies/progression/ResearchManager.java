@@ -84,7 +84,7 @@ public class ResearchManager {
     }
 
     public boolean canUnlock(ColonyUpgrade upgrade) {
-        if (upgrade == ColonyUpgrade.SCHEMATIC_CANNON || isUnlocked(upgrade)) return false;
+        if (isUnlocked(upgrade)) return false;
         for (var pre : upgrade.prerequisites) if (!isUnlocked(pre)) return false;
         return true;
     }

@@ -5,6 +5,8 @@
 - Daily meals are physical: a citizen walks to shared storage in the morning, takes a real food item and eats it. Uncollected rations are settled from storage before the next simulated day, so unloaded colonies still consume food. Config `enablePhysicalMeals` restores the old remote drawer when disabled.
 - Completed harbors run a trade visit that sells surplus goods for emeralds; completed markets order missing construction materials with those emeralds. Reserves and the colony's own food are protected, and `/colony status` shows the last visit. Config `enableTradeRoutes`.
 - A completed temple slowly raises existing player reputation (capped at 60, below the leadership threshold) and ignores hostile players.
+- Overlapping colonies no longer hide each other's protection: a block is protected when *any* colony that covers it owns it.
+- `Schematic Cannon` is a real research: builders accept a Create blueprint twice as large (32k blocks, 64k volume) once it is unlocked instead of being permanently unavailable.
 - `Building` keeps and saves the bounding box of its plan, so finished buildings stay protected without regenerating thousands of placements.
 - New unit tests for protected boxes, trade routes and temple standing, plus GameTests for creeper/piston protection, harbor exports, market orders and physical meals. Fire spread remains unprotected and is documented as a limit.
 

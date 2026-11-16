@@ -39,18 +39,6 @@ public final class ColonyProtection {
         return false;
     }
 
-    // Diagnostic counters for GameTests and bug reports; never persisted.
-    private static int pistonEvents, pistonResolved, pistonBlocked;
-    public static int pistonEvents() { return pistonEvents; }
-    public static int pistonResolved() { return pistonResolved; }
-    public static int pistonBlocked() { return pistonBlocked; }
-    public static void countPistonEvent() { pistonEvents++; }
-    public static void countPistonResolved() { pistonResolved++; }
-    public static void countPistonBlocked() { pistonBlocked++; }
-    private static String lastPistonDetail = "";
-    public static String lastPistonDetail() { return lastPistonDetail; }
-    public static void recordPistonDetail(String detail) { lastPistonDetail = detail; }
-
     /** True when a colony owns this block for griefing purposes. */
     public static boolean protectsBlock(ServerLevel level, BlockPos pos) {
         return ColonyManager.getInstance().protectsStructure(level, pos);

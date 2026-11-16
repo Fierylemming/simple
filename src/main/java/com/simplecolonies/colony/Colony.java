@@ -90,6 +90,17 @@ public class Colony {
     public WarehouseManager getWarehouseManager() { return warehouseManager; }
     public ResearchManager getResearch() { return researchManager; }
 
+    /** Largest Create schematic volume a builder may import for this colony. */
+    public int schematicVolumeLimit() { return schematicLimits()[0]; }
+
+    /** Largest number of supported blocks a builder may import for this colony. */
+    public int schematicBlockLimit() { return schematicLimits()[1]; }
+
+    private int[] schematicLimits() {
+        boolean bigger = researchManager.isUnlocked(com.simplecolonies.progression.ColonyUpgrade.SCHEMATIC_CANNON);
+        return bigger ? new int[]{65536, 32768} : new int[]{32768, 16384};
+    }
+
     public int citizenCount() { return citizens.size(); }
     public boolean isLeader(Player player) { return leaderId != null && leaderId.equals(player.getUUID()); }
 

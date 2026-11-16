@@ -136,25 +136,10 @@ public class ColonyEventHandler {
     public static void onPistonPre(net.neoforged.neoforge.event.level.PistonEvent.Pre event) {
         if (!(event.getLevel() instanceof ServerLevel level)) return;
         if (!com.simplecolonies.config.ColonyConfig.PROTECT_COLONY_FROM_PISTONS.get()) return;
-        ColonyProtection.countPistonEvent();
         var helper = event.getStructureHelper();
         if (helper == null || !helper.resolve()) return;
-        ColonyProtection.countPistonResolved();
-        var detail = new StringBuilder("dir=").append(event.getDirection())
-                .append(" type=").append(event.getPistonMoveType());
-        for (var pos : helper.getToPush()) detail.append(" push=").append(pos).append(ColonyProtection.protectsBlock(level, pos) ? "+" : "-");
-        for (var pos : helper.getToDestroy()) detail.append(" destroy=").append(pos).append(ColonyProtection.protectsBlock(level, pos) ? "+" : "-");
-        ColonyProtection.recordPistonDetail(detail.toString());
-        for (var pos : helper.getToPush()) if (ColonyProtection.protectsBlock(level, pos)) {
-            ColonyProtection.countPistonBlocked();
-            event.setCanceled(true);
-            return;
-        }
-        for (var pos : helper.getToDestroy()) if (ColonyProtection.protectsBlock(level, pos)) {
-            ColonyProtection.countPistonBlocked();
-            event.setCanceled(true);
-            return;
-        }
+        for (var pos : helper.getToPush()) if (ColonyProtection.protectsBlock(level, pos)) { event.setCanceled(true); return; }
+        for (var pos : helper.getToDestroy()) if (ColonyProtection.protectsBlock(level, pos)) { event.setCanceled(true); return; }
     }
 
     @SubscribeEvent

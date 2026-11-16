@@ -24,6 +24,9 @@ or a player who wants to clear a building can still do it. Pistons are blocked
 from pushing, pulling or breaking colony property, which closes the most common
 griefing trick without adding a mixin.
 
+Protection is looked up across every colony that covers a block, so two
+overlapping villages cannot shadow each other's buildings.
+
 Switches: `protectColoniesFromMobExplosions` and `protectColoniesFromPistons`
 (both default `true`).
 

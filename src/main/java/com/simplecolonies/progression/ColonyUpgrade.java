@@ -33,7 +33,7 @@ import java.util.Set;
  * Tier 3 — Diamond/Advanced (needs diamonds via Miner at iron tier, emeralds via trading, redstone via iron pick):
  *  - TOOL_DIAMOND [4 diamond,8 iron_ingot] → 2.0×
  *  - EFFICIENCY_2 [8 emerald,1 diamond] → +25%, prereq Eff1 + Iron
- *  - SCHEMATIC_CANNON [2 iron_block,8 redstone] → needs Iron tier to mine redstone+iron
+ *  - SCHEMATIC_CANNON [2 iron_block,8 redstone,8 planks] → doubles the accepted Create schematic size
  */
 public enum ColonyUpgrade {
     // === Tool tiers ===
@@ -118,7 +118,7 @@ public enum ColonyUpgrade {
             Map.of("minecraft:emerald", 8, "minecraft:diamond", 1),
             Set.of(EFFICIENCY_1, TOOL_IRON), UpgradeCategory.BUFF,
             "Needs trading/mining at iron tier"),
-    SCHEMATIC_CANNON("Schematic Cannon", "Unavailable: schematic construction is not implemented", 3,
+    SCHEMATIC_CANNON("Schematic Cannon", "Builders accept Create blueprints twice as large (32k blocks)", 3,
             Map.of("minecraft:iron_block", 2, "minecraft:redstone", 8, "minecraft:oak_planks", 8),
             Set.of(UNLOCK_BUILDER, TOOL_IRON), UpgradeCategory.BUFF,
             "Needs iron to mine redstone/iron");
