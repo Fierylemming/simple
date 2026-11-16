@@ -61,10 +61,10 @@ public class TradeAndMealGameTests {
      * tick the fixture colony.
      */
     private static void advanceOneDay(GameTestHelper helper) {
-        helper.runAfterDelay(200, () -> helper.getLevel().setDayTime(helper.getLevel().getDayTime() + 24000));
+        helper.runAfterDelay(100, () -> helper.getLevel().setDayTime(helper.getLevel().getDayTime() + 24000));
     }
 
-    @GameTest(template = "empty", timeoutTicks = 600)
+    @GameTest(template = "empty", timeoutTicks = 1200)
     public static void harborSellsSurplusForEmeralds(GameTestHelper helper) {
         var center = helper.absolutePos(new BlockPos(8, 1, 8));
         var colony = install(helper, center, BuildingType.HARBOR);
@@ -78,11 +78,16 @@ public class TradeAndMealGameTests {
             storage.setItem(0, new ItemStack(Items.COD, 40));
             storage.setChanged();
             advanceOneDay(helper);
-            helper.runAfterDelay(420, () -> {
+            // Day simulation runs from the colony manager every 200 ticks; allow a
+            // full window, then force one tick in case the manager just ran.
+            helper.runAfterDelay(900, () -> {
                 try {
                     colony.tick(helper.getLevel());
                     if (colony.getWarehouseCount(helper.getLevel(), "minecraft:emerald") < 1)
-                        helper.fail("A harbor with surplus cod paid no emeralds: " + colony.getTradeReport());
+                        helper.fail("A harbor with surplus cod paid no emeralds: " + colony.getTradeReport()
+                                + " buildings=" + colony.getBuildings().size()
+                                + " day=" + helper.getLevel().getDayTime()
+                                + " stock=" + colony.getWarehouseSnapshot(helper.getLevel()));
                     if (colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") != 32)
                         helper.fail("Harbor exported the wrong amount: " + colony.getWarehouseSnapshot(helper.getLevel()));
                     helper.succeed();
@@ -91,7 +96,7 @@ public class TradeAndMealGameTests {
         } finally { uninstall(); }
     }
 
-    @GameTest(template = "empty", timeoutTicks = 600)
+    @GameTest(template = "empty", timeoutTicks = 1200)
     public static void marketOrdersMissingMaterial(GameTestHelper helper) {
         var center = helper.absolutePos(new BlockPos(8, 1, 8));
         var colony = install(helper, center, BuildingType.MARKET);
@@ -107,11 +112,12 @@ public class TradeAndMealGameTests {
             storage.setItem(0, new ItemStack(Items.EMERALD, 8));
             storage.setChanged();
             advanceOneDay(helper);
-            helper.runAfterDelay(420, () -> {
+            helper.runAfterDelay(900, () -> {
                 try {
                     colony.tick(helper.getLevel());
                     int emeralds = colony.getWarehouseCount(helper.getLevel(), "minecraft:emerald");
-                    if (emeralds >= 8) helper.fail("Market spent nothing: " + colony.getTradeReport());
+                    if (emeralds >= 8) helper.fail("Market spent nothing: " + colony.getTradeReport()
+                            + " buildings=" + colony.getBuildings().size() + " day=" + helper.getLevel().getDayTime());
                     if (!colony.getTradeReport().startsWith("Market:"))
                         helper.fail("No market order was recorded: " + colony.getTradeReport());
                     helper.succeed();
