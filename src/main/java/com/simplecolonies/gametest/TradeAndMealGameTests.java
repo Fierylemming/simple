@@ -68,12 +68,17 @@ public class TradeAndMealGameTests {
                 helper.fail("Could not share the harbor chest");
             storage.setItem(0, new ItemStack(Items.COD, 40));
             storage.setChanged();
-            colony.tick(helper.getLevel());
-            if (colony.getWarehouseCount(helper.getLevel(), "minecraft:emerald") < 1)
-                helper.fail("A harbor with surplus cod paid no emeralds: " + colony.getTradeReport());
-            if (colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") != 32)
-                helper.fail("Harbor exported the wrong amount: " + colony.getWarehouseSnapshot(helper.getLevel()));
-            helper.succeed();
+            // Colony.tick debounces to one check per 100 ticks; let the world run first.
+            helper.runAfterDelay(200, () -> {
+                try {
+                    colony.tick(helper.getLevel());
+                    if (colony.getWarehouseCount(helper.getLevel(), "minecraft:emerald") < 1)
+                        helper.fail("A harbor with surplus cod paid no emeralds: " + colony.getTradeReport());
+                    if (colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") != 32)
+                        helper.fail("Harbor exported the wrong amount: " + colony.getWarehouseSnapshot(helper.getLevel()));
+                    helper.succeed();
+                } finally { uninstall(); }
+            });
         } finally { uninstall(); }
     }
 
@@ -92,12 +97,16 @@ public class TradeAndMealGameTests {
                 helper.fail("Could not share the market chest");
             storage.setItem(0, new ItemStack(Items.EMERALD, 8));
             storage.setChanged();
-            colony.tick(helper.getLevel());
-            int emeralds = colony.getWarehouseCount(helper.getLevel(), "minecraft:emerald");
-            if (emeralds >= 8) helper.fail("Market spent nothing: " + colony.getTradeReport());
-            if (!colony.getTradeReport().startsWith("Market:"))
-                helper.fail("No market order was recorded: " + colony.getTradeReport());
-            helper.succeed();
+            helper.runAfterDelay(200, () -> {
+                try {
+                    colony.tick(helper.getLevel());
+                    int emeralds = colony.getWarehouseCount(helper.getLevel(), "minecraft:emerald");
+                    if (emeralds >= 8) helper.fail("Market spent nothing: " + colony.getTradeReport());
+                    if (!colony.getTradeReport().startsWith("Market:"))
+                        helper.fail("No market order was recorded: " + colony.getTradeReport());
+                    helper.succeed();
+                } finally { uninstall(); }
+            });
         } finally { uninstall(); }
     }
 
@@ -114,10 +123,12 @@ public class TradeAndMealGameTests {
             helper.fail("Could not share the pantry");
         storage.setItem(0, new ItemStack(Items.BREAD, 3));
         storage.setChanged();
+        for (int x = 6; x <= 14; x++) for (int z = 6; z <= 12; z++)
+            helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 12));
         worker.setColony(colony);
-        colony.tick(helper.getLevel());   // one simulated day: one meal is scheduled
-        helper.runAfterDelay(300, () -> {
+        helper.runAfterDelay(200, () -> colony.tick(helper.getLevel()));   // one simulated day: one meal is scheduled
+        helper.runAfterDelay(600, () -> {
             try {
                 if (colony.getCitizens().stream().allMatch(c -> c.pendingMeals > 0))
                     helper.fail("The scheduled meal was never eaten: " + colony.getTradeReport());
