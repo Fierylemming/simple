@@ -3,6 +3,12 @@
 Back up your world before trying this update. Everything below still needs in-game
 and dedicated-server validation; no release was published.
 
+Automated checks on commit 263aebc: `./gradlew build` (main and unit tests) passed,
+the construction GameTest suite passed all 227 tests, and the Create compatibility
+GameTest run passed. That covers the trade tables, property claims and bounded
+walks as unit/GameTest behaviour; a live world and a dedicated server are still
+unverified.
+
 ## Colony trades replace the borrowed vanilla lists
 
 Every colony job now has its own small trade table (`ColonyTradeTable`). A worker
