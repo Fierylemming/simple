@@ -625,8 +625,19 @@ public class ColonyManager {
     }
 
     /** Colony-owned structures, used to keep mob explosions and pistons out. */
+    /**
+     * True when any colony containing this position protects it. Colonies may
+     * overlap (and GameTest arenas always do), so protection must not depend on
+     * which of the overlapping colonies a lookup happens to return first.
+     */
+    /** Every colony whose territory contains this position; colonies may overlap. */
+    public java.util.List<Colony> getAllAt(BlockPos pos) {
+        return colonies.values().stream().filter(c -> c.isInside(pos)).toList();
+    }
+
     public boolean protectsStructure(ServerLevel level, BlockPos pos) {
-        return getColonyAt(level.dimension(), pos).map(c -> c.protectsStructure(pos)).orElse(false);
+        if (!Level.OVERWORLD.equals(level.dimension())) return false;
+        return getAllAt(pos).stream().anyMatch(c -> c.protectsStructure(pos));
     }
 
     /** Called when a player physically places a block; only loaded colonies record it. */

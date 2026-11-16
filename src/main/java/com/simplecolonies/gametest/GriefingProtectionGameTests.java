@@ -94,8 +94,10 @@ public class GriefingProtectionGameTests {
         if (colony == null) return;
         try {
             var target = helper.absolutePos(new BlockPos(8, 1, 8));
-            if (!colony.protectsStructure(target))
-                helper.fail("Fixture is not protected, so the piston test proves nothing");
+            if (!ColonyManager.getInstance().protectsStructure(helper.getLevel(), target))
+                helper.fail("Fixture is not protected, so the piston test proves nothing: direct="
+                        + colony.protectsStructure(target) + " dim=" + helper.getLevel().dimension()
+                        + " colonies=" + ColonyManager.getInstance().getAll().size());
             helper.setBlock(new BlockPos(8, 1, 8), Blocks.STONE_BRICKS);
             helper.setBlock(new BlockPos(7, 1, 8), Blocks.PISTON.defaultBlockState()
                     .setValue(DirectionalBlock.FACING, Direction.EAST));
