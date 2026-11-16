@@ -8,7 +8,7 @@ class TempleReputationTest {
     @Test void aTempleGrowsStandingSlowly() {
         assertEquals(11, TempleReputation.boost(10, true));
         assertEquals(TempleReputation.TEMPLE_CAP, TempleReputation.boost(TempleReputation.TEMPLE_CAP, true));
-        assertEquals(11, TempleReputation.boost(10, false), "without a temple nothing changes");
+        assertEquals(10, TempleReputation.boost(10, false), "without a temple nothing changes");
         assertEquals(0, TempleReputation.boost(-5, true));
     }
 
