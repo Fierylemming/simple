@@ -331,6 +331,10 @@ public class ColonyCommand {
     private static int sendResearch(CommandSourceStack src, Colony c, ServerPlayer p) {
         src.sendSuccess(() -> Component.literal("§lResearch for colony #" + c.getId() + " — tool tier " + c.getResearch().getToolTier() + " speed " + c.getResearch().getWorkSpeedMultiplier() + "x"), false);
         src.sendSuccess(() -> Component.literal("§aUnlocked (" + c.getResearch().getUnlocked().size() + "): " + c.getResearch().getUnlocked().stream().map(u -> u.displayName).reduce((a,b)->a+", "+b).orElse("none")), false);
+        var pending = c.getResearch().getPending();
+        if (pending != null) src.sendSuccess(() -> Component.literal("§eQueued: " + pending.displayName
+                + (c.getResearch().getAssignedWorker() == null ? " — waiting for a builder" : " — assigned to a builder")
+                + "; cancel in the town hall Research tab."), false);
         var avail = c.getResearch().getAvailableToBuy();
         if (avail.isEmpty()) src.sendSuccess(() -> Component.literal("§eNo more unlockable upgrades — need prereqs or already maxed"), false);
         else {

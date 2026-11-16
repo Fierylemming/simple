@@ -167,6 +167,38 @@ public class ResearchGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 1600)
+    public static void upgradedLibraryQueuesSequentialPhysicalResearchAcrossReload(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos chestPos = new BlockPos(6, 1, 8), hall = new BlockPos(9, 1, 8);
+        helper.setBlock(chestPos, Blocks.CHEST); Container chest = (Container) helper.getBlockEntity(chestPos);
+        stock(chest, 2); chest.setItem(1, new ItemStack(Items.OAK_PLANKS, 64)); chest.setItem(2, new ItemStack(Items.COAL, 16));
+        chest.setItem(3, new ItemStack(Items.WHEAT, 64)); chest.setItem(4, new ItemStack(Items.OAK_FENCE, 16)); chest.setChanged();
+        Colony[] colony = {colony(helper, hall)};
+        colony[0].getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chestPos));
+        var library = new Building(BuildingType.LIBRARY, colony[0].getCenter(), CultureType.ROMAN, true);
+        library.setLevel(5); colony[0].registerPlayerBuilding(library);
+        var tag = colony[0].getResearch().save(); tag.putInt("autoCooldown", 0); colony[0].getResearch().load(tag);
+        colony[0].getResearch().tickAutoProgress(helper.getLevel());
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(7, 1, 8)); worker.setNoAi(true);
+        BuilderJob[] job = {new BuilderJob(worker, colony[0])}; boolean[] reloaded = {false};
+        for (int tick = 1; tick < 1600; tick++) helper.runAtTickTime(tick, () -> {
+            job[0].tick(helper.getLevel());
+            if (!reloaded[0] && colony[0].getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE)) {
+                if (colony[0].getResearch().getPending() != ColonyUpgrade.UNLOCK_BUTCHER) helper.fail("Second automatic topic was not queued");
+                colony[0] = Colony.load(colony[0].save()); job[0] = new BuilderJob(worker, colony[0]); reloaded[0] = true;
+            }
+        });
+        helper.succeedWhen(() -> {
+            if (!reloaded[0] || !colony[0].getResearch().isUnlocked(ColonyUpgrade.UNLOCK_BUTCHER)
+                    || !colony[0].getResearch().isUnlocked(ColonyUpgrade.EFFICIENCY_1)
+                    || colony[0].getResearch().getPending() != null || chest.countItem(Items.COBBLESTONE) != 32
+                    || chest.countItem(Items.OAK_PLANKS) != 32 || chest.countItem(Items.COAL) != 8
+                    || chest.countItem(Items.WHEAT) != 32 || chest.countItem(Items.OAK_FENCE) != 8)
+                helper.fail("Sequential library research did not complete with reserves: " + job[0].getState());
+        });
+    }
+
     @GameTest(template = "empty")
     public static void researchRejectsVirtualStockAndRetainsLegacyUnlocks(GameTestHelper helper) {
         Colony colony = colony(helper, new BlockPos(8, 1, 8));
@@ -202,7 +234,7 @@ public class ResearchGameTests {
 
     @GameTest(template = "empty")
     public static void housingResearchStillAssignsShelterAfterReload(GameTestHelper helper) {
-        Colony colony = colony(helper, new BlockPos(8, 1, 8));
+        Colony colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
         colony.registerPlayerBuilding(new Building(BuildingType.HOUSE, colony.getCenter().east(5), CultureType.ROMAN, true));
         for (int i = 0; i < 6; i++) colony.addCitizen(new com.simplecolonies.colony.CitizenData(
                 java.util.UUID.randomUUID(), "Resident", com.simplecolonies.villager.job.JobType.UNEMPLOYED));
