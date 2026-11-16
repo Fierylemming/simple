@@ -36,6 +36,13 @@ Added in 0.1.31; all of it still needs in-game verification.
 7. **Config switches.** `protectColoniesFromMobExplosions`,
    `protectColoniesFromPistons`, `enablePhysicalMeals` and `enableTradeRoutes` all
    turn their feature back off.
+8. **Schematic Cannon.** With Create installed, import a blueprint near the size
+   limit (16k supported blocks): it is refused before the research and accepted
+   after it. Only the size check changes; everything the old limit already
+   supported behaves exactly as before.
+9. **Overlapping colonies.** Two colonies whose circles overlap must both keep
+   their protection: a creeper beside a building owned by the *second* colony must
+   still fail to break it.
 
 Fire is **not** protected in this build: a burning colony can still lose wooden
 buildings, because Minecraft offers no fire-spread event and the mod ships no
