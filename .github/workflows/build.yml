@@ -1,7 +1,7 @@
 name: Build
 on:
   push:
-    branches: ['arena/957b7435-simple', 'arena/e0f7e936-simple']
+    branches: ['arena/e0f7e936-simple']
   workflow_dispatch:
 jobs:
   build:
