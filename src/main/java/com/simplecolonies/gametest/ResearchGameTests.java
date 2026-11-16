@@ -112,6 +112,30 @@ public class ResearchGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 800)
+    public static void researchCannotWithdrawThroughWalls(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos chestPos = new BlockPos(7, 1, 8), hall = new BlockPos(11, 1, 8);
+        helper.setBlock(chestPos, Blocks.CHEST);
+        for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++) for (int y = 0; y <= 3; y++)
+            if (x != 0 || z != 0 || y == 3) helper.setBlock(chestPos.offset(x, y, z), Blocks.STONE);
+        Container chest = (Container) helper.getBlockEntity(chestPos); stock(chest, 1);
+        Colony colony = colony(helper, hall); colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chestPos));
+        if (!colony.getResearch().tryBuy(ColonyUpgrade.TOOL_STONE, helper.getLevel(), null)) helper.fail("Could not queue research");
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(9, 1, 8)); worker.setNoAi(true);
+        var job = new BuilderJob(worker, colony); boolean[] opened = {false};
+        for (int tick = 1; tick < 800; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(80, () -> {
+            if (!worker.getResearchMaterials().isEmpty() || chest.countItem(Items.COAL) != 4 || colony.getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE))
+                helper.fail("Builder accessed a shared chest through a wall");
+            helper.setBlock(chestPos.east(), Blocks.AIR); helper.setBlock(chestPos.east().above(), Blocks.AIR); opened[0] = true;
+        });
+        helper.succeedWhen(() -> {
+            if (!opened[0] || !colony.getResearch().isUnlocked(ColonyUpgrade.TOOL_STONE))
+                helper.fail("Builder could not research after access was restored: " + job.getState());
+        });
+    }
+
     @GameTest(template = "empty", timeoutTicks = 900)
     public static void automaticResearchRechecksReserveAfterPickup(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
@@ -155,6 +179,42 @@ public class ResearchGameTests {
         unlocked.add(net.minecraft.nbt.StringTag.valueOf("SCHEMATIC_CANNON")); tag.put("unlocked", unlocked);
         colony.getResearch().load(tag);
         if (!Colony.load(colony.save()).getResearch().isUnlocked(ColonyUpgrade.SCHEMATIC_CANNON)) helper.fail("Legacy unlock was lost");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void researchOrderHasOnePersistentOwner(GameTestHelper helper) {
+        BlockPos chestPos = new BlockPos(6, 1, 8), hall = new BlockPos(8, 1, 8);
+        helper.setBlock(chestPos, Blocks.CHEST); Container chest = (Container) helper.getBlockEntity(chestPos); stock(chest, 1);
+        Colony colony = colony(helper, hall); colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chestPos));
+        if (!colony.getResearch().tryBuy(ColonyUpgrade.TOOL_STONE, helper.getLevel(), null)) helper.fail("Could not queue topic");
+        var first = java.util.UUID.randomUUID(); var second = java.util.UUID.randomUUID();
+        if (!colony.getResearch().claimWorker(first) || colony.getResearch().claimWorker(second)) helper.fail("Two workers claimed the same order");
+        var restored = Colony.load(colony.save());
+        if (!first.equals(restored.getResearch().getAssignedWorker()) || restored.getResearch().claimWorker(second))
+            helper.fail("Order ownership was not saved");
+        restored.getResearch().releaseWorker(first);
+        if (!restored.getResearch().claimWorker(second) || !restored.getResearch().cancelPending()
+                || restored.getResearch().getAssignedWorker() != null || chest.countItem(Items.COAL) != 4)
+            helper.fail("Released or cancelled research changed stock or remained locked");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void housingResearchStillAssignsShelterAfterReload(GameTestHelper helper) {
+        Colony colony = colony(helper, new BlockPos(8, 1, 8));
+        colony.registerPlayerBuilding(new Building(BuildingType.HOUSE, colony.getCenter().east(5), CultureType.ROMAN, true));
+        for (int i = 0; i < 6; i++) colony.addCitizen(new com.simplecolonies.colony.CitizenData(
+                java.util.UUID.randomUUID(), "Resident", com.simplecolonies.villager.job.JobType.UNEMPLOYED));
+        colony.reconcileHomes();
+        if (colony.getShelterCapacity() != 4) helper.fail("Base shelter capacity incorrect");
+        var tag = colony.getResearch().save();
+        var unlocks = tag.getList("unlocked", net.minecraft.nbt.Tag.TAG_STRING);
+        unlocks.add(net.minecraft.nbt.StringTag.valueOf("HOUSING_EFFICIENT")); tag.put("unlocked", unlocks);
+        colony.getResearch().load(tag);
+        var restored = Colony.load(colony.save()); restored.reconcileHomes();
+        if (restored.getShelterCapacity() != 6 || restored.getCitizens().stream().filter(c -> c.home != null).count() != 6)
+            helper.fail("Saved housing research did not update shelter assignments");
         helper.succeed();
     }
 

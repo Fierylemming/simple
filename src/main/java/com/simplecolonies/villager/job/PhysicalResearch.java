@@ -42,13 +42,8 @@ final class PhysicalResearch {
             var result = materials.prepareCount(level, entry.getKey(), entry.getValue());
             if (result != PhysicalBuilderMaterials.Result.READY) return map(result);
         }
-        if (worker.distanceToSqr(station.getX() + .5, station.getY() + .5, station.getZ() + .5) > 9) {
-            if (!worker.onGround() && !worker.isInLiquid() && !worker.isPassenger()) return Result.MOVING;
-            var path = worker.getNavigation().createPath(station, 1);
-            if (path == null || !path.canReach()) return Result.BLOCKED;
-            worker.getNavigation().moveTo(path, .7);
-            return Result.MOVING;
-        }
+        var approach = materials.approachResearchSite(level, station);
+        if (approach != PhysicalBuilderMaterials.Result.READY) return map(approach);
         // The reserve can change while the builder is walking; do not spend it.
         if (!research.hasAutomaticReserve(level, topic) || !research.canComplete(worker.getUUID(), topic)) return Result.MISSING;
         for (var entry : topic.cost.entrySet()) if (materials.countPrepared(entry.getKey()) < entry.getValue()) return Result.MISSING;

@@ -25,13 +25,50 @@ final class PhysicalBuilderMaterials {
     private final ColonyVillager worker;
     private final Colony colony;
     private final SimpleContainer inventory;
+    private final boolean requireStorageSight;
     private final Map<BlockPos, Long> unreachable = new HashMap<>();
 
     PhysicalBuilderMaterials(ColonyVillager worker, Colony colony) { this(worker, colony, worker.getBuilderMaterials()); }
     PhysicalBuilderMaterials(ColonyVillager worker, Colony colony, SimpleContainer inventory) {
         this.worker = worker; this.colony = colony; this.inventory = inventory;
+        this.requireStorageSight = inventory == worker.getResearchMaterials();
     }
     private SimpleContainer held() { return inventory; }
+
+    private boolean clearStorageSight(ServerLevel level, net.minecraft.world.phys.Vec3 eye, BlockPos target) {
+        var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, net.minecraft.world.phys.Vec3.atCenterOf(target),
+                net.minecraft.world.level.ClipContext.Block.COLLIDER, net.minecraft.world.level.ClipContext.Fluid.NONE, worker));
+        return hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS || hit.getBlockPos().equals(target);
+    }
+
+    private boolean atStorage(ServerLevel level, BlockPos pos) {
+        return worker.distanceToSqr(pos.getX()+.5, pos.getY()+.5, pos.getZ()+.5) <= 9
+                && (!requireStorageSight || clearStorageSight(level, worker.getEyePosition(), pos));
+    }
+
+    /** Find a reachable standing point with an unobstructed view of the chest. */
+    private boolean approachResearchStorage(ServerLevel level, BlockPos pos) {
+        var candidates = new java.util.ArrayList<BlockPos>();
+        for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) for (int dy = -1; dy <= 1; dy++) {
+            var p = pos.offset(dx, dy, dz);
+            double distance = dx * dx + dz * dz + (dy - .5) * (dy - .5);
+            if (distance > 9 || !colony.isInside(p) || !level.isLoaded(p) || !level.isLoaded(p.above()) || !level.isLoaded(p.below())
+                    || !level.getBlockState(p).getCollisionShape(level, p).isEmpty()
+                    || !level.getBlockState(p.above()).getCollisionShape(level, p.above()).isEmpty()
+                    || !level.getBlockState(p.below()).isFaceSturdy(level, p.below(), net.minecraft.core.Direction.UP)
+                    || !level.getFluidState(p).isEmpty() || !level.getFluidState(p.above()).isEmpty()) continue;
+            var eye = new net.minecraft.world.phys.Vec3(p.getX()+.5, p.getY()+worker.getEyeHeight(), p.getZ()+.5);
+            if (clearStorageSight(level, eye, pos)) candidates.add(p);
+        }
+        candidates.sort(Comparator.comparingDouble(p -> p.distSqr(worker.blockPosition())));
+        int attempted = 0;
+        for (BlockPos p : candidates) {
+            if (++attempted > 24) break;
+            var path = worker.getNavigation().createPath(p, 0);
+            if (path != null && path.canReach() && worker.getNavigation().moveTo(path, .7)) return true;
+        }
+        return false;
+    }
     private static boolean plain(ItemStack stack) {
         return !stack.isEmpty() && ItemStack.isSameItemSameComponents(stack, stack.getItem().getDefaultInstance());
     }
@@ -154,11 +191,16 @@ final class PhysicalBuilderMaterials {
             return c != null && snapshot(c).getOrDefault(wanted, 0) > 0;
         }).sorted(Comparator.comparingDouble(p -> p.distSqr(worker.blockPosition()))).toList();
         for (var pos : candidates) {
-            if (worker.distanceToSqr(pos.getX()+.5, pos.getY()+.5, pos.getZ()+.5) > 9) {
+            if (!atStorage(level, pos)) {
                 if (!worker.onGround() && !worker.isInLiquid() && !worker.isPassenger()) return Result.MOVING;
-                var path = worker.getNavigation().createPath(pos, 1);
-                if (path == null || !path.canReach()) { unreachable.put(pos, level.getGameTime()+200); continue; }
-                worker.getNavigation().moveTo(path, .7); return Result.MOVING;
+                if (requireStorageSight) {
+                    if (!approachResearchStorage(level, pos)) { unreachable.put(pos, level.getGameTime()+200); continue; }
+                } else {
+                    var path = worker.getNavigation().createPath(pos, 1);
+                    if (path == null || !path.canReach()) { unreachable.put(pos, level.getGameTime()+200); continue; }
+                    worker.getNavigation().moveTo(path, .7);
+                }
+                return Result.MOVING;
             }
             var c = warehouse.courierContainer(level, pos);
             for (int i = 0; c != null && i < c.getContainerSize(); i++) {
@@ -173,6 +215,12 @@ final class PhysicalBuilderMaterials {
             }
         }
         return Result.BLOCKED;
+    }
+
+    Result approachResearchSite(ServerLevel level, BlockPos site) {
+        if (atStorage(level, site)) return Result.READY;
+        if (!worker.onGround() && !worker.isInLiquid() && !worker.isPassenger()) return Result.MOVING;
+        return approachResearchStorage(level, site) ? Result.MOVING : Result.BLOCKED;
     }
 
     int countPrepared(String wanted) { return snapshot(held()).getOrDefault(wanted, 0); }
@@ -274,11 +322,16 @@ final class PhysicalBuilderMaterials {
                     return false;
                 }).sorted(Comparator.comparingDouble(p -> p.distSqr(worker.blockPosition()))).toList();
         for (var pos : positions) {
-            if (worker.distanceToSqr(pos.getX()+.5, pos.getY()+.5, pos.getZ()+.5) > 9) {
+            if (!atStorage(level, pos)) {
                 if (!worker.onGround() && !worker.isInLiquid() && !worker.isPassenger()) return Result.MOVING;
-                var path = worker.getNavigation().createPath(pos, 1);
-                if (path == null || !path.canReach()) { unreachable.put(pos, level.getGameTime()+200); continue; }
-                worker.getNavigation().moveTo(path, .7); return Result.MOVING;
+                if (requireStorageSight) {
+                    if (!approachResearchStorage(level, pos)) { unreachable.put(pos, level.getGameTime()+200); continue; }
+                } else {
+                    var path = worker.getNavigation().createPath(pos, 1);
+                    if (path == null || !path.canReach()) { unreachable.put(pos, level.getGameTime()+200); continue; }
+                    worker.getNavigation().moveTo(path, .7);
+                }
+                return Result.MOVING;
             }
             var c = warehouse.courierContainer(level, pos);
             if (c == null) continue;
