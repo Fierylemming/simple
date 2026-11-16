@@ -28,9 +28,8 @@ public final class ColonyProtection {
     /** True for explosions caused by a mob or by a projectile a mob owns. */
     public static boolean isMobExplosion(@Nullable Explosion explosion) {
         if (explosion == null) return false;
-        var damage = explosion.getDamageSource();
-        if (damage == null) return false;
-        return isMobCaused(damage.getEntity()) || isMobCaused(damage.getDirectEntity());
+        if (explosion.getIndirectSourceEntity() instanceof Mob) return true;
+        return isMobCaused(explosion.getDirectSourceEntity());
     }
 
     /** Creepers and other mobs, plus projectiles such as ghast or wither shots. */

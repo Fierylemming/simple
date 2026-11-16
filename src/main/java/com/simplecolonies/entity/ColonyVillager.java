@@ -71,6 +71,9 @@ public class ColonyVillager extends Villager {
     private final java.util.Set<GlobalPos> observedDoorMemories = new java.util.HashSet<>();
 
     // Needs
+    private long nextMealAttempt;
+    private net.minecraft.core.BlockPos mealSource;
+    private net.minecraft.world.item.Item mealItem;
     private int hungerTicks = 0; // increments daily if no food, leads to damage
     private int daysAlive = 0;
 
@@ -396,10 +399,53 @@ public class ColonyVillager extends Villager {
                             ColonyManager.getInstance().markDirty(colony);
                         }
                         applyPendingDailyHealth(c);
+                        tryEatQueuedMeal(sl, colony, c);
                     });
             // Show job icon above head if client config enabled
             // (handled via custom renderer; placeholder is nameplate)
         }
+    }
+
+    /**
+     * Eat one of the day's scheduled meals from shared storage.
+     *
+     * <p>The citizen walks to the nearest container that holds plain food, takes
+     * a real item and eats it. Only mornings are used for meals; a ration nobody
+     * collected is settled from storage before the next simulated day, so food
+     * is never created or lost.</p>
+     */
+    private void tryEatQueuedMeal(ServerLevel level, Colony colony, CitizenData citizen) {
+        if (citizen.pendingMeals <= 0) { mealSource = null; mealItem = null; return; }
+        if (!com.simplecolonies.config.ColonyConfig.ENABLE_PHYSICAL_MEALS.get()) return;
+        if (isBaby() || isTrading() || isSleeping() || isInDanger()) return;
+        // Meals happen in the morning; leftovers are settled remotely at the next day.
+        if (Math.floorMod(level.getDayTime(), 24000L) >= 8000) return;
+        long now = level.getGameTime();
+        if (mealSource != null && distanceToSqr(mealSource.getX() + 0.5, mealSource.getY() + 0.5, mealSource.getZ() + 0.5) <= 6) {
+            if (mealItem == null) { mealSource = null; return; }
+            var taken = colony.takeStockItem(level, blockPosition(), mealItem);
+            mealSource = null;
+            mealItem = null;
+            nextMealAttempt = now + 100;
+            if (taken.isEmpty()) return;
+            taken.getItem().finishUsingItem(taken, level, this);
+            colony.recordMealEaten(citizen);
+            return;
+        }
+        if (now < nextMealAttempt) return;
+        if (!getNavigation().isDone() || getBrain().hasMemoryValue(MemoryModuleType.WALK_TARGET)) return;
+        nextMealAttempt = now + 100;
+        var source = colony.findMealSource(level, blockPosition());
+        if (source == null) return;
+        if (getNavigation() instanceof net.minecraft.world.entity.ai.navigation.GroundPathNavigation ground) {
+            ground.setCanOpenDoors(true);
+            ground.setCanPassDoors(true);
+        }
+        var path = getNavigation().createPath(source.pos(), 1);
+        if (path == null) return;
+        mealSource = source.pos();
+        mealItem = source.item();
+        getNavigation().moveTo(path, 0.55);
     }
 
     /** Brief idle conversations use vanilla gossip rather than inventing reputation. */

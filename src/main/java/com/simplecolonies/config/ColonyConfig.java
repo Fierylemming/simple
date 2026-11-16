@@ -19,6 +19,8 @@ public class ColonyConfig {
     public static final ModConfigSpec.BooleanValue ENABLE_NATURAL_EXPANSION;
     public static final ModConfigSpec.IntValue EXPANSION_CHECK_DAYS;
     public static final ModConfigSpec.BooleanValue ENABLE_WARFARE;
+    public static final ModConfigSpec.BooleanValue ENABLE_PHYSICAL_MEALS;
+    public static final ModConfigSpec.BooleanValue ENABLE_TRADE_ROUTES;
     public static final ModConfigSpec.BooleanValue PROTECT_COLONY_FROM_MOB_EXPLOSIONS;
     public static final ModConfigSpec.BooleanValue PROTECT_COLONY_FROM_PISTONS;
     public static final ModConfigSpec.BooleanValue REPLACE_VANILLA_VILLAGES;
@@ -52,6 +54,12 @@ public class ColonyConfig {
         ENABLE_NATURAL_EXPANSION = BUILDER.comment("Colonies expand on their own if resources allow").define("enableNaturalExpansion", true);
         EXPANSION_CHECK_DAYS = BUILDER.comment("Legacy setting: automatic expansion now checks at each colony tick when supplies permit").defineInRange("expansionCheckDays", 5, 1, 100);
         ENABLE_WARFARE = BUILDER.comment("Enable soldier villagers, wars and alliances").define("enableWarfare", true);
+        ENABLE_PHYSICAL_MEALS = BUILDER.comment("Citizens walk to shared storage and eat a real food item each day.",
+                "Meals nobody collected are eaten off-screen before the next day, so unloaded colonies still consume food.",
+                "Disable to consume food from the ledger remotely as before.")
+                .define("enablePhysicalMeals", true);
+        ENABLE_TRADE_ROUTES = BUILDER.comment("A completed harbor sells surplus goods for emeralds and a completed market orders missing building materials.")
+                .define("enableTradeRoutes", true);
         PROTECT_COLONY_FROM_MOB_EXPLOSIONS = BUILDER.comment("Creepers, ghasts, withers and their projectiles cannot break colony buildings, protected plots or player blocks.",
                 "Entity damage still applies, and player-caused explosions (TNT, beds, crystals) still destroy blocks so sieges and demolition stay possible.")
                 .define("protectColoniesFromMobExplosions", true);

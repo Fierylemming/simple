@@ -1,6 +1,7 @@
 package com.simplecolonies.colony;
 
 import com.simplecolonies.building.Building;
+import com.simplecolonies.building.BuildingState;
 import com.simplecolonies.building.BuildingType;
 import com.simplecolonies.culture.CultureType;
 import com.simplecolonies.progression.ResearchManager;
@@ -12,6 +13,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -56,6 +58,8 @@ public class Colony {
     private boolean deferredBirthsDuringCatchUp;
     private boolean hasObservedClocks;
     private long observedGameTime, observedDayTime;
+    // Last completed trade visit, shown by /colony status.
+    private String lastTradeReport = "No harbor or market built";
 
     // For persistence
     private final UUID colonyUuid = UUID.randomUUID();
@@ -206,13 +210,16 @@ public class Colony {
         boolean catchUpBatch = deferredBirthsDuringCatchUp;
         while (dailyBudget-- > 0) {
             int neededFood = (int) Math.ceil(citizens.size() * com.simplecolonies.config.ColonyConfig.FOOD_CONSUMPTION_MULTIPLIER.get());
+            // Meals nobody collected yesterday are eaten off-screen now, so a
+            // shortage is measured against what actually remains.
+            settleQueuedMeals(level);
             int availableFood = countFoodInWarehouse(level);
             if (availableFood >= neededFood) {
-                consumeFood(level, neededFood);
+                scheduleMeals(level, neededFood);
                 daysWithoutFood = 0;
                 if (state == ColonyState.STARVING) state = ColonyState.ACTIVE;
             } else {
-                consumeFood(level, availableFood);
+                scheduleMeals(level, availableFood);
                 daysWithoutFood++;
                 broadcast(Component.literal("§cColony #" + id + " is starving! Day " + daysWithoutFood + " without enough food (" + availableFood + "/" + neededFood + ")"));
                 if (daysWithoutFood >= com.simplecolonies.config.ColonyConfig.DAYS_WITHOUT_FOOD_BEFORE_STARVATION.get()) {
@@ -221,6 +228,19 @@ public class Colony {
                     }
                 }
             }
+
+            // A completed temple earns quiet standing for players who already
+            // have some reputation; it cannot elect a leader on its own.
+            if (!reputation.isEmpty() && hasCompletedBuilding(BuildingType.TEMPLE)) {
+                boolean changed = false;
+                for (var entry : reputation.entrySet()) {
+                    int boosted = TempleReputation.boost(entry.getValue(), true);
+                    if (boosted != entry.getValue()) { entry.setValue(boosted); changed = true; }
+                }
+                if (changed) ColonyManager.getInstance().markDirty(this);
+            }
+
+            if (com.simplecolonies.config.ColonyConfig.ENABLE_TRADE_ROUTES.get()) runTradeRoutes(level);
 
             if (com.simplecolonies.config.ColonyConfig.VILLAGERS_NEED_HOUSING.get()) {
                 int housingSlots = shelterCapacity();
@@ -302,6 +322,105 @@ public class Colony {
             if (take > 0 && consumeStock(level, id, take)) amount -= take;
             if (amount == 0) return;
         }
+    }
+
+    /**
+     * Hand out one meal per citizen. With physical meals enabled a loaded
+     * citizen fetches and eats a real item; leftovers are settled from storage
+     * before the next day so the ledger can never feed a village for free.
+     */
+    private void scheduleMeals(ServerLevel level, int available) {
+        if (citizens.isEmpty()) return;
+        if (!com.simplecolonies.config.ColonyConfig.ENABLE_PHYSICAL_MEALS.get()) {
+            consumeFood(level, Math.min(available, (int) Math.ceil(citizens.size() * com.simplecolonies.config.ColonyConfig.FOOD_CONSUMPTION_MULTIPLIER.get())));
+            return;
+        }
+        int servings = Math.min(citizens.size(), available);
+        int index = 0;
+        for (CitizenData citizen : citizens.values()) {
+            if (index++ >= servings) break;
+            citizen.pendingMeals = Math.min(4, citizen.pendingMeals + 1);
+        }
+    }
+
+    /** Eat every meal that was scheduled but never collected, oldest day first. */
+    void settleQueuedMeals(ServerLevel level) {
+        int remoteMeals = 0;
+        for (CitizenData citizen : citizens.values()) {
+            if (citizen.pendingMeals <= 0) continue;
+            remoteMeals += citizen.pendingMeals;
+            citizen.pendingMeals = 0;
+        }
+        if (remoteMeals > 0) consumeFood(level, remoteMeals);
+    }
+
+    /** Nearest shared container that still holds plain food, for a physical meal. */
+    public record MealSource(BlockPos pos, net.minecraft.world.item.Item item) {}
+
+    public @Nullable MealSource findMealSource(ServerLevel level, BlockPos from) {
+        MealSource best = null;
+        long bestDistance = Long.MAX_VALUE;
+        for (BlockPos pos : warehouseManager.courierStoragePositions(level)) {
+            var container = warehouseManager.courierContainer(level, pos);
+            if (container == null) continue;
+            for (int slot = 0; slot < container.getContainerSize(); slot++) {
+                var stack = container.getItem(slot);
+                if (stack.isEmpty()) continue;
+                String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+                if (!isFood(id)) continue;
+                long distance = from.distSqr(pos);
+                if (distance < bestDistance) { bestDistance = distance; best = new MealSource(pos, stack.getItem()); }
+                break;
+            }
+        }
+        return best;
+    }
+
+    /** A citizen finished a real meal; the day's ration is no longer owed. */
+    public void recordMealEaten(CitizenData citizen) {
+        if (citizen.pendingMeals > 0) citizen.pendingMeals--;
+        ColonyManager.getInstance().markDirty(this);
+    }
+
+    public boolean hasCompletedBuilding(BuildingType type) {
+        for (Building building : buildings) {
+            if (building.getType() == type && building.getState() == BuildingState.COMPLETE) return true;
+        }
+        return false;
+    }
+
+    public String getTradeReport() { return lastTradeReport; }
+
+    /** Harbor exports surplus for emeralds; market spends emeralds on needed materials. */
+    private void runTradeRoutes(ServerLevel level) {
+        var stock = getWarehouseSnapshot(level);
+        if (hasCompletedBuilding(BuildingType.HARBOR)) {
+            var visit = TradeRoutes.harborVisit(stock, countFoodInWarehouse(level), Math.max(4, citizens.size() * 2));
+            if (visit.isPresent() && applyExchange(level, visit.get())) {
+                lastTradeReport = "Harbor: " + TradeRoutes.describe(visit.get());
+                ColonyManager.getInstance().markDirty(this);
+                stock = getWarehouseSnapshot(level);
+            }
+        }
+        if (hasCompletedBuilding(BuildingType.MARKET)) {
+            var needed = new java.util.LinkedHashSet<String>();
+            for (Building building : buildings) {
+                if (building.getState() == BuildingState.COMPLETE) continue;
+                needed.addAll(building.getMissingResources(this).keySet());
+            }
+            var order = TradeRoutes.marketVisit(stock, needed);
+            if (order.isPresent() && applyExchange(level, order.get())) {
+                lastTradeReport = "Market: " + TradeRoutes.describe(order.get());
+                ColonyManager.getInstance().markDirty(this);
+            }
+        }
+    }
+
+    /** Both sides of an exchange must succeed; nothing is created from nothing. */
+    private boolean applyExchange(ServerLevel level, TradeRoutes.Exchange exchange) {
+        if (!consumeStock(level, exchange.giveItem(), exchange.giveCount())) return false;
+        depositToWarehouse(level, exchange.takeItem(), exchange.takeCount());
+        return true;
     }
 
     // A starter town hall provides shelter for its four founders, without inventing beds.

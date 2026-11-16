@@ -20,6 +20,9 @@ public class CitizenData {
     public boolean isChild;
     // A shared house assignment; null means the citizen may shelter in the hall.
     public net.minecraft.core.BlockPos home;
+    // Meals scheduled for this citizen but not yet eaten. Leftovers are settled
+    // from storage before the next simulated day, so food is never free.
+    public int pendingMeals;
     // Run-length encoded daily effects retain ordering while allowing large time
     // skips without storing one boxed byte per citizen per simulated day.
     private record HealthRun(byte starving, long days) {}
@@ -67,6 +70,7 @@ public class CitizenData {
         tag.putBoolean("isSoldier", isSoldier);
         tag.putBoolean("isChild", isChild);
         if (home != null) tag.putLong("home", home.asLong());
+        if (pendingMeals > 0) tag.putInt("pendingMeals", pendingMeals);
         var runs = new net.minecraft.nbt.ListTag();
         for (var run : pendingHealthDays) {
             var entry = new CompoundTag();
@@ -88,6 +92,7 @@ public class CitizenData {
         d.isSoldier = tag.getBoolean("isSoldier");
         d.isChild = tag.getBoolean("isChild");
         if (tag.contains("home")) d.home = net.minecraft.core.BlockPos.of(tag.getLong("home"));
+        d.pendingMeals = Math.clamp(tag.getInt("pendingMeals"), 0, 4);
         if (tag.contains("pendingHealthRuns", net.minecraft.nbt.Tag.TAG_LIST)) {
             var runs = tag.getList("pendingHealthRuns", net.minecraft.nbt.Tag.TAG_COMPOUND);
             for (int i = 0; i < runs.size(); i++) {
