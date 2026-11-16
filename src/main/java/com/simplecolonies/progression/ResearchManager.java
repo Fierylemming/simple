@@ -71,15 +71,11 @@ public class ResearchManager {
 
     /** Only loaded, explicitly shared physical containers can supply new research.
      * Legacy abstract stock is retained, but cannot be materialized by research. */
-    private ResearchCosts.Stock stock(ServerLevel level) {
-        return new ResearchCosts.Stock() {
-            public int count(String id) {
-                if (level == null) return 0;
-                colony.getWarehouseManager().scan(level);
-                return colony.getWarehouseManager().count(id);
-            }
-            public boolean take(String id, int amount) { throw new UnsupportedOperationException(); }
-            public void refund(String id, int amount) { throw new UnsupportedOperationException(); }
+    private ResearchCosts.Counts stock(ServerLevel level) {
+        return id -> {
+            if (level == null) return 0;
+            colony.getWarehouseManager().scan(level);
+            return colony.getWarehouseManager().count(id);
         };
     }
 
