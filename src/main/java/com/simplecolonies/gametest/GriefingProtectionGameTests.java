@@ -93,15 +93,19 @@ public class GriefingProtectionGameTests {
         var colony = install(helper, center, BuildingType.TOWN_HALL);
         if (colony == null) return;
         try {
-            helper.setBlock(new BlockPos(6, 1, 8), Blocks.PISTON.defaultBlockState()
+            var target = helper.absolutePos(new BlockPos(8, 1, 8));
+            if (!colony.protectsStructure(target))
+                helper.fail("Fixture is not protected, so the piston test proves nothing");
+            helper.setBlock(new BlockPos(8, 1, 8), Blocks.STONE_BRICKS);
+            helper.setBlock(new BlockPos(7, 1, 8), Blocks.PISTON.defaultBlockState()
                     .setValue(DirectionalBlock.FACING, Direction.EAST));
-            helper.setBlock(new BlockPos(7, 1, 8), Blocks.STONE_BRICKS);
-            helper.setBlock(new BlockPos(5, 1, 8), Blocks.REDSTONE_BLOCK);
+            helper.setBlock(new BlockPos(6, 1, 8), Blocks.REDSTONE_BLOCK);
             helper.runAfterDelay(60, () -> {
                 try {
-                    if (!helper.getBlockState(new BlockPos(7, 1, 8)).is(Blocks.STONE_BRICKS))
-                        helper.fail("A piston moved a colony block");
-                    if (helper.getBlockState(new BlockPos(6, 1, 8)).getValue(PistonBaseBlock.EXTENDED))
+                    if (!helper.getBlockState(new BlockPos(8, 1, 8)).is(Blocks.STONE_BRICKS))
+                        helper.fail("A piston moved a colony block: protected=" + colony.protectsStructure(target)
+                                + " piston=" + helper.getBlockState(new BlockPos(7, 1, 8)));
+                    if (helper.getBlockState(new BlockPos(7, 1, 8)).getValue(PistonBaseBlock.EXTENDED))
                         helper.fail("A protected piston still extended");
                     helper.succeed();
                 } finally { uninstall(); }
