@@ -79,6 +79,7 @@ public class Building {
             entry.putLong("pos", p.pos.asLong());
             entry.put("state", net.minecraft.nbt.NbtUtils.writeBlockState(p.state));
             entry.putString("item", p.itemId);
+            entry.putInt("count", p.itemCount);
             list.add(entry);
         }
         data.put("placements", list);
@@ -202,11 +203,12 @@ public class Building {
                     if (net.minecraft.core.registries.BuiltInRegistries.BLOCK.getOptional(blockId).isEmpty()
                             || net.minecraft.core.registries.BuiltInRegistries.ITEM.getOptional(itemId).isEmpty()) return;
                     var state = net.minecraft.nbt.NbtUtils.readBlockState(net.minecraft.core.registries.BuiltInRegistries.BLOCK.asLookup(), stateTag);
-                    if (state.isAir()) return;
-                    decoded.add(new BlockPlacement(BlockPos.of(entry.getLong("pos")), state, itemId.toString()));
+                    int count = entry.contains("count", net.minecraft.nbt.Tag.TAG_INT) ? entry.getInt("count") : 1;
+                    if (state.isAir() || count < 1 || count > 64) return;
+                    decoded.add(new BlockPlacement(BlockPos.of(entry.getLong("pos")), state, itemId.toString(), count));
                 }
             } catch (RuntimeException e) { return; }
-            for (var placement : decoded) addPlacement(placement.pos, placement.state, placement.itemId);
+            for (var placement : decoded) addPlacement(placement.pos, placement.state, placement.itemId, placement.itemCount);
             importedPlanValid = true;
             return;
         }
@@ -283,15 +285,17 @@ public class Building {
                 return 2;
             }));
         }
-        for (BlockPlacement p : plan) addPlacement(p.pos, p.state, p.itemId);
+        for (BlockPlacement p : plan) addPlacement(p.pos, p.state, p.itemId, p.itemCount);
     }
 
     /** Standing height inside a modern house; old shells and workshops use ground level. */
     public int constructionWalkY() { return pos.getY() + (type == BuildingType.HOUSE && planVersion >= 3 ? 1 : 0); }
 
-    private void addPlacement(BlockPos at, BlockState block, String item) {
-        placements.add(new BlockPlacement(at, block, item));
-        requiredResources.merge(item, 1, Integer::sum);
+    private void addPlacement(BlockPos at, BlockState block, String item) { addPlacement(at, block, item, 1); }
+
+    private void addPlacement(BlockPos at, BlockState block, String item, int count) {
+        placements.add(new BlockPlacement(at, block, item, count));
+        requiredResources.merge(item, count, Integer::sum);
     }
 
     public boolean hasSupportedPlan() {
@@ -412,7 +416,7 @@ public class Building {
     public List<BlockPlacement> getRemainingPlacements() { return List.copyOf(placements); }
     public void markPlaced(BlockPlacement p) {
         placements.poll(); completed.add(p);
-        requiredResources.computeIfPresent(p.itemId, (key, value) -> value > 1 ? value - 1 : null);
+        requiredResources.computeIfPresent(p.itemId, (key, value) -> value > p.itemCount ? value - p.itemCount : null);
     }
     public void tick(ServerLevel level, Colony colony) {}
 
@@ -476,7 +480,12 @@ public class Building {
         public final BlockPos pos;
         public final BlockState state;
         public final String itemId;
-        public BlockPlacement(BlockPos pos, BlockState state, String itemId) { this.pos = pos; this.state = state; this.itemId = itemId; }
+        public final int itemCount;
+        public BlockPlacement(BlockPos pos, BlockState state, String itemId) { this(pos, state, itemId, 1); }
+        public BlockPlacement(BlockPos pos, BlockState state, String itemId, int itemCount) {
+            if (itemCount < 1 || itemCount > 64) throw new IllegalArgumentException("Invalid placement cost");
+            this.pos = pos; this.state = state; this.itemId = itemId; this.itemCount = itemCount;
+        }
         static BlockPlacement dummy(BlockPos pos, String itemId) {
             return new BlockPlacement(pos, net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), itemId);
         }

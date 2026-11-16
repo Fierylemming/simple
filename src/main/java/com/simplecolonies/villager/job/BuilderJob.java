@@ -127,7 +127,10 @@ public class BuilderJob extends AbstractJob {
             }
             if (physical != null && !before.equals(next.state) && before.getFluidState().isEmpty()
                     && (before.isAir() || before.canBeReplaced())) {
-                var result = physical.prepare(level, next.itemId);
+                // Multi-item Create requirements are collected as real items;
+                // do not silently place a double slab for a single slab.
+                var result = next.itemCount == 1 ? physical.prepare(level, next.itemId)
+                        : physical.prepareCount(level, next.itemId, next.itemCount);
                 if (result != PhysicalBuilderMaterials.Result.READY) {
                     if (result == PhysicalBuilderMaterials.Result.MISSING) {
                         currentJob.setState(BuildingState.NEEDS_RESOURCES); state = JobState.NEEDS_RESOURCE;
@@ -208,7 +211,9 @@ public class BuilderJob extends AbstractJob {
                     ticksUntilNextWork = 20;
                     return;
                 }
-                if (!(physical != null ? physical.takePrepared(next.itemId) : ConstructionCrafting.take(stock, next.itemId))) {
+                if (!(physical != null ? physical.takePrepared(next.itemId, next.itemCount)
+                        : next.itemCount == 1 ? ConstructionCrafting.take(stock, next.itemId)
+                        : colony.consumeStock(level, next.itemId, next.itemCount))) {
                     currentJob.setState(BuildingState.NEEDS_RESOURCES);
                     ColonyManager.getInstance().markDirty(colony);
                     state = JobState.NEEDS_RESOURCE;
@@ -227,8 +232,8 @@ public class BuilderJob extends AbstractJob {
                 } else placed = level.setBlock(next.pos, next.state, 3);
                 if (!placed) {
                     // Crafting may have made a batch; restore the one output that was taken.
-                    if (physical != null) physical.refund(next.itemId);
-                    else stock.add(next.itemId, 1);
+                    if (physical != null) physical.refund(next.itemId, next.itemCount);
+                    else stock.add(next.itemId, next.itemCount);
                     currentJob.setState(BuildingState.BLOCKED);
                     ColonyManager.getInstance().markDirty(colony);
                     state = JobState.STUCK;

@@ -233,19 +233,29 @@ final class PhysicalBuilderMaterials {
         return true;
     }
 
-    boolean takePrepared(String wanted) {
-        for (int i = 0; i < held().getContainerSize(); i++) {
+    boolean takePrepared(String wanted) { return takePrepared(wanted, 1); }
+
+    boolean takePrepared(String wanted, int count) {
+        if (count <= 0 || countPrepared(wanted) < count) return false;
+        for (int i = 0; i < held().getContainerSize() && count > 0; i++) {
             var stack = held().getItem(i);
-            if (plain(stack) && id(stack).equals(wanted)) return !held().removeItem(i, 1).isEmpty();
+            if (!plain(stack) || !id(stack).equals(wanted)) continue;
+            count -= held().removeItem(i, Math.min(count, stack.getCount())).getCount();
         }
-        return false;
+        return count == 0;
     }
 
-    void refund(String id) {
+    void refund(String id) { refund(id, 1); }
+
+    void refund(String id, int count) {
         var item = BuiltInRegistries.ITEM.getOptional(ResourceLocation.parse(id));
-        if (item.isEmpty()) return;
-        var remainder = held().addItem(new ItemStack(item.get()));
-        if (!remainder.isEmpty()) worker.spawnAtLocation(remainder);
+        if (item.isEmpty() || count <= 0) return;
+        while (count > 0) {
+            int amount = Math.min(count, item.get().getDefaultMaxStackSize());
+            var remainder = held().addItem(new ItemStack(item.get(), amount));
+            if (!remainder.isEmpty()) worker.spawnAtLocation(remainder);
+            count -= amount;
+        }
     }
 
     Result returnSurplus(ServerLevel level) {

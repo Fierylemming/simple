@@ -64,6 +64,30 @@ public class ConstructionGameTests {
     @GameTest(template = "empty", timeoutTicks = 2400)
     public static void houseMesopotamian2(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.MESOPOTAMIAN, 2); }
 
+    @GameTest(template = "empty")
+    public static void importedMaterialCountsAndLegacyPlansSurviveReload(GameTestHelper helper) {
+        BlockPos pos = helper.absolutePos(new BlockPos(8, 1, 8));
+        var slab = Blocks.OAK_SLAB.defaultBlockState().setValue(net.minecraft.world.level.block.SlabBlock.TYPE,
+                net.minecraft.world.level.block.state.properties.SlabType.DOUBLE);
+        var plan = Building.imported(pos, CultureType.ROMAN, new net.minecraft.nbt.CompoundTag(), java.util.List.of(
+                new Building.BlockPlacement(pos, slab, "minecraft:oak_slab", 2),
+                new Building.BlockPlacement(pos.east(), slab, "minecraft:oak_slab", 2)));
+        if (plan.getRequiredResources().getOrDefault("minecraft:oak_slab", 0) != 4) helper.fail("Imported cost was not counted");
+        plan.markPlaced(plan.getNextPlacement());
+        var restored = Building.load(plan.save());
+        if (restored.getRemainingPlacements().size() != 1 || restored.getNextPlacement().itemCount != 2
+                || restored.getRequiredResources().getOrDefault("minecraft:oak_slab", 0) != 2)
+            helper.fail("Imported cost or progress was not saved");
+        var legacy = plan.save();
+        var entries = legacy.getCompound("importedPlan").getList("placements", net.minecraft.nbt.Tag.TAG_COMPOUND);
+        for (int i = 0; i < entries.size(); i++) entries.getCompound(i).remove("count");
+        var old = Building.load(legacy);
+        if (!old.hasSupportedPlan() || old.getNextPlacement().itemCount != 1
+                || old.getRequiredResources().getOrDefault("minecraft:oak_slab", 0) != 1)
+            helper.fail("Legacy imported plan lost its one-item cost");
+        helper.succeed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 300)
     public static void builderDoesNotCompletePartialDoorInsideAnimal(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);

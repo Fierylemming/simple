@@ -157,10 +157,10 @@ public final class CreateSchematicIntegration {
             Object required = requirements.getFirst();
             ItemStack item = (ItemStack) required.getClass().getField("stack").get(required);
             Object usage = required.getClass().getField("usage").get(required);
-            if (!usage.toString().equals("CONSUME") || item.isEmpty() || item.getCount() != 1
+            if (!usage.toString().equals("CONSUME") || item.isEmpty() || item.getCount() > 64
                     || !ItemStack.isSameItemSameComponents(item, item.getItem().getDefaultInstance()))
-                throw new UnsupportedSchematic("Schematic has a special or multi-item material requirement");
-            plan.add(new Building.BlockPlacement(pos, state, BuiltInRegistries.ITEM.getKey(item.getItem()).toString()));
+                throw new UnsupportedSchematic("Schematic has a special material requirement");
+            plan.add(new Building.BlockPlacement(pos, state, BuiltInRegistries.ITEM.getKey(item.getItem()).toString(), item.getCount()));
             if (plan.size() > MAX_BLOCKS) throw new UnsupportedSchematic("Schematic contains too many blocks");
         }
         if (plan.isEmpty()) throw new UnsupportedSchematic("Schematic contains no supported blocks");

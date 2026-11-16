@@ -100,6 +100,46 @@ public class CreateIntegrationGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 700)
+    public static void createDoubleSlabRequiresTwoPhysicalItemsAndSurvivesReload(GameTestHelper helper) throws Exception {
+        if (!createAvailable(helper)) return;
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        var source = new BlockPos(2, 1, 2); var target = new BlockPos(10, 1, 10); var chest = new BlockPos(6, 1, 6);
+        var slab = Blocks.OAK_SLAB.defaultBlockState().setValue(net.minecraft.world.level.block.SlabBlock.TYPE,
+                net.minecraft.world.level.block.state.properties.SlabType.DOUBLE);
+        helper.setBlock(source, slab); helper.setBlock(chest, Blocks.CHEST);
+        var blueprint = schematic(helper, source, new Vec3i(1, 1, 1), target);
+        var inventory = (Container) helper.getBlockEntity(chest);
+        inventory.setItem(0, blueprint.copy()); inventory.setItem(1, new ItemStack(net.minecraft.world.item.Items.OAK_SLAB, 1));
+        var colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, helper.absolutePos(new BlockPos(8, 1, 8)));
+        colony.addCitizen(new CitizenData(java.util.UUID.randomUUID(), "Builder", JobType.BUILDER));
+        if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chest))) helper.fail("Could not share chest");
+        var result = CreateSchematicIntegration.queue(colony, helper.getLevel());
+        if (result.task() == null) { helper.fail("Double slab was rejected: " + result.message()); return; }
+        var restored = Colony.load(colony.save());
+        var plan = restored.getBuildings().getFirst();
+        if (plan.getNextPlacement().itemCount != 2 || plan.getRequiredResources().getOrDefault("minecraft:oak_slab", 0) != 2)
+            helper.fail("Double slab requirement did not survive reload");
+        var worker = helper.spawn(com.simplecolonies.entity.ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 8));
+        worker.setNoAi(true);
+        var job = new com.simplecolonies.villager.job.BuilderJob(worker, restored);
+        boolean[] supplied = {false};
+        for (int tick = 1; tick < 700; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(100, () -> {
+            if (!helper.getBlockState(target).isAir() || inventory.countItem(net.minecraft.world.item.Items.OAK_SLAB) != 1
+                    || plan.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
+                helper.fail("Builder placed a double slab without its full cost");
+            inventory.setItem(1, new ItemStack(net.minecraft.world.item.Items.OAK_SLAB, 2));
+            inventory.setChanged(); supplied[0] = true;
+        });
+        helper.succeedWhen(() -> {
+            if (!supplied[0] || plan.getState() != com.simplecolonies.building.BuildingState.COMPLETE
+                    || !helper.getBlockState(target).equals(slab) || inventory.countItem(net.minecraft.world.item.Items.OAK_SLAB) != 0
+                    || !ItemStack.isSameItemSameComponents(inventory.getItem(0), blueprint))
+                helper.fail("Builder did not pay and place the double slab: " + plan.getState() + "/" + job.getState());
+        });
+    }
+
     @SuppressWarnings("unchecked")
     @GameTest(template = "empty", timeoutTicks = 300)
     public static void rotatedCreateSchematicPreservesPositionsAndFacing(GameTestHelper helper) throws Exception {
