@@ -56,13 +56,21 @@ public class TradeAndMealGameTests {
     }
 
     /**
-     * A colony watches the clock on its first tick and simulates a day only once the
-     * day counter moves. Cross two boundaries so the observation window can never
-     * swallow the only day that was skipped.
+     * A colony records the current day on its first tick and only simulates days
+     * after that cursor, so: tick once, cross a day boundary, then tick again.
+     * Doing this directly keeps the test independent of the manager's tick phase.
      */
-    private static void advanceDays(GameTestHelper helper) {
-        helper.runAfterDelay(100, () -> helper.getLevel().setDayTime(helper.getLevel().getDayTime() + 24000));
-        helper.runAfterDelay(400, () -> helper.getLevel().setDayTime(helper.getLevel().getDayTime() + 24000));
+    private static void simulateOneDay(GameTestHelper helper, Colony colony, Runnable after) {
+        // Colony.tick debounces to one call per 100 ticks, so try three times before
+        // the calendar moves; any manager tick in between counts as well.
+        helper.runAfterDelay(1, () -> colony.tick(helper.getLevel()));
+        helper.runAfterDelay(120, () -> colony.tick(helper.getLevel()));
+        helper.runAfterDelay(240, () -> colony.tick(helper.getLevel()));
+        helper.runAfterDelay(340, () -> helper.getLevel().setDayTime(helper.getLevel().getDayTime() + 24000));
+        helper.runAfterDelay(560, () -> {
+            colony.tick(helper.getLevel());
+            after.run();
+        });
     }
 
     @GameTest(template = "empty", timeoutTicks = 1200)
@@ -78,12 +86,8 @@ public class TradeAndMealGameTests {
                 helper.fail("Could not share the harbor chest");
             storage.setItem(0, new ItemStack(Items.COD, 40));
             storage.setChanged();
-            advanceDays(helper);
-            // Day simulation runs from the colony manager every 200 ticks; allow a
-            // full window, then force one tick in case the manager just ran.
-            helper.runAfterDelay(900, () -> {
+            simulateOneDay(helper, colony, () -> {
                 try {
-                    colony.tick(helper.getLevel());
                     int emeralds = colony.getWarehouseCount(helper.getLevel(), "minecraft:emerald");
                     if (emeralds < 1)
                         helper.fail("A harbor with surplus cod paid no emeralds: " + colony.getTradeReport()
@@ -101,7 +105,7 @@ public class TradeAndMealGameTests {
                     helper.succeed();
                 } finally { uninstall(); }
             });
-        } finally { uninstall(); }
+        } catch (RuntimeException e) { uninstall(); throw e; }
     }
 
     @GameTest(template = "empty", timeoutTicks = 1200)
@@ -119,10 +123,8 @@ public class TradeAndMealGameTests {
                 helper.fail("Could not share the market chest");
             storage.setItem(0, new ItemStack(Items.EMERALD, 8));
             storage.setChanged();
-            advanceDays(helper);
-            helper.runAfterDelay(900, () -> {
+            simulateOneDay(helper, colony, () -> {
                 try {
-                    colony.tick(helper.getLevel());
                     int emeralds = colony.getWarehouseCount(helper.getLevel(), "minecraft:emerald");
                     if (emeralds >= 8) helper.fail("Market spent nothing: " + colony.getTradeReport()
                             + " buildings=" + colony.getBuildings().size() + " days=" + colony.getSimulatedDays()
@@ -132,7 +134,7 @@ public class TradeAndMealGameTests {
                     helper.succeed();
                 } finally { uninstall(); }
             });
-        } finally { uninstall(); }
+        } catch (RuntimeException e) { uninstall(); throw e; }
     }
 
     @GameTest(template = "empty", timeoutTicks = 1200)
@@ -152,8 +154,8 @@ public class TradeAndMealGameTests {
             helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 12));
         worker.setColony(colony);
-        advanceDays(helper);   // one simulated day: one meal is scheduled
-        helper.runAfterDelay(900, () -> {
+        simulateOneDay(helper, colony, () -> {});   // one simulated day: one meal is scheduled
+        helper.runAfterDelay(1000, () -> {
             try {
                 if (colony.getCitizens().stream().allMatch(c -> c.pendingMeals > 0))
                     helper.fail("The scheduled meal was never eaten: " + colony.getTradeReport());
