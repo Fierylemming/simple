@@ -92,7 +92,7 @@ public class TradeAndMealGameTests {
                                 + " chests=" + colony.getWarehouseManager().getChestCount()
                                 + " buildings=" + colony.getBuildings().stream()
                                         .map(b -> b.getType() + ":" + b.getState()).toList()
-                                + " day=" + helper.getLevel().getDayTime()
+                                + " days=" + colony.getSimulatedDays() + " day=" + helper.getLevel().getDayTime()
                                 + " stock=" + colony.getWarehouseSnapshot(helper.getLevel()));
                     // Every visit sells exactly eight cod for one emerald.
                     if (colony.getWarehouseCount(helper.getLevel(), "minecraft:cod") != 40 - 8 * emeralds)
@@ -125,7 +125,8 @@ public class TradeAndMealGameTests {
                     colony.tick(helper.getLevel());
                     int emeralds = colony.getWarehouseCount(helper.getLevel(), "minecraft:emerald");
                     if (emeralds >= 8) helper.fail("Market spent nothing: " + colony.getTradeReport()
-                            + " buildings=" + colony.getBuildings().size() + " day=" + helper.getLevel().getDayTime());
+                            + " buildings=" + colony.getBuildings().size() + " days=" + colony.getSimulatedDays()
+                            + " day=" + helper.getLevel().getDayTime());
                     if (!colony.getTradeReport().startsWith("Market:"))
                         helper.fail("No market order was recorded: " + colony.getTradeReport());
                     helper.succeed();

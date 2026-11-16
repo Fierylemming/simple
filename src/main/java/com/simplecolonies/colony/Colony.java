@@ -60,6 +60,8 @@ public class Colony {
     private long observedGameTime, observedDayTime;
     // Last completed trade visit, shown by /colony status.
     private String lastTradeReport = "No harbor or market built";
+    // Diagnostic: how many daily simulations have run since this colony loaded.
+    private int simulatedDays;
 
     // For persistence
     private final UUID colonyUuid = UUID.randomUUID();
@@ -209,6 +211,7 @@ public class Colony {
         boolean processedDay = dailyBudget > 0;
         boolean catchUpBatch = deferredBirthsDuringCatchUp;
         while (dailyBudget-- > 0) {
+            simulatedDays++;
             int neededFood = (int) Math.ceil(citizens.size() * com.simplecolonies.config.ColonyConfig.FOOD_CONSUMPTION_MULTIPLIER.get());
             // Meals nobody collected yesterday are eaten off-screen now, so a
             // shortage is measured against what actually remains.
@@ -390,6 +393,9 @@ public class Colony {
     }
 
     public String getTradeReport() { return lastTradeReport; }
+
+    /** Diagnostic used by GameTests and debugging: simulated days since load. */
+    public int getSimulatedDays() { return simulatedDays; }
 
     /** Harbor exports surplus for emeralds; market spends emeralds on needed materials. */
     private void runTradeRoutes(ServerLevel level) {
