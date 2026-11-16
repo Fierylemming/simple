@@ -55,7 +55,16 @@ public class TradeAndMealGameTests {
         } catch (ReflectiveOperationException ignored) { }
     }
 
-    @GameTest(template = "empty", timeoutTicks = 200)
+    /**
+     * The colony watches the clock on its first tick and simulates a day only once
+     * the day counter moves, so advance the calendar and give the manager time to
+     * tick the fixture colony.
+     */
+    private static void advanceOneDay(GameTestHelper helper) {
+        helper.runAfterDelay(200, () -> helper.getLevel().setDayTime(helper.getLevel().getDayTime() + 24000));
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 600)
     public static void harborSellsSurplusForEmeralds(GameTestHelper helper) {
         var center = helper.absolutePos(new BlockPos(8, 1, 8));
         var colony = install(helper, center, BuildingType.HARBOR);
@@ -68,8 +77,8 @@ public class TradeAndMealGameTests {
                 helper.fail("Could not share the harbor chest");
             storage.setItem(0, new ItemStack(Items.COD, 40));
             storage.setChanged();
-            // Colony.tick debounces to one check per 100 ticks; let the world run first.
-            helper.runAfterDelay(200, () -> {
+            advanceOneDay(helper);
+            helper.runAfterDelay(420, () -> {
                 try {
                     colony.tick(helper.getLevel());
                     if (colony.getWarehouseCount(helper.getLevel(), "minecraft:emerald") < 1)
@@ -82,7 +91,7 @@ public class TradeAndMealGameTests {
         } finally { uninstall(); }
     }
 
-    @GameTest(template = "empty", timeoutTicks = 200)
+    @GameTest(template = "empty", timeoutTicks = 600)
     public static void marketOrdersMissingMaterial(GameTestHelper helper) {
         var center = helper.absolutePos(new BlockPos(8, 1, 8));
         var colony = install(helper, center, BuildingType.MARKET);
@@ -97,7 +106,8 @@ public class TradeAndMealGameTests {
                 helper.fail("Could not share the market chest");
             storage.setItem(0, new ItemStack(Items.EMERALD, 8));
             storage.setChanged();
-            helper.runAfterDelay(200, () -> {
+            advanceOneDay(helper);
+            helper.runAfterDelay(420, () -> {
                 try {
                     colony.tick(helper.getLevel());
                     int emeralds = colony.getWarehouseCount(helper.getLevel(), "minecraft:emerald");
@@ -110,7 +120,7 @@ public class TradeAndMealGameTests {
         } finally { uninstall(); }
     }
 
-    @GameTest(template = "empty", timeoutTicks = 400)
+    @GameTest(template = "empty", timeoutTicks = 1200)
     public static void citizenWalksToStorageAndEatsARealMeal(GameTestHelper helper) {
         var center = helper.absolutePos(new BlockPos(8, 1, 8));
         var colony = install(helper, center, null);
@@ -127,8 +137,8 @@ public class TradeAndMealGameTests {
             helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
         var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(8, 1, 12));
         worker.setColony(colony);
-        helper.runAfterDelay(200, () -> colony.tick(helper.getLevel()));   // one simulated day: one meal is scheduled
-        helper.runAfterDelay(600, () -> {
+        advanceOneDay(helper);   // one simulated day: one meal is scheduled
+        helper.runAfterDelay(900, () -> {
             try {
                 if (colony.getCitizens().stream().allMatch(c -> c.pendingMeals > 0))
                     helper.fail("The scheduled meal was never eaten: " + colony.getTradeReport());
