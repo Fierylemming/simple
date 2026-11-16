@@ -155,7 +155,11 @@ public class BuilderJob extends AbstractJob {
             boolean door = next.state.getBlock() instanceof DoorBlock && next.state.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER;
             if (door) {
                 BlockPos upper = next.pos.above();
-                if (!level.isLoaded(upper)) { state = JobState.STUCK; deferCurrent(level, 200); return; }
+                if (!level.isLoaded(upper) || level.isOutsideBuildHeight(upper) || !level.getWorldBorder().isWithinBounds(upper)
+                        || colony.isProtectedPlot(upper) || (imported && !colony.isInside(upper))) {
+                    currentJob.setState(BuildingState.BLOCKED); state = JobState.STUCK;
+                    ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 200); return;
+                }
                 var above = level.getBlockState(upper);
                 var expected = next.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER);
                 if (level.getBlockEntity(upper) != null || (!above.equals(expected) && (!above.getFluidState().isEmpty()
@@ -167,7 +171,15 @@ public class BuilderJob extends AbstractJob {
             var existing = level.getBlockState(next.pos);
             if (existing.equals(next.state)) {
                 if (door && !level.getBlockState(next.pos.above()).equals(next.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER))) {
-                    level.setBlock(next.pos.above(), next.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3);
+                    // A pre-existing lower half does not authorize placing the
+                    // missing half into an occupied block or marking a failed write complete.
+                    var upperBox = new net.minecraft.world.phys.AABB(next.pos.above());
+                    if (!level.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class, upperBox,
+                            net.minecraft.world.entity.LivingEntity::isAlive).isEmpty()
+                            || !level.setBlock(next.pos.above(), next.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER), 3)) {
+                        currentJob.setState(BuildingState.BLOCKED); state = JobState.STUCK;
+                        ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 200); ticksUntilNextWork = 20; return;
+                    }
                 }
                 currentJob.markPlaced(next); // already present, do not charge twice
             } else {

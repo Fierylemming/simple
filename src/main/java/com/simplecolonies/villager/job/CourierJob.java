@@ -13,6 +13,7 @@ public class CourierJob extends AbstractJob {
     private BlockPos source;
     private BlockPos hub;
     private final java.util.Map<BlockPos, Long> unreachableHubs = new java.util.HashMap<>();
+    private final java.util.Map<BlockPos, Long> unreachableSources = new java.util.HashMap<>();
 
     public CourierJob(ColonyVillager villager, Colony colony) { super(villager, colony, JobType.COURIER); }
     private ColonyVillager worker() { return (ColonyVillager) villager; }
@@ -23,6 +24,7 @@ public class CourierJob extends AbstractJob {
         if (center == null || !level.isLoaded(center)) { state = JobState.STUCK; ticksUntilNextWork = 100; return; }
         var storage = warehouse.courierStoragePositions(level);
         unreachableHubs.entrySet().removeIf(e -> e.getValue() <= level.getGameTime());
+        unreachableSources.entrySet().removeIf(e -> e.getValue() <= level.getGameTime());
         if (!worker().getCourierCargo().isEmpty() || !worker().getCourierCargoExtra().isEmpty()) {
             // Pick an accepting hub rather than permanently waiting at the
             // closest full or incompatible chest. Never fall back to unshared
@@ -53,8 +55,9 @@ public class CourierJob extends AbstractJob {
         if (storage.stream().noneMatch(p -> p.distSqr(center) <= 100)) {
             state = JobState.WAITING_FOR_CHEST; ticksUntilNextWork = 100; return;
         }
-        if (source == null || !storage.contains(source) || source.distSqr(center) <= 100) {
-            source = storage.stream().filter(p -> p.distSqr(center) > 100)
+        if (source == null || !storage.contains(source) || source.distSqr(center) <= 100
+                || unreachableSources.containsKey(source) || !hasItems(warehouse.courierContainer(level, source))) {
+            source = storage.stream().filter(p -> p.distSqr(center) > 100 && !unreachableSources.containsKey(p))
                     .filter(p -> hasItems(warehouse.courierContainer(level, p)))
                     .min(java.util.Comparator.comparingDouble(p -> p.distSqr(villager.blockPosition()))).orElse(null);
         }
@@ -85,14 +88,20 @@ public class CourierJob extends AbstractJob {
     }
 
     private boolean walkTo(BlockPos target, ServerLevel level, boolean destination) {
-        if (villager.distanceToSqr(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5) <= 9) return true;
+        if (villager.distanceToSqr(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5) <= 9) {
+            // Distance alone allowed inventories to be accessed through a wall.
+            var hit = level.clip(new net.minecraft.world.level.ClipContext(villager.getEyePosition(),
+                    net.minecraft.world.phys.Vec3.atCenterOf(target), net.minecraft.world.level.ClipContext.Block.COLLIDER,
+                    net.minecraft.world.level.ClipContext.Fluid.NONE, villager));
+            if (hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS || hit.getBlockPos().equals(target)) return true;
+        }
         if (!villager.onGround() && !villager.isInLiquid() && !villager.isPassenger()) {
             state = JobState.GOING_TO_WORK; ticksUntilNextWork = 0; return false;
         }
         var path = villager.getNavigation().createPath(target, 1);
         if (path == null || !path.canReach()) {
             if (destination) { unreachableHubs.put(target, level.getGameTime() + 200); hub = null; }
-            else source = null;
+            else { unreachableSources.put(target, level.getGameTime() + 200); source = null; }
             state = JobState.STUCK; ticksUntilNextWork = 10; return false;
         }
         villager.getNavigation().moveTo(path, 1.0);

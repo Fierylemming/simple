@@ -193,7 +193,9 @@ public final class CreateSchematicIntegration {
                 return "Schematic site contains a solid obstruction or protected block entity";
             if (placement.state.getBlock() instanceof DoorBlock) {
                 var above = pos.above();
-                if (!level.isLoaded(above) || !colony.isInside(above) || level.getBlockEntity(above) != null) return "Schematic door is blocked";
+                if (!level.isLoaded(above) || level.isOutsideBuildHeight(above) || !level.getWorldBorder().isWithinBounds(above)
+                        || !colony.isInside(above) || colony.isProtectedPlot(above) || level.getBlockEntity(above) != null)
+                    return "Schematic door is blocked";
                 var upper = level.getBlockState(above);
                 if (!upper.equals(placement.state.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER))
                         && (!upper.getFluidState().isEmpty() || !upper.isAir())) return "Schematic door is blocked";

@@ -64,6 +64,32 @@ public class ConstructionGameTests {
     @GameTest(template = "empty", timeoutTicks = 2400)
     public static void houseMesopotamian2(GameTestHelper helper) { runBuilder(helper, BuildingType.HOUSE, null, CultureType.MESOPOTAMIAN, 2); }
 
+    @GameTest(template = "empty", timeoutTicks = 300)
+    public static void builderDoesNotCompletePartialDoorInsideAnimal(GameTestHelper helper) {
+        for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos relative = new BlockPos(8, 1, 8), door = helper.absolutePos(relative);
+        var state = Blocks.OAK_DOOR.defaultBlockState();
+        helper.getLevel().setBlock(door, state, 2); // Existing lower half, with no upper half.
+        var colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, door);
+        colony.addCitizen(new com.simplecolonies.colony.CitizenData(java.util.UUID.randomUUID(), "Builder", com.simplecolonies.villager.job.JobType.BUILDER));
+        var blueprint = Building.imported(door, CultureType.ROMAN, new net.minecraft.nbt.CompoundTag(),
+                java.util.List.of(new Building.BlockPlacement(door, state, "minecraft:oak_door")));
+        if (!colony.queueImportedBuilding(blueprint)) helper.fail("Could not queue door fixture");
+        var worker = helper.spawn(EntityType.VILLAGER, new BlockPos(6, 1, 8)); worker.setNoAi(true);
+        var animal = helper.spawn(EntityType.COW, relative.above()); animal.setNoAi(true); animal.setNoGravity(true);
+        var job = new BuilderJob(worker, colony);
+        for (int tick = 1; tick < 300; tick++) helper.runAtTickTime(tick, () -> job.tick(helper.getLevel()));
+        helper.runAtTickTime(10, () -> {
+            if (!helper.getBlockState(relative.above()).isAir() || blueprint.getState() == BuildingState.COMPLETE)
+                helper.fail("Builder completed a door through an animal");
+            animal.discard();
+        });
+        helper.succeedWhen(() -> {
+            if (blueprint.getState() != BuildingState.COMPLETE || !helper.getBlockState(relative.above()).is(Blocks.OAK_DOOR))
+                helper.fail("Builder did not complete the existing door after it was safe");
+        });
+    }
+
     @GameTest(template = "empty", timeoutTicks = 2400)
     public static void builderConstructsBirchHouseFromRealStock(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);

@@ -50,6 +50,36 @@ public class CourierGameTests {
         });
     }
 
+    @GameTest(template = "isolated", timeoutTicks = 1400)
+    public static void courierSkipsUnreachableSourceAndDeliversFromAnother(GameTestHelper helper) {
+        for (int x = 45; x <= 73; x++) for (int z = 48; z <= 66; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
+        BlockPos blocked = new BlockPos(50, 1, 56), accessible = new BlockPos(55, 1, 61), hub = new BlockPos(69, 1, 56);
+        helper.setBlock(blocked, Blocks.CHEST); helper.setBlock(accessible, Blocks.CHEST); helper.setBlock(hub, Blocks.CHEST);
+        // Fully enclose the nearer source, leaving no path to interaction range.
+        for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++) for (int y = 0; y <= 3; y++)
+            if (x != 0 || z != 0 || y == 3) helper.setBlock(blocked.offset(x, y, z), Blocks.STONE);
+        var trapped = (Container) helper.getBlockEntity(blocked);
+        var available = (Container) helper.getBlockEntity(accessible);
+        var destination = (Container) helper.getBlockEntity(hub);
+        trapped.setItem(0, new ItemStack(Items.DIAMOND, 3)); available.setItem(0, new ItemStack(Items.BREAD, 5));
+        var colony = new Colony(GameTestColonyIds.next(), CultureType.ROMAN, helper.absolutePos(new BlockPos(59, 1, 56)));
+        for (var pos : new BlockPos[]{blocked, accessible, hub})
+            if (!colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(pos))) helper.fail("Could not share storage");
+        colony.setWarehouseCenter(helper.absolutePos(hub));
+        var worker = helper.spawn(ModEntities.COLONY_VILLAGER.get(), new BlockPos(52, 1, 56));
+        var job = new CourierJob(worker, colony);
+        for (int tick = 1; tick < 1400; tick++) helper.runAtTickTime(tick, () -> {
+            job.tick(helper.getLevel());
+            if (!available.getItem(0).isEmpty() || worker.getCourierCargo().isEmpty()) return;
+            if (worker.getCourierCargo().is(Items.DIAMOND)) helper.fail("Courier reached the enclosed source");
+        });
+        helper.succeedWhen(() -> {
+            if (trapped.countItem(Items.DIAMOND) != 3 || available.countItem(Items.BREAD) != 0
+                    || destination.countItem(Items.BREAD) != 5 || !worker.getCourierCargo().isEmpty())
+                helper.fail("Courier failed to route around an unreachable source: " + job.getState());
+        });
+    }
+
     @GameTest(template = "empty", timeoutTicks = 200)
     public static void courierRetainsNestedShulkerWhenHubRejectsIt(GameTestHelper helper) {
         for (int x = 0; x < 17; x++) for (int z = 0; z < 17; z++) helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
