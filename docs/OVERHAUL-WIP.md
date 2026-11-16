@@ -291,3 +291,31 @@ Worker walks to the colony centre, to a claimed workstation and to a miner's qua
 `replaceVanillaVillages` is no longer reserved. A NeoForge structure modifier empties the biome set of the five vanilla village structures when the setting is on, so only the mod's culture villages generate. It is applied while structure data loads, so a world restart is required; already-generated villages are kept and can still be colonised. The culture structures now start from the matching vanilla town-centre template pool (desert, savanna or plains) instead of a lone house, so a generated village has a centre. Generated buildings are still vanilla jigsaw pieces, so this is not historical architecture.
 
 This change has **not** been built or run in CI from this branch, and no in-game or dedicated-server check has been performed. The new unit tests (`PropertyClaimsTest`, `ColonyPropertyMemoryTest`, `ColonyTradeTableTest`, `TravelWatchTest`) and the `TradeGameTests` GameTest are included but unverified. The trade screen in particular depends on the vanilla merchant menu opening for a custom profession and must be confirmed in-game, including restock after a night and the use counts surviving a reload.
+
+## Creeper-proof colonies, physical meals and trade routes (0.1.31)
+
+- **Mob-explosion protection.** `ExplosionEvent.Detonate` removes colony-owned
+  positions from the affected block list when the blast came from a mob (creeper,
+  ghast, wither or a projectile a mob owns). The blast and its entity damage still
+  happen. Player-caused explosions are untouched, so sieges and demolition still
+  work. `ColonyProtection`, `Colony.protectsStructure`, config
+  `protectColoniesFromMobExplosions`.
+- **Piston protection.** `PistonEvent.Pre` is cancelled when the structure it would
+  push or destroy contains colony property. Config `protectColoniesFromPistons`.
+- **Protected building boxes.** `Building` now records and saves the bounding box of
+  its plan (plus a small core box for player markers), so finished buildings stay
+  protected after a reload without regenerating the plan. Wings extend the box;
+  farm, pasture and protected-plot markers own no blocks.
+- **Physical meals.** Daily rations are scheduled per citizen; a citizen walks to the
+  nearest shared container with plain food in the morning, takes a real item and
+  eats it. Unclaimed rations are settled from storage before the next simulated day.
+  Config `enablePhysicalMeals`. Birth consumption is unchanged.
+- **Trade routes.** A completed harbor sells the largest surplus above reserve for
+  emeralds; a completed market buys missing construction materials with emeralds.
+  Two-sided exchanges only, reserves and colony food are protected, and
+  `/colony status` reports the last visit. Config `enableTradeRoutes`.
+- **Temple standing.** A completed temple adds one reputation per simulated day for
+  players who already have standing, capped at 60 and never for hostile players.
+- **Tests.** Unit tests for building boxes, trade routes and temple standing;
+  GameTests for creeper/piston protection, harbor export, market order and a
+  citizen eating a real meal. Fire spread remains unprotected (no event; no mixins).

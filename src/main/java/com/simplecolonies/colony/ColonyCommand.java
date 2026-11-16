@@ -283,6 +283,7 @@ public class ColonyCommand {
         if (com.simplecolonies.config.ColonyConfig.ENABLE_NATURAL_EXPANSION.get()) {
             src.sendSuccess(() -> Component.literal("Automatic expansion: " + colony.getExpansionStatus()), false);
         } else src.sendSuccess(() -> Component.literal("Natural expansion is disabled in config."), false);
+        src.sendSuccess(() -> Component.literal("Trade routes: " + colony.getTradeReport()), false);
         for (var citizen : colony.getCitizens()) {
             if (citizen.job != com.simplecolonies.villager.job.JobType.BUILDER
                     && citizen.job != com.simplecolonies.villager.job.JobType.MINER) continue;

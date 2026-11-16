@@ -8,6 +8,39 @@ This is an **unfinished test build**, not the completed overhaul. Back up any ex
 2. In Prism Launcher, create a **Minecraft 1.21.1, NeoForge 21.1.265, Java 21** instance. Place the extracted SimpleColonies jar in that instance's `mods` folder; remove any older SimpleColonies jar first. Do not install it alongside another copy. For a server, install the same version on both client and server.
 3. Start a new world with cheats enabled, in the Overworld. No public overhaul release has been made.
 
+## Griefing protection, meals and trade routes (0.1.31)
+
+Added in 0.1.31; all of it still needs in-game verification.
+
+1. **Creeper-proof, not siege-proof.** Detonate a creeper beside a finished house,
+   an unfinished house and a protected plot: nothing colonial may break. A plain
+   stone block on open colony ground inside the same blast should break (the colony
+   only owns structures, plots and player blocks). Then prime TNT against the house:
+   it must still destroy blocks, or sieges would stop working.
+2. **Pistons.** Place a piston aimed at a colony wall, power it, and confirm the
+   wall does not move and the piston does not extend. A piston aimed at loose
+   terrain should still work.
+3. **Physical meals.** Share a chest containing bread with the colony, skip to
+   morning and watch a citizen walk over and eat one item. Then unload the area,
+   pass a day with `/time add 24000` and confirm one bread per citizen is still
+   consumed (settled off-screen).
+4. **Harbor trade.** Complete a harbor, stock shared storage with surplus cod or
+   logs, pass a day and read `/colony status`; emeralds should appear and the
+   surplus should shrink, but the colony's own food reserve must stay.
+5. **Market orders.** Complete a market, give it emeralds and leave an unfinished
+   building needing materials; after a day the market should have bought some of
+   that material and spent emeralds.
+6. **Temple standing.** With some reputation already earned, build a temple and pass
+   days; reputation should creep up to 60 and stop. With negative reputation it must
+   not move.
+7. **Config switches.** `protectColoniesFromMobExplosions`,
+   `protectColoniesFromPistons`, `enablePhysicalMeals` and `enableTradeRoutes` all
+   turn their feature back off.
+
+Fire is **not** protected in this build: a burning colony can still lose wooden
+buildings, because Minecraft offers no fire-spread event and the mod ships no
+mixins.
+
 ## Initial checks
 
 - On open, reasonably flat, loaded land away from structures and other colonies (natural stone, dirt, sand or gravel can be used), use `/colony spawn roman` as an operator. Find the starter hall and farm, and check the initial villagers and workstations. The starter-plot search can fail on unsuitable terrain; check chat and try a different open area.
