@@ -748,7 +748,10 @@ public class ColonyVillager extends Villager {
     public void refreshColonyOffers() {
         MerchantOffers built = new MerchantOffers();
         int level = Math.max(1, getVillagerData().getLevel());
+        var home = ColonyManager.getInstance().getColony(colonyId)
+                .map(Colony::getHomeTimber).orElse(com.simplecolonies.building.HouseTimber.OAK);
         for (var spec : com.simplecolonies.villager.trade.ColonyTradeTable.offers(job, level)) {
+            spec = com.simplecolonies.villager.trade.ColonyTradeTable.resolve(spec, home);
             var costId = net.minecraft.resources.ResourceLocation.tryParse(spec.costItem());
             var resultId = net.minecraft.resources.ResourceLocation.tryParse(spec.resultItem());
             if (costId == null || resultId == null) continue;

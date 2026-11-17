@@ -1,4 +1,12 @@
 # Changelog
+## 0.1.32 — Colonies build with the wood that actually grows there
+- Wooden costs are now *families*, not one species. Research orders, trade offers and trade routes ask for any planks, logs, fences or boats, and the exact species is resolved from what the colony has stored. A Roman colony in a birch forest can research, build and trade instead of waiting for oak that will never arrive.
+- Research resolves and saves its concrete material list when an order is queued, so the builder carries one exact species and a later delivery cannot swap materials mid-order.
+- A new colony reads the forest around its centre: the founding wood, saplings, starter hall floor, roof and door use the local species. `dominantAround` counts logs three times and leaves once, so a mixed forest picks the species that is really there.
+- Expansion prefers the species the colony holds most of (`preferredTimbers`), and the colony adopts a different local species once it stores at least eight units of it, so harvested wood steers later plans.
+- Harbor exports sell whichever species has the largest spare surplus, and markets order the exact species a plan lacks. Woodcutter, builder and courier trades follow the colony's own species. All eight vanilla species are supported (oak, spruce, birch, jungle, acacia, dark oak, mangrove, cherry).
+- New `WoodCostsTest`, `ColonyUpgradeCostTest`, `BiomeWoodGameTests` (a Roman colony founded in a planted birch forest) and extended trade tests.
+
 ## 0.1.31 — Creeper-proof colonies, physical meals and trade routes
 - Colonies are creeper-proof: mob explosions (creeper, ghast, wither and their projectiles) no longer break colony buildings, wings, hall shells, protected plots or player blocks. Entity damage still applies and player-caused explosions (TNT, beds, crystals) still destroy blocks, so sieges and demolition stay possible. Config `protectColoniesFromMobExplosions`.
 - Pistons cannot push, pull or break colony property. Config `protectColoniesFromPistons`.

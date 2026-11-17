@@ -14,7 +14,8 @@ import java.util.List;
 public enum JobType {
     UNEMPLOYED("Unemployed", "No job. Assign via Town Hall.", false, List.of()),
     FARMER("Farmer", "Grows wheat/carrots/potatoes, feeds colony", false, List.of(Items.WHEAT, Items.CARROT, Items.POTATO)),
-    LUMBERJACK("Woodcutter", "Plants saplings nearby, harvests logs, replants", false, List.of(Items.OAK_LOG, Items.SPRUCE_LOG, Items.BIRCH_LOG, Items.ACACIA_LOG)),
+    LUMBERJACK("Woodcutter", "Plants saplings nearby, harvests logs, replants", false, List.of(Items.OAK_LOG, Items.SPRUCE_LOG, Items.BIRCH_LOG, Items.JUNGLE_LOG,
+            Items.ACACIA_LOG, Items.DARK_OAK_LOG, Items.MANGROVE_LOG, Items.CHERRY_LOG)),
     MINER("Miner", "Digs quarry/mine for stone, coal, ores for blacksmith", false, List.of(Items.COBBLESTONE, Items.COAL, Items.IRON_ORE, Items.COPPER_ORE)),
     BUILDER("Builder", "Constructs buildings from blueprints using colony stockpile", false, List.of()),
     BUTCHER("Butcher", "Raises cows and pigs at a designated pasture; provides meat and leather", false, List.of(Items.BEEF, Items.PORKCHOP, Items.LEATHER)),

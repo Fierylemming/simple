@@ -37,8 +37,11 @@ final class PhysicalResearch {
                 .filter(p -> colony.isInside(p) && level.isLoaded(p))
                 .min(java.util.Comparator.comparingDouble(p -> p.distSqr(worker.blockPosition()))).orElse(null);
         if (station == null) return Result.BLOCKED;
+        // The order's wood species was fixed when it was queued, so the builder
+        // fetches one exact item set even in a birch or spruce forest.
+        var pendingCost = research.cost(topic, level);
         // Fetch exact plain items, never virtual stock and never a partial payment.
-        for (var entry : topic.cost.entrySet().stream().sorted(java.util.Map.Entry.comparingByKey()).toList()) {
+        for (var entry : pendingCost.entrySet().stream().sorted(java.util.Map.Entry.comparingByKey()).toList()) {
             var result = materials.prepareCount(level, entry.getKey(), entry.getValue());
             if (result != PhysicalBuilderMaterials.Result.READY) return map(result);
         }
@@ -46,9 +49,9 @@ final class PhysicalResearch {
         if (approach != PhysicalBuilderMaterials.Result.READY) return map(approach);
         // The reserve can change while the builder is walking; do not spend it.
         if (!research.hasAutomaticReserve(level, topic) || !research.canComplete(worker.getUUID(), topic)) return Result.MISSING;
-        for (var entry : topic.cost.entrySet()) if (materials.countPrepared(entry.getKey()) < entry.getValue()) return Result.MISSING;
+        for (var entry : pendingCost.entrySet()) if (materials.countPrepared(entry.getKey()) < entry.getValue()) return Result.MISSING;
         var consumed = new java.util.LinkedHashMap<String, Integer>();
-        for (var entry : topic.cost.entrySet()) {
+        for (var entry : pendingCost.entrySet()) {
             if (!materials.takePrepared(entry.getKey(), entry.getValue())) {
                 consumed.forEach(materials::refund);
                 return Result.BLOCKED;

@@ -18,6 +18,27 @@ class TradeRoutesTest {
         assertEquals(1, visit.takeCount());
     }
 
+    @Test void harborSellsWhicheverSpeciesTheColonyHas() {
+        // A birch forest has no oak at all; the visit must still find a surplus.
+        var mixed = TradeRoutes.harborVisit(
+                Map.of("minecraft:birch_log", 60, "minecraft:birch_planks", 48), 40, 8).orElseThrow();
+        assertEquals("minecraft:birch_log", mixed.giveItem(), "the largest spare surplus is sold");
+        assertEquals(12, mixed.giveCount());
+        assertEquals("minecraft:emerald", mixed.takeItem());
+
+        var planksOnly = TradeRoutes.harborVisit(Map.of("minecraft:birch_planks", 60), 40, 8).orElseThrow();
+        assertEquals("minecraft:birch_planks", planksOnly.giveItem());
+        assertEquals(16, planksOnly.giveCount());
+    }
+
+    @Test void marketOrdersTheSpeciesAPlanActuallyNeeds() {
+        var visit = TradeRoutes.marketVisit(Map.of("minecraft:emerald", 4),
+                List.of("minecraft:birch_planks", "minecraft:cobblestone")).orElseThrow();
+        assertEquals("minecraft:emerald", visit.giveItem());
+        assertEquals("minecraft:birch_planks", visit.takeItem());
+        assertEquals(16, visit.takeCount());
+    }
+
     @Test void harborKeepsReservesAndSkipsSmallSurpluses() {
         assertTrue(TradeRoutes.harborVisit(Map.of("minecraft:cod", 12), 40, 0).isEmpty(),
                 "a full reserve leaves nothing to sell");

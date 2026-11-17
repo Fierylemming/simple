@@ -8,6 +8,27 @@ This is an **unfinished test build**, not the completed overhaul. Back up any ex
 2. In Prism Launcher, create a **Minecraft 1.21.1, NeoForge 21.1.265, Java 21** instance. Place the extracted SimpleColonies jar in that instance's `mods` folder; remove any older SimpleColonies jar first. Do not install it alongside another copy. For a server, install the same version on both client and server.
 3. Start a new world with cheats enabled, in the Overworld. No public overhaul release has been made.
 
+## Local wood and expansion in any biome (0.1.32)
+
+Added in 0.1.32; needs in-game verification in a real forest.
+
+1. **Birch forest start.** Found a Roman colony with `/colony spawn roman` in a
+   large birch forest (or a spruce taiga). The starter hall must be birch (or
+   spruce) — floor, roof and door — and the shared chest must hold that wood, not
+   oak.
+2. **Expansion.** Let the woodcutter harvest and the builder queue a house: the
+   plan must use the local species and the builder must build it from local logs.
+   No oak should be required anywhere.
+3. **Research.** Queue Stone Tools (or Tight Housing) with only local planks in
+   shared storage: the order must be queued, and the builder must carry the local
+   species to the hall. Check `/colony research` wording says "any planks".
+4. **Mixed forest.** In a forest mixing two species, houses should follow the
+   more plentiful wood; after the colony stores eight or more of a different
+   species, later plans may switch to it.
+5. **Trading.** Woodcutter, builder and courier trade menus must offer the local
+   species; a harbor must sell the local wood surplus and a market must buy the
+   exact species a plan is missing.
+
 ## Griefing protection, meals and trade routes (0.1.31)
 
 Added in 0.1.31; all of it still needs in-game verification.

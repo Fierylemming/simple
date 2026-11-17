@@ -42,7 +42,7 @@ public enum ColonyUpgrade {
             "Starting tech — all new villages have this"),
 
     TOOL_STONE("Stone Tools", "1.3× work speed; miners still need a real pickaxe", 1,
-            Map.of("minecraft:cobblestone", 32, "minecraft:oak_planks", 16, "minecraft:coal", 4),
+            Map.of("minecraft:cobblestone", 32, com.simplecolonies.building.WoodCosts.PLANKS, 16, "minecraft:coal", 4),
             Set.of(TOOL_WOOD), UpgradeCategory.TOOLS,
             "First upgrade — gather cobble from the starter miner"),
 
@@ -56,7 +56,7 @@ public enum ColonyUpgrade {
 
     // Tier 1 — needs only Tier0 resources (wheat from farmer, wood, cobble, coal)
     UNLOCK_BUTCHER("Butcher", "Unlocks Butcher (meat + leather chain)", 1,
-            Map.of("minecraft:wheat", 16, "minecraft:oak_fence", 8),
+            Map.of("minecraft:wheat", 16, com.simplecolonies.building.WoodCosts.FENCE, 8),
             Set.of(PROF_FARMER), UpgradeCategory.PROFESSION,
             "From farmer wheat, provides leather for Tier2"),
     UNLOCK_BAKER("Baker", "Unlocks Baker (three wheat make one bread)", 1,
@@ -64,7 +64,7 @@ public enum ColonyUpgrade {
             Set.of(PROF_FARMER), UpgradeCategory.PROFESSION,
             "Uses real wheat at a claimed workstation"),
     UNLOCK_FISHERMAN("Fisherman", "Unlocks Fisherman (coastal food)", 1,
-            Map.of("minecraft:string", 8, "minecraft:oak_planks", 8),
+            Map.of("minecraft:string", 8, com.simplecolonies.building.WoodCosts.PLANKS, 8),
             Set.of(PROF_FARMER), UpgradeCategory.PROFESSION,
             "For Greek/Mesopotamian, needs string from spiders/looms"),
 
@@ -75,11 +75,11 @@ public enum ColonyUpgrade {
             Map.of(), Set.of(), UpgradeCategory.PROFESSION,
             "Available from the start"),
     EFFICIENCY_1("Efficiency I", "+15% work speed (all jobs)", 1,
-            Map.of("minecraft:wheat", 16, "minecraft:oak_planks", 16, "minecraft:coal", 4),
+            Map.of("minecraft:wheat", 16, com.simplecolonies.building.WoodCosts.PLANKS, 16, "minecraft:coal", 4),
             Set.of(TOOL_STONE), UpgradeCategory.BUFF,
             "No emerald — so village can self-buy without trading"),
     HOUSING_EFFICIENT("Tight Housing", "+2 shelter slots per completed house; no beds", 1,
-            Map.of("minecraft:white_wool", 8, "minecraft:oak_planks", 16),
+            Map.of("minecraft:white_wool", 8, com.simplecolonies.building.WoodCosts.PLANKS, 16),
             Set.of(TOOL_STONE), UpgradeCategory.BUFF,
             "Requires white wool and planks; does not create beds"),
 
@@ -89,7 +89,7 @@ public enum ColonyUpgrade {
             Set.of(UNLOCK_MINER), UpgradeCategory.PROFESSION,
             "Needs Miner to exist (not yet iron), provides smelting for Iron tier"),
     TOOL_IRON("Iron Tools", "1.6× work speed; actual tools and gear must still be supplied", 2,
-            Map.of("minecraft:raw_iron", 16, "minecraft:coal", 8, "minecraft:oak_planks", 8),
+            Map.of("minecraft:raw_iron", 16, "minecraft:coal", 8, com.simplecolonies.building.WoodCosts.PLANKS, 8),
             Set.of(TOOL_STONE, UNLOCK_MINER, UNLOCK_BLACKSMITH), UpgradeCategory.TOOLS,
             "Needs Miner (raw iron) + Blacksmith (smelts) — both from previous tier"),
     TOOL_DIAMOND("Diamond Tools", "2.0× work speed; does not provide diamond tools", 3,
@@ -97,7 +97,7 @@ public enum ColonyUpgrade {
             Set.of(TOOL_IRON), UpgradeCategory.TOOLS,
             "Diamond items must be supplied; the current quarry does not mine diamonds"),
     UNLOCK_COURIER("Courier", "Unlocks Courier (one real stack per trip)", 2,
-            Map.of("minecraft:leather", 8, "minecraft:oak_planks", 16, "minecraft:string", 4),
+            Map.of("minecraft:leather", 8, com.simplecolonies.building.WoodCosts.PLANKS, 16, "minecraft:string", 4),
             Set.of(UNLOCK_BUILDER, UNLOCK_BUTCHER), UpgradeCategory.PROFESSION,
             "Needs Builder (to have warehouse) + Butcher (leather), both Tier1"),
     UNLOCK_LEATHERWORKER("Leatherworker", "Unlocks Leatherworker (leather armor)", 2,
@@ -105,7 +105,7 @@ public enum ColonyUpgrade {
             Set.of(UNLOCK_BUTCHER), UpgradeCategory.PROFESSION,
             "Needs Butcher leather, no iron"),
     WAREHOUSE_CAPACITY("Warehouse Network", "Couriers carry two real stacks per trip", 2,
-            Map.of("minecraft:chest", 8, "minecraft:oak_planks", 32),
+            Map.of("minecraft:chest", 8, com.simplecolonies.building.WoodCosts.PLANKS, 32),
             Set.of(UNLOCK_COURIER), UpgradeCategory.BUFF,
             "After courier, just wood"),
     UNLOCK_SOLDIER("Soldiers", "Unlocks Barracks & Soldier/Guard (war)", 2,
@@ -119,7 +119,7 @@ public enum ColonyUpgrade {
             Set.of(EFFICIENCY_1, TOOL_IRON), UpgradeCategory.BUFF,
             "Needs trading/mining at iron tier"),
     SCHEMATIC_CANNON("Schematic Cannon", "Builders accept Create blueprints twice as large (32k blocks)", 3,
-            Map.of("minecraft:iron_block", 2, "minecraft:redstone", 8, "minecraft:oak_planks", 8),
+            Map.of("minecraft:iron_block", 2, "minecraft:redstone", 8, com.simplecolonies.building.WoodCosts.PLANKS, 8),
             Set.of(UNLOCK_BUILDER, TOOL_IRON), UpgradeCategory.BUFF,
             "Needs iron to mine redstone/iron");
 

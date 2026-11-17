@@ -1,5 +1,7 @@
 package com.simplecolonies.villager.trade;
 
+import com.simplecolonies.building.HouseTimber;
+import com.simplecolonies.building.WoodCosts;
 import com.simplecolonies.villager.job.JobType;
 
 import java.util.ArrayList;
@@ -60,8 +62,9 @@ public final class ColonyTradeTable {
                     sell("minecraft:pumpkin_pie", 2, 1, 6, 3, 3),
                     sell("minecraft:hay_block", 1, 2, 4, 4, 4));
             case LUMBERJACK -> List.of(
-                    buy("minecraft:oak_log", 12, 1, 12, 2, 1),
-                    sell("minecraft:oak_planks", 16, 1, 10, 1, 1),
+                    // Wood families: a birch or spruce colony trades its own species.
+                    buy(WoodCosts.LOG, 12, 1, 12, 2, 1),
+                    sell(WoodCosts.PLANKS, 16, 1, 10, 1, 1),
                     sell("minecraft:stick", 24, 1, 8, 2, 2),
                     sell("minecraft:charcoal", 8, 1, 8, 3, 3));
             case MINER -> List.of(
@@ -72,7 +75,7 @@ public final class ColonyTradeTable {
             case BUILDER -> List.of(
                     buy("minecraft:cobblestone", 20, 1, 10, 2, 1),
                     sell("minecraft:ladder", 8, 1, 8, 2, 1),
-                    sell("minecraft:oak_fence", 8, 1, 8, 2, 2),
+                    sell(WoodCosts.FENCE, 8, 1, 8, 2, 2),
                     sell("minecraft:scaffolding", 16, 2, 6, 3, 3));
             case BUTCHER -> List.of(
                     buy("minecraft:beef", 8, 1, 8, 2, 1),
@@ -103,9 +106,9 @@ public final class ColonyTradeTable {
                     sell("minecraft:cooked_salmon", 4, 2, 6, 3, 3));
             case COURIER -> List.of(
                     sell("minecraft:barrel", 1, 1, 6, 2, 1),
-                    buy("minecraft:oak_planks", 16, 1, 10, 2, 1),
+                    buy(WoodCosts.PLANKS, 16, 1, 10, 2, 1),
                     sell("minecraft:chest", 1, 2, 5, 2, 2),
-                    sell("minecraft:oak_boat", 1, 2, 4, 3, 3));
+                    sell(WoodCosts.BOAT, 1, 2, 4, 3, 3));
             case SHEPHERD -> List.of(
                     buy("minecraft:white_wool", 8, 1, 10, 2, 1),
                     sell("minecraft:shears", 1, 2, 4, 3, 1),
@@ -121,6 +124,18 @@ public final class ColonyTradeTable {
                     sell("minecraft:bread", 3, 1, 8, 1, 1),
                     sell("minecraft:apple", 4, 1, 6, 2, 3));
         };
+    }
+
+    /**
+     * Replace wood families with the colony's own species, so the vanilla merchant
+     * menu always receives concrete items. Unknown families stay untouched.
+     */
+    public static Offer resolve(Offer offer, HouseTimber home) {
+        String cost = WoodCosts.isFamily(offer.costItem()) ? WoodCosts.defaultItem(offer.costItem(), home) : offer.costItem();
+        String result = WoodCosts.isFamily(offer.resultItem()) ? WoodCosts.defaultItem(offer.resultItem(), home) : offer.resultItem();
+        if (cost.equals(offer.costItem()) && result.equals(offer.resultItem())) return offer;
+        return new Offer(cost, offer.costCount(), result, offer.resultCount(),
+                offer.maxUses(), offer.xp(), offer.minLevel());
     }
 
     private static Offer buy(String goods, int goodsCount, int emeralds, int maxUses, int xp, int minLevel) {

@@ -25,6 +25,10 @@ public class ResearchManager {
     private UUID assignedWorker;
     private boolean pendingAutomatic;
     private int automaticSlotsRemaining;
+    // The concrete items this colony must deliver for the pending order. Wooden
+    // costs are families, resolved when the order is queued so a birch colony
+    // pays birch planks and the builder always fetches one exact species.
+    private Map<String, Integer> pendingCost = Map.of();
 
     public ResearchManager(Colony colony) {
         this.colony = colony;
@@ -71,12 +75,45 @@ public class ResearchManager {
 
     /** Only loaded, explicitly shared physical containers can supply new research.
      * Legacy abstract stock is retained, but cannot be materialized by research. */
+    /** Stock as seen by research costs: a wood family counts every species. */
     private ResearchCosts.Counts stock(ServerLevel level) {
-        return id -> {
-            if (level == null) return 0;
-            colony.getWarehouseManager().scan(level);
-            return colony.getWarehouseManager().count(id);
+        return new ResearchCosts.Counts() {
+            private Map<String, Integer> scanned;
+            private Map<String, Integer> snapshot() {
+                if (scanned == null) {
+                    colony.getWarehouseManager().scan(level);
+                    scanned = colony.getWarehouseManager().snapshot();
+                }
+                return scanned;
+            }
+            @Override public int count(String id) {
+                return level == null ? 0 : com.simplecolonies.building.WoodCosts.count(snapshot(), id);
+            }
         };
+    }
+
+    /** The concrete items this order needs, resolving wood families against stock. */
+    public Map<String, Integer> cost(ColonyUpgrade topic, ServerLevel level) {
+        if (topic == null) return Map.of();
+        if (topic == pending && (!pendingCost.isEmpty() || topic.cost.isEmpty())) return pendingCost;
+        if (topic.cost.isEmpty()) return Map.of();
+        // Only an order queued before 0.1.32 reaches this scan: current orders
+        // already froze their species when they were queued.
+        return com.simplecolonies.building.WoodCosts.resolve(
+                level == null ? Map.of() : warehouseSnapshot(level), topic.cost);
+    }
+
+    /** What the colony has actually stored, for family resolution and previews. */
+    public Map<String, Integer> warehouseSnapshot(ServerLevel level) {
+        if (level == null) return Map.of();
+        colony.getWarehouseManager().scan(level);
+        return colony.getWarehouseManager().snapshot();
+    }
+
+    /** Freeze the wood species now, so a later delivery cannot swap materials. */
+    private void resolvePendingCost(ColonyUpgrade topic, ServerLevel level) {
+        pendingCost = topic == null ? Map.of()
+                : com.simplecolonies.building.WoodCosts.resolve(warehouseSnapshot(level), topic.cost);
     }
 
     public boolean canAfford(ColonyUpgrade upgrade, ServerLevel level) {
@@ -105,6 +142,7 @@ public class ResearchManager {
             return false;
         }
         pending = upgrade; assignedWorker = null; pendingAutomatic = false; automaticSlotsRemaining = 0;
+        resolvePendingCost(upgrade, level);
         com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
         if (player != null) player.displayClientMessage(Component.literal("§aQueued " + upgrade.displayName + "; a builder must carry the materials to a hall or library."), false);
         return true;
@@ -113,6 +151,7 @@ public class ResearchManager {
     public boolean cancelPending() {
         if (pending == null) return false;
         pending = null; assignedWorker = null; pendingAutomatic = false; automaticSlotsRemaining = 0;
+        pendingCost = Map.of();
         com.simplecolonies.colony.ColonyManager.getInstance().markDirty(colony);
         return true;
     }
@@ -142,7 +181,7 @@ public class ResearchManager {
     public boolean complete(UUID worker, ColonyUpgrade topic, ServerLevel level) {
         if (!canComplete(worker, topic)) return false;
         boolean wasAutomatic = pendingAutomatic;
-        pending = null; assignedWorker = null; pendingAutomatic = false;
+        pending = null; assignedWorker = null; pendingAutomatic = false; pendingCost = Map.of();
         unlocked.add(topic);
         colony.broadcast(Component.literal("§6Colony #" + colony.getId() + " unlocked " + topic.displayName + " — " + topic.description));
         if (wasAutomatic && automaticSlotsRemaining > 0) queueNextAutomatic(level);
@@ -167,6 +206,7 @@ public class ResearchManager {
         for (ColonyUpgrade up : ColonyUpgrade.values()) {
             if (canUnlock(up) && ResearchCosts.hasSurplus(stock(level), up.cost)) {
                 pending = up; assignedWorker = null; pendingAutomatic = true; automaticSlotsRemaining--;
+                resolvePendingCost(up, level);
                 colony.broadcast(Component.literal("§eColony #" + colony.getId() + " queued research: " + up.displayName));
                 return;
             }
@@ -176,7 +216,7 @@ public class ResearchManager {
 
     /** Recheck the auto-research reserve after pickup, not just when queued. */
     public boolean hasAutomaticReserve(ServerLevel level, ColonyUpgrade topic) {
-        return !pendingAutomatic || ResearchCosts.affordable(stock(level), topic.cost);
+        return !pendingAutomatic || ResearchCosts.affordable(stock(level), cost(topic, level));
     }
 
     public List<ColonyUpgrade> getAvailableToBuy() {
@@ -197,6 +237,11 @@ public class ResearchManager {
             tag.putBoolean("pendingAutomatic", pendingAutomatic);
             tag.putInt("automaticSlotsRemaining", automaticSlotsRemaining);
             if (assignedWorker != null) tag.putUUID("assignedWorker", assignedWorker);
+            if (!pendingCost.isEmpty()) {
+                CompoundTag cost = new CompoundTag();
+                pendingCost.forEach(cost::putInt);
+                tag.put("pendingCost", cost);
+            }
         }
         return tag;
     }
@@ -219,6 +264,13 @@ public class ResearchManager {
                     pendingAutomatic = tag.getBoolean("pendingAutomatic");
                     automaticSlotsRemaining = pendingAutomatic ? Math.clamp(tag.getInt("automaticSlotsRemaining"), 0, 3) : 0;
                     if (tag.hasUUID("assignedWorker")) assignedWorker = tag.getUUID("assignedWorker");
+                    pendingCost = Map.of();
+                    if (tag.contains("pendingCost")) {
+                        var savedCost = tag.getCompound("pendingCost");
+                        var cost = new java.util.LinkedHashMap<String, Integer>();
+                        for (String key : savedCost.getAllKeys()) if (savedCost.getInt(key) > 0) cost.put(key, savedCost.getInt(key));
+                        pendingCost = Map.copyOf(cost);
+                    }
                 }
             } catch (IllegalArgumentException ignored) {}
         }

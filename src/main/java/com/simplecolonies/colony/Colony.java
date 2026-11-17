@@ -51,6 +51,9 @@ public class Colony {
     private final Diplomacy diplomacy = new Diplomacy();
     private int daysWithoutFood = 0;
     private int daysSinceExpansion = 0;
+    // The wood that actually grows around this colony. New plans prefer it, so a
+    // Roman settlement in a birch forest builds birch rather than importing oak.
+    private com.simplecolonies.building.HouseTimber homeTimber = com.simplecolonies.building.HouseTimber.OAK;
     private ColonyState state = ColonyState.ACTIVE;
     private long lastTickGameTime = 0;
     private long lastSchematicCheck = Long.MIN_VALUE;
@@ -81,6 +84,13 @@ public class Colony {
     public BlockPos getCenter() { return center; }
     public int getLevel() { return level; }
     public int getRadius() { return radius; }
+    public com.simplecolonies.building.HouseTimber getHomeTimber() { return homeTimber; }
+    public void setHomeTimber(com.simplecolonies.building.HouseTimber timber) {
+        if (timber != null && timber != homeTimber) {
+            homeTimber = timber;
+            ColonyManager.getInstance().markDirty(this);
+        }
+    }
     public ColonyState getState() { return state; }
     public UUID getLeaderId() { return leaderId; }
     public Diplomacy getDiplomacy() { return diplomacy; }
@@ -505,6 +515,9 @@ public class Colony {
         // project based on supplies that no worker can actually collect.
         warehouseManager.scan(level);
         var stock = warehouseManager.snapshot();
+        // Wood the colony keeps harvesting becomes its building wood.
+        var grown = com.simplecolonies.building.WoodCosts.dominantTimber(stock, homeTimber);
+        if (grown != homeTimber && com.simplecolonies.building.WoodCosts.woodCount(stock, grown) >= 8) setHomeTimber(grown);
         String housingReason = "Housing capacity sufficient";
         boolean housingNeeded = HousingNeeds.needsHouse(citizens.size(), shelterCapacity(),
                 com.simplecolonies.config.ColonyConfig.MAX_CITIZENS_PER_COLONY.get());
@@ -514,7 +527,7 @@ public class Colony {
             boolean[] affordable = new boolean[3];
             var selectedTimber = new com.simplecolonies.building.HouseTimber[3];
             for (int i = 0; i < 3; i++) {
-                for (var timber : com.simplecolonies.building.HouseTimber.values()) {
+                for (var timber : com.simplecolonies.building.WoodCosts.preferredTimbers(stock, homeTimber)) {
                     Building sample = new Building(BuildingType.HOUSE, center.east(i), culture, timber);
                     int variant = sample.getHouseVariant();
                     if (com.simplecolonies.building.ConstructionCrafting.canBuild(stock, sample.getRemainingPlacements())) {
@@ -561,7 +574,7 @@ public class Colony {
                         || !isClearWorksite(level, station, true)
                         || (pair.getValue() == BuildingType.WAREHOUSE && !warehouseManager.isRegisteredStorage(level, station))
                         || (pair.getValue() == BuildingType.HARBOR && !hasFishingWater(level, station))) continue;
-                for (var timber : com.simplecolonies.building.HouseTimber.values()) {
+                for (var timber : com.simplecolonies.building.WoodCosts.preferredTimbers(stock, homeTimber)) {
                     Building building = new Building(pair.getValue(), station, culture, timber);
                     if (com.simplecolonies.building.ConstructionCrafting.canBuild(stock, building.getRemainingPlacements())) {
                         queueExpansion(building);
@@ -575,7 +588,7 @@ public class Colony {
         // claim that trading or higher-tier upgrades are implemented.
         if (!housingNeeded && this.level >= 2 && buildings.stream().noneMatch(b -> b.getType() == BuildingType.MARKET
                 && (b.getState() == com.simplecolonies.building.BuildingState.COMPLETE || b.hasSupportedPlan()))) {
-            for (var timber : com.simplecolonies.building.HouseTimber.values()) {
+            for (var timber : com.simplecolonies.building.WoodCosts.preferredTimbers(stock, homeTimber)) {
                 Building sample = new Building(BuildingType.MARKET, center, culture, timber);
                 if (com.simplecolonies.building.ConstructionCrafting.canBuild(stock, sample.getRemainingPlacements())) {
                     BlockPos site = findCivicSite(level);
@@ -590,7 +603,7 @@ public class Colony {
                 && b.getState() == com.simplecolonies.building.BuildingState.COMPLETE)
                 && buildings.stream().noneMatch(b -> b.getType() == BuildingType.LIBRARY
                 && (b.getState() == com.simplecolonies.building.BuildingState.COMPLETE || b.hasSupportedPlan()))) {
-            for (var timber : com.simplecolonies.building.HouseTimber.values()) {
+            for (var timber : com.simplecolonies.building.WoodCosts.preferredTimbers(stock, homeTimber)) {
                 Building sample = new Building(BuildingType.LIBRARY, center, culture, timber);
                 if (com.simplecolonies.building.ConstructionCrafting.canBuild(stock, sample.getRemainingPlacements())) {
                     BlockPos site = findCivicSite(level);
@@ -1029,6 +1042,7 @@ public class Colony {
             tag.putLong("observedDayTime", observedDayTime);
         }
         tag.putString("state", state.name());
+        tag.putString("homeTimber", homeTimber.id);
         if (leaderId != null) tag.putUUID("leader", leaderId);
         // Do not persist the display fallback (colony center) as a designated hub.
         if (warehouseManager.getConfiguredWarehouseCenter() != null)
@@ -1071,6 +1085,7 @@ public class Colony {
             c.observedDayTime = tag.getLong("observedDayTime");
         }
         c.state = ColonyState.valueOf(tag.getString("state"));
+        c.homeTimber = com.simplecolonies.building.HouseTimber.byId(tag.getString("homeTimber"));
         if (tag.hasUUID("leader")) c.leaderId = tag.getUUID("leader");
         if (tag.contains("warehouseCenter")) c.warehouseManager.setWarehouseCenter(BlockPos.of(tag.getLong("warehouseCenter")));
         ListTag citizensTag = tag.getList("citizens", 10);

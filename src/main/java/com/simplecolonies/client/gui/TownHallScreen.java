@@ -370,7 +370,9 @@ public class TownHallScreen extends AbstractContainerScreen<TownHallMenu> {
         }
     }
     private void drawResearchCard(GuiGraphics g,int x,int y, ColonyUpgrade up){
-        String cost = up.cost.entrySet().stream().map(e->e.getValue()+" "+e.getKey().replace("minecraft:","")).reduce((a,b)->a+", "+b).orElse("free");
+        String cost = up.cost.entrySet().stream()
+                .map(e -> e.getValue() + " " + com.simplecolonies.building.WoodCosts.describe(e.getKey()))
+                .reduce((a, b) -> a + ", " + b).orElse("free");
         boolean tier = up.isToolTier();
         g.fill(x,y,x+316,y+30, tier?0xFFF0E6C2:0xFFFFFFFF); g.fill(x,y,x+2,y+30, tier?C_GOLD:C_BLUE); g.fill(x,y,x+316,y+1, C_DIV); g.fill(x,y+29,x+316,y+30, C_DIV);
         g.drawString(font, (tier?"◆ ":"✧ ")+up.displayName, x+6,y+3, C_TEXT,false);

@@ -1,5 +1,7 @@
 package com.simplecolonies.villager.trade;
 
+import com.simplecolonies.building.HouseTimber;
+import com.simplecolonies.building.WoodCosts;
 import com.simplecolonies.villager.job.JobType;
 import org.junit.jupiter.api.Test;
 
@@ -29,8 +31,8 @@ class ColonyTradeTableTest {
     @Test void offersAreWellFormed() {
         for (JobType job : JobType.values()) {
             for (ColonyTradeTable.Offer offer : ColonyTradeTable.allOffers(job)) {
-                assertTrue(ITEM_ID.matcher(offer.costItem()).matches(), "bad cost id " + offer.costItem());
-                assertTrue(ITEM_ID.matcher(offer.resultItem()).matches(), "bad result id " + offer.resultItem());
+                assertTrue(isItemOrFamily(offer.costItem()), "bad cost id " + offer.costItem());
+                assertTrue(isItemOrFamily(offer.resultItem()), "bad result id " + offer.resultItem());
                 assertTrue(offer.costCount() > 0, "cost must be positive");
                 assertTrue(offer.resultCount() > 0, "result must be positive");
                 assertTrue(offer.costCount() <= 64 && offer.resultCount() <= 64, "stacks must fit one slot");
@@ -42,6 +44,26 @@ class ColonyTradeTableTest {
                         "a trade must not exchange an item for itself");
             }
         }
+    }
+
+    private static boolean isItemOrFamily(String id) {
+        return ITEM_ID.matcher(id).matches() || WoodCosts.isFamily(id);
+    }
+
+    /** Wood families are resolved to the colony's own species before trading. */
+    @Test void woodFamiliesBecomeTheColonysOwnSpecies() {
+        for (JobType job : JobType.values()) {
+            for (ColonyTradeTable.Offer offer : ColonyTradeTable.allOffers(job)) {
+                var resolved = ColonyTradeTable.resolve(offer, HouseTimber.BIRCH);
+                assertTrue(ITEM_ID.matcher(resolved.costItem()).matches(), "unresolved cost " + resolved.costItem());
+                assertTrue(ITEM_ID.matcher(resolved.resultItem()).matches(), "unresolved result " + resolved.resultItem());
+                assertEquals(offer.costCount(), resolved.costCount());
+                assertEquals(offer.resultCount(), resolved.resultCount());
+            }
+        }
+        var lumberjack = ColonyTradeTable.offers(JobType.LUMBERJACK, 1).stream()
+                .filter(o -> WoodCosts.isFamily(o.costItem())).findFirst().orElseThrow();
+        assertEquals("minecraft:birch_log", ColonyTradeTable.resolve(lumberjack, HouseTimber.BIRCH).costItem());
     }
 
     @Test void levelsUnlockMoreOffersButNeverFewer() {

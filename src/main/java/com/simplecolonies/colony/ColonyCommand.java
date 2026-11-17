@@ -357,7 +357,9 @@ public class ColonyCommand {
             for (var up : avail) {
                 ServerLevel lvl = p != null ? p.serverLevel() : src.getServer().overworld();
                 boolean canAfford = c.getResearch().canAfford(up, lvl);
-                String costStr = up.cost.entrySet().stream().map(e -> e.getValue() + "x " + e.getKey()).reduce((a,b)->a+", "+b).orElse("free");
+                String costStr = up.cost.entrySet().stream()
+                        .map(e -> e.getValue() + "x " + com.simplecolonies.building.WoodCosts.describe(e.getKey()))
+                        .reduce((a, b) -> a + ", " + b).orElse("free");
                 String line = (canAfford ? "§a✓ " : "§c✗ ") + up.name() + " [" + up.tier + "] " + up.displayName + " — cost: " + costStr + (up.prerequisites.isEmpty() ? "" : " | needs: " + up.prerequisites.stream().map(x->x.name()).reduce((a,b)->a+", "+b).orElse(""));
                 String lineFinal = line;
                 src.sendSuccess(() -> Component.literal(lineFinal), false);

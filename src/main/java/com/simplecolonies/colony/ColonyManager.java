@@ -84,18 +84,27 @@ public class ColonyManager {
         if (colonies.size() >= com.simplecolonies.config.ColonyConfig.MAX_COLONIES_PER_DIMENSION.get()) return null;
         int id = nextId++;
         Colony colony = new Colony(id, culture, center);
+        // Founding supplies match the forest the colony was founded in, so a birch
+        // or spruce settlement never starts out dependent on imported oak.
+        var home = com.simplecolonies.building.HouseTimber.dominantAround(level, center, 24);
+        colony.setHomeTimber(home);
         {
-            colony.depositToWarehouse("minecraft:oak_planks", 32);
-            colony.depositToWarehouse("minecraft:oak_log", 16);
+            colony.depositToWarehouse(com.simplecolonies.building.WoodCosts.itemId(home, "planks"), 32);
+            colony.depositToWarehouse(com.simplecolonies.building.WoodCosts.itemId(home, "log"), 16);
             colony.depositToWarehouse("minecraft:bread", 16);
             colony.depositToWarehouse("minecraft:cobblestone", 32);
             colony.depositToWarehouse("minecraft:stone_pickaxe", 1);
             colony.depositToWarehouse("minecraft:stone_axe", 1);
-            colony.depositToWarehouse("minecraft:oak_sapling", 4);
+            colony.depositToWarehouse(com.simplecolonies.building.WoodCosts.itemId(home, "sapling"), 4);
             colony.depositToWarehouse("minecraft:coal", 8);
             colony.depositToWarehouse("minecraft:stick", 16);
             var tier = com.simplecolonies.building.MaterialProgression.get(culture, 1);
             String primaryItem = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(tier.primary().get(0).asItem()).toString();
+            // A wooden culture palette is supplied in the local species, not oak.
+            if (com.simplecolonies.building.WoodCosts.matches(com.simplecolonies.building.WoodCosts.PLANKS, primaryItem))
+                primaryItem = com.simplecolonies.building.WoodCosts.itemId(home, "planks");
+            else if (com.simplecolonies.building.WoodCosts.matches(com.simplecolonies.building.WoodCosts.LOG, primaryItem))
+                primaryItem = com.simplecolonies.building.WoodCosts.itemId(home, "log");
             colony.depositToWarehouse(primaryItem, 24);
         }
         colonies.put(id, colony);
@@ -259,7 +268,7 @@ public class ColonyManager {
             BlockPos housePos = findStarterSite(level, colony, 3, 8);
             if (housePos != null) {
                 prepareStarterPlot(level, housePos, 3);
-                placeSimpleHouse(level, housePos, colony.getCulture());
+                placeSimpleHouse(level, housePos, colony.getCulture(), colony.getHomeTimber());
                 colony.registerPlayerBuilding(new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.HOUSE, housePos, colony.getCulture(), true));
             } else SimpleColonies.LOGGER.warn("No safe starter house site for colony #{}", colony.getId());
         }
@@ -457,13 +466,13 @@ public class ColonyManager {
             return;
         }
         prepareStarterPlot(level, site, 3);
-        placeSimpleHouse(level, site, colony.getCulture());
+        placeSimpleHouse(level, site, colony.getCulture(), colony.getHomeTimber());
         colony.registerPlayerBuilding(new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.TOWN_HALL, site, colony.getCulture(), true));
     }
 
     private void placePlannedStarters(ServerLevel level, Colony colony, StarterPlan plan) {
         prepareStarterPlot(level, plan.house(), 3);
-        placeSimpleHouse(level, plan.house(), colony.getCulture());
+        placeSimpleHouse(level, plan.house(), colony.getCulture(), colony.getHomeTimber());
         colony.registerPlayerBuilding(new com.simplecolonies.building.Building(com.simplecolonies.building.BuildingType.TOWN_HALL, plan.house(), colony.getCulture(), true));
         placeTownHallIfNeeded(level, colony);
         prepareStarterPlot(level, plan.farm(), plan.farmHalfSize());
@@ -507,9 +516,16 @@ public class ColonyManager {
         }
     }
 
-    private void placeSimpleHouse(ServerLevel level, BlockPos origin, com.simplecolonies.culture.CultureType culture) {
+    private void placeSimpleHouse(ServerLevel level, BlockPos origin, com.simplecolonies.culture.CultureType culture,
+                                  com.simplecolonies.building.HouseTimber timber) {
+        var home = timber == null ? com.simplecolonies.building.HouseTimber.OAK : timber;
         var palette = com.simplecolonies.building.MaterialProgression.get(culture, 1).primary();
-        var wood = palette.isEmpty() ? Blocks.OAK_PLANKS.defaultBlockState() : palette.get(0).defaultBlockState();
+        var wood = palette.isEmpty() ? home.planksBlock().defaultBlockState() : palette.get(0).defaultBlockState();
+        // A wooden culture palette uses the species that actually grows here.
+        String paletteItem = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(wood.getBlock().asItem()).toString();
+        if (com.simplecolonies.building.WoodCosts.matches(com.simplecolonies.building.WoodCosts.PLANKS, paletteItem)
+                || com.simplecolonies.building.WoodCosts.matches(com.simplecolonies.building.WoodCosts.LOG, paletteItem))
+            wood = home.planksBlock().defaultBlockState();
         var cobble = Blocks.COBBLESTONE.defaultBlockState();
         // Ensure solid 7x7 foundation — build dirt pillars down to solid if over water (your beach case house was on sand edge)
         for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) {
@@ -538,9 +554,13 @@ public class ColonyManager {
         for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) if (x == -3 || x == 3 || z == -3 || z == 3) {
             for (int y = 0; y < 3; y++) level.setBlock(origin.offset(x, y, z), y == 2 && (x == 0 && z == -3) ? Blocks.AIR.defaultBlockState() : cobble, 3);
         }
-        // Door south
-        level.setBlock(origin.offset(0, 0, -3), Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.NORTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER), 2);
-        level.setBlock(origin.offset(0, 1, -3), Blocks.OAK_DOOR.defaultBlockState().setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.NORTH).setValue(net.minecraft.world.level.block.DoorBlock.HALF, net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER), 3);
+        // Door south, cut from the local species.
+        var door = home.doorBlock().defaultBlockState()
+                .setValue(net.minecraft.world.level.block.DoorBlock.FACING, net.minecraft.core.Direction.NORTH);
+        level.setBlock(origin.offset(0, 0, -3), door.setValue(net.minecraft.world.level.block.DoorBlock.HALF,
+                net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER), 2);
+        level.setBlock(origin.offset(0, 1, -3), door.setValue(net.minecraft.world.level.block.DoorBlock.HALF,
+                net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER), 3);
         // Starter shelter intentionally has no beds; wool requires later production.
         // Chest + crafting + torch
         level.setBlock(origin.offset(2, 0, 2), Blocks.CHEST.defaultBlockState(), 3);
