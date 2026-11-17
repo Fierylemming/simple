@@ -1,6 +1,5 @@
 package com.simplecolonies.colony;
 
-import com.simplecolonies.building.HouseTimber;
 import com.simplecolonies.building.WoodCosts;
 
 import java.util.ArrayList;
@@ -132,9 +131,4 @@ public final class TradeRoutes {
         return colon < 0 ? itemId : itemId.substring(colon + 1);
     }
 
-    /** Preferred local species for a family, used by callers without stock. */
-    public static String defaultItem(String costId, HouseTimber home) {
-        if (!WoodCosts.isFamily(costId)) return costId;
-        return WoodCosts.itemId(home == null ? HouseTimber.OAK : home, WoodCosts.familySuffix(costId));
-    }
 }

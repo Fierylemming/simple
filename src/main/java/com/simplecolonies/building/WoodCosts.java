@@ -110,6 +110,14 @@ public final class WoodCosts {
         return Collections.unmodifiableMap(result);
     }
 
+    /** The concrete item for a family in one species, e.g. {@code #planks} + birch. */
+    public static String defaultItem(String costId, HouseTimber home) {
+        if (!isFamily(costId)) return costId;
+        String suffix = SUFFIX.get(costId);
+        if (suffix == null) return costId;
+        return itemId(home == null ? HouseTimber.OAK : home, suffix);
+    }
+
     /** Human-readable cost entry for menus and messages. */
     public static String describe(String costId) {
         if (!isFamily(costId)) return costId == null ? "" : costId.replace("minecraft:", "");
