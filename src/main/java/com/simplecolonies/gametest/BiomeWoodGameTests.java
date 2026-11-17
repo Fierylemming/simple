@@ -31,7 +31,7 @@ public class BiomeWoodGameTests {
 
     /** Flat ground with two birch stands, leaving the middle clear. */
     private static void prepareBirchForest(GameTestHelper helper) {
-        for (int x = 30; x <= 82; x++) for (int z = 30; z <= 82; z++) {
+        for (int x = 42; x <= 70; x++) for (int z = 42; z <= 70; z++) {
             helper.setBlock(x, 0, z, Blocks.GRASS_BLOCK);
             for (int y = 5; y <= 8; y++) {
                 BlockPos pos = helper.absolutePos(new BlockPos(x, y, z));
@@ -39,7 +39,7 @@ public class BiomeWoodGameTests {
                     helper.getLevel().setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
             }
         }
-        for (int[] stand : new int[][]{{38, 44}, {68, 74}}) {
+        for (int[] stand : new int[][]{{44, 50}, {62, 68}}) {
             for (int x = stand[0]; x <= stand[1]; x += 3) for (int z = stand[0]; z <= stand[1]; z += 3) {
                 for (int y = 1; y <= 4; y++) helper.setBlock(x, y, z, Blocks.BIRCH_LOG);
                 for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++)
@@ -52,7 +52,7 @@ public class BiomeWoodGameTests {
     public static void aRomanColonyInABirchForestUsesBirchThroughout(GameTestHelper helper) {
         prepareBirchForest(helper);
         BlockPos center = helper.absolutePos(new BlockPos(56, 1, 56));
-        if (HouseTimber.dominantAround(helper.getLevel(), center, 24) != HouseTimber.BIRCH) {
+        if (HouseTimber.dominantAround(helper.getLevel(), center, 16) != HouseTimber.BIRCH) {
             helper.fail("The local forest was not read as birch");
             return;
         }

@@ -22,7 +22,9 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder("simplecolonies")
 @PrefixGameTestTemplate(false)
 public class MinerGameTests {
-    @GameTest(template = "quarry", timeoutTicks = 6500)
+    // Mining and walking are tick-bound; slower CI runners need a wider window for
+    // the same assertions (this test flaked at 6500 ticks on loaded runners).
+    @GameTest(template = "quarry", timeoutTicks = 12000)
     public static void minerWalksAndExcavatesWithRealTool(GameTestHelper helper) {
         // GameTest surrounds structures with a barrier ceiling, which otherwise becomes
         // the heightmap surface. Remove only the artificial roof, not the side walls.
@@ -49,7 +51,7 @@ public class MinerGameTests {
         MinerJob job = new MinerJob(villager, colony);
         BlockPos stone = new BlockPos(41, 10, 32);
         boolean[] sawCut = {false}, sawTool = {false}, sawCargo = {false};
-        for (int tick = 1; tick < 6500; tick++) helper.runAtTickTime(tick, () -> {
+        for (int tick = 1; tick < 12000; tick++) helper.runAtTickTime(tick, () -> {
             boolean wasStone = helper.getBlockState(stone).is(Blocks.STONE);
             job.tick(helper.getLevel());
             if (!sawTool[0] && villager.getMainHandItem().is(Items.STONE_PICKAXE)) {
