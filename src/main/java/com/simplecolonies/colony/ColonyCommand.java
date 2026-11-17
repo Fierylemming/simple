@@ -277,7 +277,9 @@ public class ColonyCommand {
         colony.getWarehouseManager().scan(level);
         boolean builder = colony.getCitizens().stream().anyMatch(c -> c.job == com.simplecolonies.villager.job.JobType.BUILDER);
         src.sendSuccess(() -> Component.literal("Colony #" + colony.getId() + " " + colony.getState() + "; citizens " + colony.citizenCount() + "; builder assigned " + builder
-                + ", oak logs " + colony.getWarehouseCount(level, "minecraft:oak_log")
+                + ", wood " + (colony.getHomeTimber().id + " logs "
+                        + colony.getWarehouseCount(level, com.simplecolonies.building.WoodCosts.itemId(colony.getHomeTimber(), "log"))
+                        + ", " + com.simplecolonies.building.WoodCosts.count(colony.getWarehouseSnapshot(level), com.simplecolonies.building.WoodCosts.PLANKS) + " planks (any species)")
                 + ", cobblestone " + colony.getWarehouseCount(level, "minecraft:cobblestone")
                 + ", food " + colony.getFoodCount(level)), false);
         if (com.simplecolonies.config.ColonyConfig.ENABLE_NATURAL_EXPANSION.get()) {

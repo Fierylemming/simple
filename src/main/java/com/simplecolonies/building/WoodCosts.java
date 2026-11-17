@@ -60,6 +60,7 @@ public final class WoodCosts {
 
     /** Logs and planks of one species, the two families a builder actually spends. */
     public static int woodCount(Map<String, Integer> stock, HouseTimber wood) {
+        if (stock == null || wood == null) return 0;
         return Math.max(0, stock.getOrDefault(itemId(wood, "log"), 0))
                 + Math.max(0, stock.getOrDefault(itemId(wood, "planks"), 0));
     }
@@ -132,7 +133,7 @@ public final class WoodCosts {
         var timbers = new ArrayList<>(List.of(HouseTimber.values()));
         timbers.sort(Comparator.comparingInt((HouseTimber wood) -> woodCount(stock, wood)).reversed()
                 .thenComparingInt(wood -> wood == home ? 0 : 1)
-                .thenComparingInt(Enum::ordinal));
+                .thenComparingInt(HouseTimber::ordinal));
         return List.copyOf(timbers);
     }
 

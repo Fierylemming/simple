@@ -9,7 +9,7 @@ import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import java.util.function.BiConsumer;
 
-/** Level-one houses made exclusively from colony-gatherable oak, cobblestone and coal. */
+/** Level-one houses made from colony-gatherable timber (the local species), cobblestone and coal. */
 final class CulturalHousePlans {
     private static int hx(int variant) { return variant == 0 ? 2 : 3; }
     private static int hz(int variant) { return variant == 2 ? 3 : 2; }
