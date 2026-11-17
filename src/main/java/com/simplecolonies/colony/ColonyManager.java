@@ -88,16 +88,8 @@ public class ColonyManager {
         // or spruce settlement never starts out dependent on imported oak.
         var home = com.simplecolonies.building.HouseTimber.dominantAround(level, center, 24);
         colony.setHomeTimber(home);
+        starterSupplies(home).forEach(colony::depositToWarehouse);
         {
-            colony.depositToWarehouse(com.simplecolonies.building.WoodCosts.itemId(home, "planks"), 32);
-            colony.depositToWarehouse(com.simplecolonies.building.WoodCosts.itemId(home, "log"), 16);
-            colony.depositToWarehouse("minecraft:bread", 16);
-            colony.depositToWarehouse("minecraft:cobblestone", 32);
-            colony.depositToWarehouse("minecraft:stone_pickaxe", 1);
-            colony.depositToWarehouse("minecraft:stone_axe", 1);
-            colony.depositToWarehouse(com.simplecolonies.building.WoodCosts.itemId(home, "sapling"), 4);
-            colony.depositToWarehouse("minecraft:coal", 8);
-            colony.depositToWarehouse("minecraft:stick", 16);
             var tier = com.simplecolonies.building.MaterialProgression.get(culture, 1);
             String primaryItem = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(tier.primary().get(0).asItem()).toString();
             // A wooden culture palette is supplied in the local species, not oak.
@@ -457,6 +449,25 @@ public class ColonyManager {
         if (!isSafeStarterPlot(level, plan.house(), 3) || !isSafeStarterPlot(level, plan.farm(), plan.farmHalfSize())
                 || !isSpawnable(level, plan.center())) return null;
         return createColony(level, culture, plan.house(), plan);
+    }
+
+    /**
+     * Founding supplies in the wood that grows around the colony, so a birch or
+     * spruce settlement never starts out dependent on oak it cannot harvest.
+     */
+    public static java.util.Map<String, Integer> starterSupplies(com.simplecolonies.building.HouseTimber home) {
+        var timber = home == null ? com.simplecolonies.building.HouseTimber.OAK : home;
+        var supplies = new java.util.LinkedHashMap<String, Integer>();
+        supplies.put(com.simplecolonies.building.WoodCosts.itemId(timber, "planks"), 32);
+        supplies.put(com.simplecolonies.building.WoodCosts.itemId(timber, "log"), 16);
+        supplies.put("minecraft:bread", 16);
+        supplies.put("minecraft:cobblestone", 32);
+        supplies.put("minecraft:stone_pickaxe", 1);
+        supplies.put("minecraft:stone_axe", 1);
+        supplies.put(com.simplecolonies.building.WoodCosts.itemId(timber, "sapling"), 4);
+        supplies.put("minecraft:coal", 8);
+        supplies.put("minecraft:stick", 16);
+        return java.util.Collections.unmodifiableMap(supplies);
     }
 
     private void placeInitialTownHall(ServerLevel level, Colony colony) {
