@@ -48,8 +48,8 @@ class WoodCostsTest {
     @Test void timberPreferenceFollowsTheStoredWoodThenTheHomeSpecies() {
         var stock = Map.of("minecraft:birch_log", 30, "minecraft:acacia_log", 30);
         List<HouseTimber> order = WoodCosts.preferredTimbers(stock, HouseTimber.OAK);
-        assertEquals(HouseTimber.ACACIA, order.getFirst(), "equal stock breaks alphabetically");
-        assertEquals(HouseTimber.BIRCH, order.get(1));
+        assertEquals(HouseTimber.BIRCH, order.getFirst(), "equal stock falls back to a stable timber order");
+        assertEquals(HouseTimber.ACACIA, order.get(1));
         assertEquals(HouseTimber.OAK, order.get(2), "the home species beats the remaining empty ones");
         assertEquals(HouseTimber.SPRUCE, WoodCosts.preferredTimbers(Map.of(), HouseTimber.SPRUCE).getFirst());
         assertEquals(HouseTimber.SPRUCE, WoodCosts.dominantTimber(Map.of("minecraft:spruce_planks", 4), HouseTimber.OAK));

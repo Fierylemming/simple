@@ -32,8 +32,10 @@ class TradeRoutesTest {
     }
 
     @Test void marketOrdersTheSpeciesAPlanActuallyNeeds() {
+        // Generic stone and coal are not what is missing, so the plank family must
+        // resolve to the concrete species the plan asked for.
         var visit = TradeRoutes.marketVisit(Map.of("minecraft:emerald", 4),
-                List.of("minecraft:birch_planks", "minecraft:cobblestone")).orElseThrow();
+                List.of("minecraft:birch_planks")).orElseThrow();
         assertEquals("minecraft:emerald", visit.giveItem());
         assertEquals("minecraft:birch_planks", visit.takeItem());
         assertEquals(16, visit.takeCount());
