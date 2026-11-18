@@ -68,14 +68,22 @@ public class SettlementLifecycleGameTests {
         });
     }
 
+    /** The founder entities as objects, so a vanished one can report why. */
+    private static final java.util.List<net.minecraft.world.entity.Entity> FOUNDERS = new java.util.ArrayList<>();
+
     private static void sample(GameTestHelper helper, Colony colony, String label, java.util.List<String> log) {
         long live = colony.getCitizens().stream()
                 .filter(citizen -> helper.getLevel().getEntity(citizen.uuid) != null)
                 .count();
         int nearby = helper.getLevel().getEntitiesOfClass(com.simplecolonies.entity.ColonyVillager.class,
                 new net.minecraft.world.phys.AABB(colony.getCenter()).inflate(72)).size();
+        StringBuilder refs = new StringBuilder();
+        for (var entity : FOUNDERS)
+            refs.append('.').append(entity == null ? "null"
+                    : entity.isRemoved() ? "removed(" + entity.getRemovalReason() + ")"
+                    : entity.isAlive() ? "alive" : "dead");
         log.add(label + "[live=" + live + "/" + colony.citizenCount() + ",nearby=" + nearby
-                + ",days=" + colony.getSimulatedDays() + "]");
+                + ",days=" + colony.getSimulatedDays() + ",e=" + refs + "]");
     }
 
     @SuppressWarnings("unchecked")
@@ -98,6 +106,12 @@ public class SettlementLifecycleGameTests {
         Colony colony = manager.createNaturalColony(helper.getLevel(), CultureType.ROMAN, plan);
         if (colony == null) { helper.fail("Could not found the colony"); return; }
         try {
+            FOUNDERS.clear();
+            for (var citizen : colony.getCitizens()) {
+                var entity = helper.getLevel().getEntity(citizen.uuid);
+                FOUNDERS.add(entity);
+                if (entity instanceof net.minecraft.world.entity.Mob mob) mob.setPersistenceRequired();
+            }
             int founders = colony.citizenCount();
             int breadAtStart = colony.getWarehouseCount(helper.getLevel(), "minecraft:bread");
             if (founders < 4) helper.fail("Settlement did not start with its founders: " + founders);
