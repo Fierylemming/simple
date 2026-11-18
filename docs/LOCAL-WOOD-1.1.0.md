@@ -1,6 +1,6 @@
-# Building with the wood that grows there (0.1.32)
+# Building with the wood that grows there (1.1.0)
 
-Back up your world before testing. No release was published.
+Back up your world before testing. This is the 1.1.0 preview release build.
 
 ## The problem
 

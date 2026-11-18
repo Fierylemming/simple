@@ -1,5 +1,6 @@
 # Changelog
-## 0.1.32 — Colonies build with the wood that actually grows there
+## 1.1.0 — Colonies build with the wood that actually grows there
+- Published as a GitHub release build (tag `v1.1.0`); the internal development sequence before it was 0.1.x.
 - Wooden costs are now *families*, not one species. Research orders, trade offers and trade routes ask for any planks, logs, fences or boats, and the exact species is resolved from what the colony has stored. A Roman colony in a birch forest can research, build and trade instead of waiting for oak that will never arrive.
 - Research resolves and saves its concrete material list when an order is queued, so the builder carries one exact species and a later delivery cannot swap materials mid-order.
 - A new colony reads the forest around its centre: the founding wood, saplings, starter hall floor, roof and door use the local species. `dominantAround` counts logs three times and leaves once, so a mixed forest picks the species that is really there.

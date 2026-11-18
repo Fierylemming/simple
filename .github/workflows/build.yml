@@ -80,8 +80,8 @@ jobs:
         if: success() && github.event_name == 'push' && contains(github.event.head_commit.message, '[release]')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: prism-${{ github.sha }}
+          tag_name: v${{ steps.version.outputs.version }}
           name: ${{ steps.version.outputs.version }}
-          body: "SimpleColonies ${{ steps.version.outputs.version }} — Drop into Prism mods/. NeoForge 1.21.1 + Java 21 — commit ${{ github.sha }}"
+          body: "SimpleColonies ${{ steps.version.outputs.version }} — preview build. Drop the jar into Prism `mods/`. NeoForge 1.21.1 + Java 21 — commit ${{ github.sha }}. Unit tests, standard GameTests and Create GameTests passed on CI, but this is still a test build: back up worlds and read docs/TEST-BUILD.md."
           files: build/libs/*.jar
           prerelease: true

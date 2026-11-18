@@ -4,13 +4,13 @@ This is an **unfinished test build**, not the completed overhaul. Back up any ex
 
 ## Get the build
 
-1. Open [CI run 43887487282](https://github.com/Fierylemming/simple/actions/runs/43887487282) and download the **simplecolonies-prism-jar** artifact at the bottom of the page (GitHub sign-in may be required). It is built from commit `ad7815a`. The build and both standard and Create-enabled GameTests passed, but navigation and animal integration have failed intermittently in other runs and still need in-game verification. Extract the zip.
+1. Open [the releases page](https://github.com/Fierylemming/simple/releases) and download **simplecolonies-1.1.0.jar** from the newest release (tag `v1.1.0`). CI built that commit with its unit tests, standard GameTests and Create-enabled GameTests passing, but navigation still fails intermittently in some runs and everything below still needs in-game verification. If a newer release exists, prefer the newest one.
 2. In Prism Launcher, create a **Minecraft 1.21.1, NeoForge 21.1.265, Java 21** instance. Place the extracted SimpleColonies jar in that instance's `mods` folder; remove any older SimpleColonies jar first. Do not install it alongside another copy. For a server, install the same version on both client and server.
 3. Start a new world with cheats enabled, in the Overworld. No public overhaul release has been made.
 
-## Local wood and expansion in any biome (0.1.32)
+## Local wood and expansion in any biome (1.1.0)
 
-Added in 0.1.32; needs in-game verification in a real forest.
+Added in 1.1.0; needs in-game verification in a real forest.
 
 1. **Birch forest start.** Found a Roman colony with `/colony spawn roman` in a
    large birch forest (or a spruce taiga). The starter hall must be birch (or
