@@ -24,6 +24,17 @@ Expansion now checks on normal colony ticks, reports blockers and does not stall
 
 ## Latest test status
 
+Green in CI run 44359982811 (236 GameTests + 31 unit-test classes,
+including Create): `SettlementLifecycleGameTests` now founds a colony the way a player
+does, crosses three day boundaries and requires the founders, the food and the save/load
+state to survive; `StarvationGameTests` empties a settlement and requires the state to
+reach `STARVING` after the configured grace period. The lifecycle test also caught that
+the simulated-day counter was not persisted. Building either test found two things worth
+knowing: the GameTest world discards entities created in a test body on its first tick
+(create things in a delayed callback), and a discarded villager keeps its citizen record.
+See [TEST-COVERAGE.md](TEST-COVERAGE.md) for what is proven automatically and what is not.
+
+
 CI on the work-in-progress branch has compiled the mod and exercised explicit storage ownership/revocation, tier persistence and boundary math, enclosure checks, smith-to-guard swords, idle social approaches, and housing demand, builder/material blockers, variant affordability, queued-plan reload, worksite entrance obstruction and the new bakery/leatherworkshop plans, as well as house variants, claimed-POI expansion, worksite shells, miner, courier, guard, farmer, woodcutter, blacksmith, furnace batches, leatherworking and guard armor pickup, butcher, cattle and pig breeding, shore fish gathering (including a builder-constructed fishing worksite), and bedless shelter, including a two-villager reachable-house fallback. The miner test passes after removing a GameTest-only barrier ceiling and verifies that the worker advances down the quarry. Woodcutter save/reload, unsafe-site and tool-durability tests and a tool-reassignment test also pass in CI. The constructed-harbor fishing test still fails intermittently. Some path requests occurred while the villager was airborne, when ground navigation cannot calculate a route; an immediate-on-landing retry and exposing the work path to vanilla door AI did not by themselves eliminate the integration failure. The pathfinder now avoids water while searching for a shore route rather than rejecting a wet shortcut, and a focused detour test plus two CI runs passed; more repeat runs and in-game validation are needed before calling the intermittent failure resolved. Courier and guard tests were intermittently affected by storage and hostiles in nearby test structures. Fixtures were isolated; guards additionally required their combat navigation to be protected from vanilla panic. These tests need repeated runs. Passing isolated GameTests is not a substitute for single-player and dedicated-server integration testing. No overhaul release has been published.
 
 

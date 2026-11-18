@@ -69,6 +69,20 @@ Fire is **not** protected in this build: a burning colony can still lose wooden
 buildings, because Minecraft offers no fire-spread event and the mod ships no
 mixins.
 
+## What is already covered automatically (1.1.0)
+
+Every push runs 236 GameTests and 31 unit-test classes on a real server, and they cover
+far more than a manual pass can: physical meals, storage ownership, furnaces, every
+profession's supply chain, tool wear, save/reload of each system, griefing protection,
+and a three-day simulated settlement that must keep its founders and its state. See
+[TEST-COVERAGE.md](TEST-COVERAGE.md) for the area-by-area table and for the list of what
+automation cannot reach.
+
+Spend your own time where CI is blind: how it **feels** to play, what the screens and
+tooltips show, long walks across real terrain, a dedicated server, a week of colony life,
+and anything that only appears with your world's history. That is where the remaining
+problems will be.
+
 ## Initial checks
 
 - On open, reasonably flat, loaded land away from structures and other colonies (natural stone, dirt, sand or gravel can be used), use `/colony spawn roman` as an operator. Find the starter hall and farm, and check the initial villagers and workstations. The starter-plot search can fail on unsuitable terrain; check chat and try a different open area.

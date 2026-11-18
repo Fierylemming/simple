@@ -4,7 +4,7 @@ This file exists because manual playtesting kept missing breakage. It states, pl
 what CI proves on every push, what it only partly proves, and what it cannot prove at
 all. Read it before assuming a green build means "the mod works".
 
-Current numbers: **33 GameTest classes / 236 GameTest instances**, plus **31 JUnit
+Current numbers: **34 GameTest classes / 236 GameTest instances**, plus **31 JUnit
 classes** (pure-logic tests such as `DailyCatchUpTest`, `GrowthBoundsTest`,
 `ColonyPropertyMemoryTest`, `OverlappingColonyTest`, `StarterSiteSearchTest`,
 `FoodRulesTest`).
@@ -31,7 +31,8 @@ GameTests. A JDK 21 toolchain is required.
 | Area | Automated proof |
 | --- | --- |
 | Founding a colony | `StarterColonyGameTests` (hall, farm and supplies on soil and on stone), `SettlementLifecycleGameTests.naturalFoundingUsesItsOwnSupplies` (founding through the mod's own site search) |
-| Owning a colony over time | `SettlementLifecycleGameTests.settlementSurvivesSeveralSimulatedDays` — founders, physical bread, three crossed day boundaries, no unsettled rations, save/load round-trip equality |
+| Owning a colony over time | `SettlementLifecycleGameTests.settlementSurvivesSeveralSimulatedDays` — founders, physical bread, three crossed day boundaries, save/load round-trip equality (green in run 44359982811) |
+| Starvation | `StarvationGameTests.emptySettlementReachesStarvationAfterTheGracePeriod` — every container and the legacy stockpile emptied, the configured grace period crossed one day at a time, `STARVING` required when deaths are enabled, the state required to survive save/load |
 | Local wood species | `BiomeWoodGameTests.aRomanColonyInABirchForestUsesBirchThroughout`, `HousingGrowthGameTests` (birch/spruce variants, civic hall), `WoodCostsTest` |
 | Growth and tiers | `ColonyLevelGameTests`, `HousingGrowthGameTests` (8), `WorksiteExpansionGameTests` (9), `GrowthBoundsTest`, `OverlappingColonyTest` |
 | Construction | `ConstructionGameTests` (39 house plan cases), `PhysicalBuilderGameTests`, `PhysicalBuilderMaterialsGameTests`, `MarkerHouseWingGameTests` |
@@ -58,7 +59,9 @@ GameTests. A JDK 21 toolchain is required.
 ## Flakiness, measured
 
 The suite is not perfectly deterministic; tick budgets and pathfinding in small
-fixtures are the usual culprits. Observed this cycle:
+fixtures are the usual culprits. Three consecutive clean runs of the full suite
+(44100903384, 44276384230, 44354148723) were used as a flakiness baseline.
+Observed this cycle:
 
 | Test | Failure mode | Evidence |
 | --- | --- | --- |
@@ -67,6 +70,7 @@ fixtures are the usual culprits. Observed this cycle:
 | `WoodcutterGameTests.harvestStalledStraightTreeFromNaturalSlope` | genuinely broken pre-fix | Failed in 43912867491; real bug, fixed |
 | `FishermanGameTests` shore routing | intermittent path failure | Historically intermittent; two consecutive green runs after the water-avoidance change |
 | `GriefingProtectionGameTests.pistonCannotMoveAColonyBlock` | genuinely broken pre-fix | 43912867491; real bug, fixed |
+| Anything created in a GameTest *body* (not in a delayed callback) | discarded by the test world on the test's first tick | `SettlementLifecycleGameTests` lost all four founders this way; founding now happens on tick 3 |
 
 Rule of thumb: a single red run on one of the listed pathfinding tests is a flake, but
 re-run before believing it — each fresh run needs its own push.
@@ -90,8 +94,8 @@ These are the honest gaps; they are also why a manual pass can still find proble
 5. **Site exhaustion.** The miner's step cap and site rotation are code paths without a
    focused test; a full quarry would need a large fixture and a long budget, which the
    miner test is least able to afford today.
-6. **Starvation.** The colony has no automated "all food gone" scenario; death and
-   rationing behaviour is only partly modelled.
+6. **Starvation deaths.** The *state* transition and the grace period are asserted, but
+   what the deaths themselves do to the colony over many days is not.
 7. **Several workers competing.** Most tests run one worker at a time. Contention for
    one workstation, one chest or one door is exercised indirectly, not asserted.
 8. **Balance and feel.** Whether the economy feels right over a session is not a test.
