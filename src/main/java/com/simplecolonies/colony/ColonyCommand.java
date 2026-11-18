@@ -86,23 +86,15 @@ public class ColonyCommand {
                                             ServerPlayer p = ctx.getSource().getPlayerOrException();
                                             var colony = ColonyManager.getInstance().getColonyAt(p.level().dimension(), p.blockPosition());
                                             if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("Not inside a colony")); return 0; }
-                                            String item = StringArgumentType.getString(ctx, "item");
-                                            int count = IntegerArgumentType.getInteger(ctx, "count");
-                                            colony.get().depositToWarehouse(item.contains(":") ? item : "minecraft:" + item, count);
-                                            ColonyManager.getInstance().markDirty(colony.get());
-                                            ctx.getSource().sendSuccess(() -> Component.literal("Gave " + count + "x " + item + " to colony #" + colony.get().getId() + " — check /colony warehouse"), true);
-                                            return 1;
+                                            return giveToColony(ctx.getSource(), colony.get(),
+                                                    StringArgumentType.getString(ctx, "item"), IntegerArgumentType.getInteger(ctx, "count"));
                                         })
                                         .then(Commands.argument("id", IntegerArgumentType.integer()).executes(ctx -> {
-                                            String item = StringArgumentType.getString(ctx, "item");
-                                            int count = IntegerArgumentType.getInteger(ctx, "count");
                                             int id = IntegerArgumentType.getInteger(ctx, "id");
                                             var colony = ColonyManager.getInstance().getColony(id);
                                             if (colony.isEmpty()) { ctx.getSource().sendFailure(Component.literal("No colony #" + id)); return 0; }
-                                            colony.get().depositToWarehouse(item.contains(":") ? item : "minecraft:" + item, count);
-                                            ColonyManager.getInstance().markDirty(colony.get());
-                                            ctx.getSource().sendSuccess(() -> Component.literal("Gave " + count + "x " + item + " to colony #" + id), true);
-                                            return 1;
+                                            return giveToColony(ctx.getSource(), colony.get(),
+                                                    StringArgumentType.getString(ctx, "item"), IntegerArgumentType.getInteger(ctx, "count"));
                                         }))
                         )))
                 .then(Commands.literal("unlock").requires(src -> src.hasPermission(2))
@@ -235,6 +227,8 @@ public class ColonyCommand {
                                 ctx.getSource().sendFailure(Component.literal("Colonies currently build only in the overworld.")); return 0;
                             }
                             var manager = ColonyManager.getInstance();
+                            String blocker = manager.starterSiteBlocker(p.serverLevel(), p.blockPosition());
+                            if (blocker != null) { ctx.getSource().sendFailure(Component.literal(blocker)); return 0; }
                             var plan = manager.findNaturalStarterPlan(p.serverLevel(), p.blockPosition());
                             if (plan == null) {
                                 ctx.getSource().sendFailure(Component.literal("No safe loaded land for both a town hall and farm nearby; try a clear area.")); return 0;
@@ -266,6 +260,73 @@ public class ColonyCommand {
                             return 1;
                         })))
         );
+    }
+
+    /**
+     * Debug funding that actually reaches the workers. Builders fetch real items
+     * from shared containers and craft from them, so virtual ledger stock is only
+     * a fallback — and it is reported as unusable rather than looking like success.
+     */
+    static int giveToColony(CommandSourceStack src, Colony colony, String rawItem, int count) {
+        var resolved = resolveItemId(rawItem);
+        if (resolved == null) {
+            src.sendFailure(Component.literal("Unknown item '" + rawItem + "'." + suggestItems(rawItem)));
+            return 0;
+        }
+        String id = resolved.toString();
+        String note = id.equals(rawItem.trim().toLowerCase(java.util.Locale.ROOT))
+                || id.equals("minecraft:" + rawItem.trim().toLowerCase(java.util.Locale.ROOT)) ? "" : " (as " + id + ")";
+        int placed = 0;
+        if (src.getLevel() instanceof ServerLevel level) {
+            colony.getWarehouseManager().scan(level);
+            placed = colony.getWarehouseManager().deposit(level, colony.getCenter(), id, count);
+        }
+        int virtual = count - placed;
+        if (virtual > 0) colony.depositToWarehouse(id, virtual);
+        ColonyManager.getInstance().markDirty(colony);
+        int finalPlaced = placed;
+        if (placed == count) {
+            src.sendSuccess(() -> Component.literal("Gave " + count + "x " + id + note + " to colony #" + colony.getId()
+                    + "'s shared storage. Builders fetch it, craft planks and parts, and place it."), true);
+        } else if (placed > 0) {
+            src.sendSuccess(() -> Component.literal("Gave " + finalPlaced + "x " + id + note + " to colony #" + colony.getId()
+                    + "'s shared storage; " + virtual + " went to virtual stock, which builders cannot use. Free up space in a"
+                    + " shared chest and run the command again for the rest."), true);
+        } else {
+            src.sendSuccess(() -> Component.literal("No shared container in colony #" + colony.getId() + ", so " + count + "x "
+                    + id + note + " went to virtual stock — builders cannot use that. Sneak-use the Building Tool on a chest or"
+                    + " barrel inside the colony, then run the command again."), false);
+        }
+        return 1;
+    }
+
+    /** Accept "oak_log", "minecraft:oak_log" and the common plural typo "oak_logs". */
+    private static net.minecraft.resources.ResourceLocation resolveItemId(String raw) {
+        String candidate = raw.trim().toLowerCase(java.util.Locale.ROOT);
+        if (candidate.isEmpty()) return null;
+        if (!candidate.contains(":")) candidate = "minecraft:" + candidate;
+        var id = net.minecraft.resources.ResourceLocation.tryParse(candidate);
+        if (id != null && net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(id)) return id;
+        if (candidate.endsWith("s")) {
+            var singular = net.minecraft.resources.ResourceLocation.tryParse(candidate.substring(0, candidate.length() - 1));
+            if (singular != null && net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(singular)) return singular;
+        }
+        return null;
+    }
+
+    private static String suggestItems(String raw) {
+        String needle = raw.trim().toLowerCase(java.util.Locale.ROOT);
+        int colon = needle.indexOf(':');
+        if (colon >= 0) needle = needle.substring(colon + 1);
+        if (needle.endsWith("s")) needle = needle.substring(0, needle.length() - 1);
+        if (needle.isEmpty()) return "";
+        var matches = new java.util.ArrayList<String>();
+        for (var key : net.minecraft.core.registries.BuiltInRegistries.ITEM.keySet()) {
+            if (!key.getPath().contains(needle)) continue;
+            matches.add(key.toString());
+            if (matches.size() >= 4) break;
+        }
+        return matches.isEmpty() ? "" : " Try " + String.join(", ", matches) + ".";
     }
 
     private static int sendWorkStatus(CommandSourceStack src, Colony colony) {

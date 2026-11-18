@@ -44,4 +44,50 @@ public class ColonyCommandGameTests {
             helper.fail("Operator could not cancel research safely");
         helper.succeed();
     }
+
+    /** The exact failure reported from play: /colony give must hand workers real
+     * items, accept the plural typo, and refuse unknown ids instead of inventing
+     * a fake item id that no builder can fetch. */
+    @GameTest(template = "empty")
+    public static void giveDeliversRealItemsBuildersCanUse(GameTestHelper helper) {
+        var dispatcher = new CommandDispatcher<CommandSourceStack>();
+        ColonyCommand.register(dispatcher);
+        var operator = helper.getLevel().getServer().createCommandSourceStack().withPermission(2);
+        var chestPos = new BlockPos(8, 1, 8);
+        helper.setBlock(chestPos, net.minecraft.world.level.block.Blocks.CHEST);
+        var chest = (net.minecraft.world.Container) helper.getBlockEntity(chestPos);
+        Colony colony = new Colony(com.simplecolonies.gametest.GameTestColonyIds.next(),
+                CultureType.ROMAN, helper.absolutePos(chestPos));
+        colony.getWarehouseManager().registerStorage(helper.getLevel(), helper.absolutePos(chestPos));
+
+        if (ColonyCommand.giveToColony(operator, colony, "oak_logs", 8) != 1)
+            helper.fail("Accepted item was rejected");
+        if (chest.countItem(net.minecraft.world.item.Items.OAK_LOG) != 8)
+            helper.fail("Given logs did not reach the shared chest: "
+                    + chest.countItem(net.minecraft.world.item.Items.OAK_LOG));
+        if (colony.getWarehouseCount("minecraft:oak_log") != 0)
+            helper.fail("Given logs stayed in virtual stock, which builders cannot use");
+
+        if (ColonyCommand.giveToColony(operator, colony, "oak_log", 2) != 1
+                || chest.countItem(net.minecraft.world.item.Items.OAK_LOG) != 10)
+            helper.fail("Singleton id did not deposit");
+
+        if (ColonyCommand.giveToColony(operator, colony, "oak_logs_but_not_really", 64) != 0)
+            helper.fail("Unknown item id was accepted");
+        if (colony.getWarehouseCount("minecraft:oak_logs_but_not_really") != 0)
+            helper.fail("Unknown item id invented virtual stock");
+        if (chest.countItem(net.minecraft.world.item.Items.OAK_LOG) != 10)
+            helper.fail("A rejected give changed the chest");
+
+        // The logs a player hands over must be craftable into the parts a house
+        // actually spends: planks first, then stairs/slabs/doors, sticks, torches.
+        var shared = colony.getWarehouseManager().snapshot();
+        for (String part : new String[]{"minecraft:oak_planks", "minecraft:oak_stairs",
+                "minecraft:oak_slab", "minecraft:oak_door", "minecraft:stick"}) {
+            var inputs = com.simplecolonies.building.ConstructionCrafting.requiredInputs(shared, part);
+            if (inputs == null)
+                helper.fail("Shared logs cannot be crafted into " + part + " (stock " + shared + ")");
+        }
+        helper.succeed();
+    }
 }

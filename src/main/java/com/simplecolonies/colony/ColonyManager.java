@@ -399,8 +399,22 @@ public class ColonyManager {
 
     public record StarterPlan(BlockPos center, BlockPos house, BlockPos farm, int farmHalfSize) {}
 
+    /** A colony never starts on top of somebody else's structure. */
+    public static final int STARTER_STRUCTURE_CLEARANCE = 96;
+
+    /** Why this spot cannot host a colony, or null when it can. */
+    public String starterSiteBlocker(ServerLevel level, BlockPos anchor) {
+        if (!level.dimension().equals(Level.OVERWORLD)) return "Colonies currently build only in the overworld.";
+        if (StarterSiteSearch.structureNear(level, anchor, STARTER_STRUCTURE_CLEARANCE))
+            return "A village or other generated structure is within " + STARTER_STRUCTURE_CLEARANCE
+                    + " blocks. Colonies start on empty land; walk further out and try again.";
+        return null;
+    }
+
     /** Plan both plots before creating a colony. Only already-loaded, dry land is considered. */
     public StarterPlan findNaturalStarterPlan(ServerLevel level, BlockPos anchor) {
+        // Never drop a new colony into an existing village or ruin.
+        if (StarterSiteSearch.structureNear(level, anchor, STARTER_STRUCTURE_CLEARANCE)) return null;
         var houses = new ArrayList<BlockPos>();
         var fullFarms = new ArrayList<BlockPos>();
         var compactFarms = new ArrayList<BlockPos>();

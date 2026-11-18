@@ -1,5 +1,7 @@
 package com.simplecolonies.colony;
 
+import net.minecraft.core.BlockPos;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -28,6 +30,29 @@ final class StarterSiteSearch {
     // The foundation and clearance are replaced; deeper solid blocks are left alone.
     static boolean safeBlock(int relativeY, boolean fluid, boolean blockEntity, boolean naturalGround, boolean clearable) {
         return !fluid && !blockEntity && (relativeY < -1 || naturalGround || clearable);
+    }
+
+    /** True when a generated structure (village, outpost, ruin, ...) actually
+     * reaches into the radius. Structure references alone cover whole chunks,
+     * so every candidate is confirmed with StructureManager#getStructureAt at
+     * several heights before the site is rejected. */
+    static boolean structureNear(net.minecraft.server.level.ServerLevel level,
+                                 BlockPos center, int radius) {
+        if (radius <= 0) return false;
+        for (int dx = -radius; dx <= radius; dx += 8) for (int dz = -radius; dz <= radius; dz += 8) {
+            if ((long) dx * dx + (long) dz * dz > (long) radius * radius) continue;
+            BlockPos sample = center.offset(dx, 0, dz);
+            if (!level.isLoaded(sample)) continue;
+            int surface = level.getHeight(
+                    net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                    sample.getX(), sample.getZ());
+            BlockPos column = new BlockPos(sample.getX(), surface, sample.getZ());
+            for (var structure : level.structureManager().getAllStructuresAt(column).keySet())
+                for (int dy = -10; dy <= 6; dy += 2)
+                    if (level.structureManager().getStructureAt(column.offset(0, dy, 0), structure).isValid())
+                        return true;
+        }
+        return false;
     }
 
     static boolean separated(int x1, int z1, int x2, int z2, int distance) {
