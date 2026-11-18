@@ -1036,6 +1036,7 @@ public class Colony {
         tag.putInt("daysWithoutFood", daysWithoutFood);
         tag.putInt("daysSinceExpansion", daysSinceExpansion);
         tag.putLong("lastSimulatedDay", lastSimulatedDay);
+        tag.putInt("simulatedDays", simulatedDays);
         tag.putBoolean("deferredBirthsDuringCatchUp", deferredBirthsDuringCatchUp);
         if (hasObservedClocks) {
             tag.putLong("observedGameTime", observedGameTime);
@@ -1077,6 +1078,7 @@ public class Colony {
         c.radius = tag.getInt("radius");
         c.daysWithoutFood = tag.getInt("daysWithoutFood");
         c.daysSinceExpansion = tag.getInt("daysSinceExpansion");
+        c.simulatedDays = Math.max(0, tag.getInt("simulatedDays"));
         c.lastSimulatedDay = tag.contains("lastSimulatedDay") ? tag.getLong("lastSimulatedDay") : -1;
         c.deferredBirthsDuringCatchUp = tag.getBoolean("deferredBirthsDuringCatchUp");
         c.hasObservedClocks = tag.contains("observedGameTime") && tag.contains("observedDayTime");
