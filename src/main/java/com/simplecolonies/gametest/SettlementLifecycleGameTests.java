@@ -97,9 +97,21 @@ public class SettlementLifecycleGameTests {
                             helper.fail("Only " + days + " simulated day(s) passed; the daily loop is not running");
                         if (colony.citizenCount() < founders)
                             helper.fail("Founders died: " + colony.citizenCount() + " of " + founders);
-                        for (var citizen : colony.getCitizens())
-                            if (helper.getLevel().getEntity(citizen.uuid) == null)
-                                helper.fail("Citizen " + citizen.uuid + " is registered but no longer exists");
+                        var missing = colony.getCitizens().stream()
+                                .filter(citizen -> helper.getLevel().getEntity(citizen.uuid) == null)
+                                .toList();
+                        if (!missing.isEmpty()) {
+                            var nearby = helper.getLevel().getEntitiesOfClass(
+                                    com.simplecolonies.entity.ColonyVillager.class,
+                                    new net.minecraft.world.phys.AABB(colony.getCenter()).inflate(64));
+                            helper.fail("Citizens registered but not in the world: " + missing.size() + "/"
+                                    + colony.citizenCount()
+                                    + " (jobs " + missing.stream().map(c -> c.job.name()).toList() + ")"
+                                    + "; nearby villagers=" + nearby.size()
+                                    + " state=" + colony.getState().name()
+                                    + " food=" + colony.getFoodCount(helper.getLevel())
+                                    + " difficulty=" + helper.getLevel().getDifficulty());
+                        }
                         if (colony.getState() != com.simplecolonies.colony.ColonyState.ACTIVE)
                             helper.fail("Colony left its active state: " + colony.getState());
 
