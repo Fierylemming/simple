@@ -42,6 +42,14 @@ public class SettlementLifecycleGameTests {
                     helper.setBlock(x + dx, 4, z + dz, Blocks.OAK_LEAVES);
             }
         }
+        // Keep the founders on the platform: without a boundary they wander off
+        // the isolated test structure and vanish, which is a test artefact, not
+        // a colony bug.
+        for (int x = 31; x <= 81; x++) for (int z = 31; z <= 81; z++) {
+            boolean edge = x == 31 || x == 81 || z == 31 || z == 81;
+            if (!edge) continue;
+            for (int y = 1; y <= 4; y++) helper.setBlock(x, y, z, Blocks.BARRIER);
+        }
     }
 
     /** Tick the colony, cross a day boundary, tick again — the real day cursor. */
