@@ -53,15 +53,29 @@ public class SettlementLifecycleGameTests {
     }
 
     /** Tick the colony, cross a day boundary, tick again — the real day cursor. */
-    private static void simulateOneDay(GameTestHelper helper, Colony colony, Runnable after) {
-        helper.runAfterDelay(1, () -> colony.tick(helper.getLevel()));
-        helper.runAfterDelay(120, () -> colony.tick(helper.getLevel()));
-        helper.runAfterDelay(240, () -> colony.tick(helper.getLevel()));
-        helper.runAfterDelay(340, () -> helper.getLevel().setDayTime(helper.getLevel().getDayTime() + 24000));
+    private static void simulateOneDay(GameTestHelper helper, Colony colony, int day,
+                                       java.util.List<String> log, Runnable after) {
+        sample(helper, colony, "d" + day + "-start", log);
+        helper.runAfterDelay(1, () -> { colony.tick(helper.getLevel()); sample(helper, colony, "d" + day + "-tick1", log); });
+        helper.runAfterDelay(120, () -> { colony.tick(helper.getLevel()); sample(helper, colony, "d" + day + "-tick2", log); });
+        helper.runAfterDelay(240, () -> { colony.tick(helper.getLevel()); sample(helper, colony, "d" + day + "-tick3", log); });
+        helper.runAfterDelay(340, () -> helper.getLevel().setDayTime(helper.getLevel().getDayTime() + 24000L));
+        helper.runAfterDelay(400, () -> sample(helper, colony, "d" + day + "-jumped", log));
         helper.runAfterDelay(560, () -> {
             colony.tick(helper.getLevel());
+            sample(helper, colony, "d" + day + "-next", log);
             after.run();
         });
+    }
+
+    private static void sample(GameTestHelper helper, Colony colony, String label, java.util.List<String> log) {
+        long live = colony.getCitizens().stream()
+                .filter(citizen -> helper.getLevel().getEntity(citizen.uuid) != null)
+                .count();
+        int nearby = helper.getLevel().getEntitiesOfClass(com.simplecolonies.entity.ColonyVillager.class,
+                new net.minecraft.world.phys.AABB(colony.getCenter()).inflate(72)).size();
+        log.add(label + "[live=" + live + "/" + colony.citizenCount() + ",nearby=" + nearby
+                + ",days=" + colony.getSimulatedDays() + "]");
     }
 
     @SuppressWarnings("unchecked")
@@ -89,9 +103,10 @@ public class SettlementLifecycleGameTests {
             if (founders < 4) helper.fail("Settlement did not start with its founders: " + founders);
             if (breadAtStart < 4) helper.fail("Founding food is missing: " + breadAtStart);
 
-            simulateOneDay(helper, colony, () ->
-                simulateOneDay(helper, colony, () ->
-                    simulateOneDay(helper, colony, () -> {
+            java.util.List<String> log = new java.util.ArrayList<>();
+            simulateOneDay(helper, colony, 1, log, () ->
+                simulateOneDay(helper, colony, 2, log, () ->
+                    simulateOneDay(helper, colony, 3, log, () -> {
                         int days = colony.getSimulatedDays();
                         if (days < 3)
                             helper.fail("Only " + days + " simulated day(s) passed; the daily loop is not running");
@@ -110,7 +125,8 @@ public class SettlementLifecycleGameTests {
                                     + "; nearby villagers=" + nearby.size()
                                     + " state=" + colony.getState().name()
                                     + " food=" + colony.getFoodCount(helper.getLevel())
-                                    + " difficulty=" + helper.getLevel().getDifficulty());
+                                    + " difficulty=" + helper.getLevel().getDifficulty()
+                                    + " timeline=" + String.join(" ", log));
                         }
                         if (colony.getState() != com.simplecolonies.colony.ColonyState.ACTIVE)
                             helper.fail("Colony left its active state: " + colony.getState());
