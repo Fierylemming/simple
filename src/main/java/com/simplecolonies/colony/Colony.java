@@ -544,7 +544,8 @@ public class Colony {
                 var missing = com.simplecolonies.building.ConstructionCrafting.shortfall(
                         stock, sample.getRemainingPlacements());
                 housingReason = missing.isEmpty() ? "Not enough materials for any house"
-                        : "House needs " + com.simplecolonies.building.ConstructionCrafting.describe(missing, 4);
+                        : "Not enough materials for any house (needs "
+                            + com.simplecolonies.building.ConstructionCrafting.describe(missing, 4) + ")";
             } else {
                 BlockPos site = findHouseSite(level, affordable);
                 if (site == null) housingReason = "No safe loaded site for an affordable house";
