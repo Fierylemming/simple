@@ -4,7 +4,8 @@
 - Builders announce what they are waiting for: once per project, "Builder: the House needs 12x oak_planks, 2x oak_door", and `/colony status` repeats the shortfall next to the unfinished plan. Automatic expansion reports the same detail instead of "not enough materials".
 - Sticks are now a first-class construction recipe (logs → planks → sticks), so any wood in storage becomes building parts. Planks, stairs, slabs, doors and torches already worked this way.
 - Colonies no longer spawn inside or beside generated structures: a starter plan is refused within 96 blocks of a village, outpost or ruin, confirmed with `StructureManager#getStructureAt` rather than chunk references. `/colony spawn` explains the refusal instead of blaming the terrain.
-- New GameTest for the give path (real deposit, plural id, rejected id, and the log → planks → parts chain) and unit tests for the shortfall text.
+- Running `/colony give` also rescues items a colony already holds only in the legacy ledger, so the 150 logs an older build stranded become usable instead of staying lost.
+- New GameTest for the give path (real deposit, plural id, rejected id, stranded-stock recovery and the log → planks → parts chain) and unit tests for the shortfall text.
 
 ## 1.1.0 — Colonies build with the wood that actually grows there
 - Published as a GitHub release build (tag `v1.1.0`); the internal development sequence before it was 0.1.x.

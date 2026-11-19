@@ -277,17 +277,27 @@ public class ColonyCommand {
         String note = id.equals(rawItem.trim().toLowerCase(java.util.Locale.ROOT))
                 || id.equals("minecraft:" + rawItem.trim().toLowerCase(java.util.Locale.ROOT)) ? "" : " (as " + id + ")";
         int placed = 0;
+        int flushed = 0;
         if (src.getLevel() instanceof ServerLevel level) {
             colony.getWarehouseManager().scan(level);
             placed = colony.getWarehouseManager().deposit(level, colony.getCenter(), id, count);
+            // Recover anything a colony already holds only in the legacy ledger
+            // (for example a give from an older build) while we are here.
+            int stranded = colony.getWarehouseCount(id);
+            if (stranded > 0) {
+                flushed = colony.getWarehouseManager().deposit(level, colony.getCenter(), id, stranded);
+                if (flushed > 0) colony.depositToWarehouse(id, -flushed);
+            }
         }
         int virtual = count - placed;
         if (virtual > 0) colony.depositToWarehouse(id, virtual);
         ColonyManager.getInstance().markDirty(colony);
         int finalPlaced = placed;
+        final int recovered = flushed;
+        String recovery = recovered > 0 ? " Also moved " + recovered + "x that was stuck in virtual stock." : "";
         if (placed == count) {
             src.sendSuccess(() -> Component.literal("Gave " + count + "x " + id + note + " to colony #" + colony.getId()
-                    + "'s shared storage. Builders fetch it, craft planks and parts, and place it."), true);
+                    + "'s shared storage. Builders fetch it, craft planks and parts, and place it." + recovery), true);
         } else if (placed > 0) {
             src.sendSuccess(() -> Component.literal("Gave " + finalPlaced + "x " + id + note + " to colony #" + colony.getId()
                     + "'s shared storage; " + virtual + " went to virtual stock, which builders cannot use. Free up space in a"

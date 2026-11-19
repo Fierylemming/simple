@@ -72,11 +72,22 @@ public class ColonyCommandGameTests {
                 || chest.countItem(net.minecraft.world.item.Items.OAK_LOG) != 10)
             helper.fail("Singleton id did not deposit");
 
+        // Stock stranded in the legacy ledger (an older /colony give) is recovered
+        // by the same command instead of staying unusable forever.
+        colony.depositToWarehouse("minecraft:oak_log", 5);
+        if (ColonyCommand.giveToColony(operator, colony, "oak_log", 1) != 1)
+            helper.fail("Recovery give was rejected");
+        if (chest.countItem(net.minecraft.world.item.Items.OAK_LOG) != 16)
+            helper.fail("Stranded virtual logs were not moved into shared storage: "
+                    + chest.countItem(net.minecraft.world.item.Items.OAK_LOG));
+        if (colony.getWarehouseCount("minecraft:oak_log") != 0)
+            helper.fail("Ledger still holds logs after recovery");
+
         if (ColonyCommand.giveToColony(operator, colony, "oak_logs_but_not_really", 64) != 0)
             helper.fail("Unknown item id was accepted");
         if (colony.getWarehouseCount("minecraft:oak_logs_but_not_really") != 0)
             helper.fail("Unknown item id invented virtual stock");
-        if (chest.countItem(net.minecraft.world.item.Items.OAK_LOG) != 10)
+        if (chest.countItem(net.minecraft.world.item.Items.OAK_LOG) != 16)
             helper.fail("A rejected give changed the chest");
 
         // The logs a player hands over must be craftable into the parts a house
