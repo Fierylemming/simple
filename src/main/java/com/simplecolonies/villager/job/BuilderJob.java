@@ -21,6 +21,8 @@ public class BuilderJob extends AbstractJob {
     // Per-worker, transient retry times. Never discard a plan just because it
     // is obstructed, unloaded, unreachable, or waiting for materials.
     private final java.util.Map<Building, Long> retryAfter = new java.util.IdentityHashMap<>();
+    // One materials report per project, not one per tick and not one per reload.
+    private final java.util.Set<Building> reportedMissing = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
     private void deferCurrent(ServerLevel level, int ticks) {
         if (currentJob == null) return;
         // With no other unfinished plan, retain the normal prompt retry. Long
@@ -63,6 +65,39 @@ public class BuilderJob extends AbstractJob {
             if (path != null && path.canReach()) return path;
         }
         return null;
+    }
+
+    /** Say once per project which materials are missing, and keep the detail in
+     * /colony status. Silence here is what made an idle builder look broken. */
+    private void reportMissingMaterials(ServerLevel level) {
+        if (currentJob == null || physical == null) return;
+        if (!reportedMissing.add(currentJob)) return;
+        var missing = com.simplecolonies.building.ConstructionCrafting.shortfall(
+                physical.availableStock(level), currentJob.getRemainingPlacements());
+        if (missing.isEmpty()) return;
+        final String wanted = com.simplecolonies.building.ConstructionCrafting.describe(missing, 4);
+        final String what = currentJob.getType().displayName;
+        colony.broadcast(net.minecraft.network.chat.Component.literal(
+                "§eBuilder: the " + what + " needs " + wanted
+                        + ". Put it in shared storage (logs can be crafted into planks and parts)."));
+    }
+
+    /** What this project is missing right now, for commands and menus. */
+    public static String describeShortfall(ServerLevel level, Colony colony, Building building) {
+        var available = new java.util.HashMap<String, Integer>();
+        for (var pos : colony.getWarehouseManager().courierStoragePositions(level)) {
+            var container = colony.getWarehouseManager().courierContainer(level, pos);
+            if (container == null) continue;
+            for (int i = 0; i < container.getContainerSize(); i++) {
+                var stack = container.getItem(i);
+                if (stack.isEmpty() || !net.minecraft.world.item.ItemStack.isSameItemSameComponents(
+                        stack, stack.getItem().getDefaultInstance())) continue;
+                available.merge(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(),
+                        stack.getCount(), Integer::sum);
+            }
+        }
+        var missing = com.simplecolonies.building.ConstructionCrafting.shortfall(available, building.getRemainingPlacements());
+        return missing.isEmpty() ? null : com.simplecolonies.building.ConstructionCrafting.describe(missing, 4);
     }
 
     @Override protected void doWork(ServerLevel level) {
@@ -149,6 +184,7 @@ public class BuilderJob extends AbstractJob {
                         : physical.prepareCount(level, next.itemId, next.itemCount);
                 if (result != PhysicalBuilderMaterials.Result.READY) {
                     if (result == PhysicalBuilderMaterials.Result.MISSING) {
+                        reportMissingMaterials(level);
                         currentJob.setState(BuildingState.NEEDS_RESOURCES); state = JobState.NEEDS_RESOURCE;
                         ColonyManager.getInstance().markDirty(colony); deferCurrent(level, 100); ticksUntilNextWork = 60;
                     } else if (result == PhysicalBuilderMaterials.Result.BLOCKED) {

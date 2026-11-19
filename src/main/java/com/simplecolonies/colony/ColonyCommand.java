@@ -360,8 +360,11 @@ public class ColonyCommand {
             if (building.getState() == com.simplecolonies.building.BuildingState.COMPLETE) continue;
             unfinished = true;
             var next = building.getNextPlacement();
+            String shortfall = com.simplecolonies.villager.job.BuilderJob.describeShortfall(level, colony, building);
             src.sendSuccess(() -> Component.literal(building.getType().displayName + " at " + building.getPos().toShortString()
-                    + ": " + building.getState() + (next == null ? "" : "; next block " + next.pos.toShortString() + " needs " + next.itemId)), false);
+                    + ": " + building.getState()
+                    + (next == null ? "" : "; next block " + next.pos.toShortString() + " needs " + next.itemId)
+                    + (shortfall == null ? "" : "; missing from shared storage: " + shortfall)), false);
         }
         if (!unfinished) src.sendSuccess(() -> Component.literal("No construction is queued."), false);
         else src.sendSuccess(() -> Component.literal("Operators can cancel an unfinished plan or wing with /colony cancel_building <id> <x y z>; existing blocks remain."), false);

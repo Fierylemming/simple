@@ -152,6 +152,17 @@ final class PhysicalBuilderMaterials {
         return Result.BLOCKED;
     }
 
+    /** Everything this worker can reach right now: what it carries plus shared storage. */
+    java.util.Map<String, Integer> availableStock(ServerLevel level) {
+        var available = new HashMap<>(snapshot(held()));
+        var warehouse = colony.getWarehouseManager();
+        for (var pos : warehouse.courierStoragePositions(level)) {
+            var container = warehouse.courierContainer(level, pos);
+            if (container != null) snapshot(container).forEach((key, value) -> available.merge(key, value, Integer::sum));
+        }
+        return available;
+    }
+
     int countAvailable(ServerLevel level, String id) {
         int result = snapshot(held()).getOrDefault(id, 0);
         var warehouse = colony.getWarehouseManager();

@@ -152,5 +152,41 @@ public final class ConstructionCrafting {
         for (var placement : placements) if (!take(simulation, placement.itemId)) return false;
         return true;
     }
+    /**
+     * The plan's own items that the given stock cannot produce, using exactly the
+     * recipes {@link #canBuild} applies. Empty when the plan is affordable. This is
+     * what a builder reports when it has to stop for materials.
+     */
+    public static java.util.Map<String, Integer> shortfall(java.util.Map<String, Integer> stock,
+                                                          java.util.List<Building.BlockPlacement> placements) {
+        var copy = new java.util.HashMap<>(stock);
+        Stock simulation = new Stock() {
+            public int count(String id) { return copy.getOrDefault(id, 0); }
+            public boolean consume(String id, int amount) {
+                if (count(id) < amount) return false;
+                copy.put(id, count(id) - amount);
+                return true;
+            }
+            public void add(String id, int amount) { copy.merge(id, amount, Integer::sum); }
+        };
+        var missing = new java.util.LinkedHashMap<String, Integer>();
+        for (var placement : placements)
+            if (!take(simulation, placement.itemId))
+                missing.merge(placement.itemId, placement.itemCount, Integer::sum);
+        return java.util.Collections.unmodifiableMap(missing);
+    }
+
+    /** "12x minecraft:oak_planks, 2x minecraft:oak_door" for chat, capped so it stays readable. */
+    public static String describe(java.util.Map<String, Integer> missing, int limit) {
+        if (missing.isEmpty()) return "nothing";
+        var parts = new java.util.ArrayList<String>();
+        int shown = 0;
+        for (var entry : missing.entrySet()) {
+            if (shown++ >= limit) { parts.add("+" + (missing.size() - limit) + " more"); break; }
+            parts.add(entry.getValue() + "x " + entry.getKey().replace("minecraft:", ""));
+        }
+        return String.join(", ", parts);
+    }
+
     private ConstructionCrafting() {}
 }

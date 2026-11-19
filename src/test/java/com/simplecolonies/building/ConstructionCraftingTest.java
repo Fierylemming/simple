@@ -6,6 +6,12 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ConstructionCraftingTest {
+    @org.junit.jupiter.api.BeforeAll
+    static void bootstrap() {
+        net.minecraft.SharedConstants.tryDetectVersion();
+        net.minecraft.server.Bootstrap.bootStrap();
+    }
+
     static final class Stock implements ConstructionCrafting.Stock {
         final Map<String, Integer> items = new HashMap<>();
         public int count(String id) { return items.getOrDefault(id, 0); }
@@ -90,6 +96,46 @@ class ConstructionCraftingTest {
         assertEquals(2, s.count("minecraft:stick"));
         assertEquals(0, s.count("minecraft:stone_pickaxe"));
         assertNull(ConstructionCrafting.requiredInputs(Map.of("minecraft:cobblestone", 2, "minecraft:stick", 2), "minecraft:stone_pickaxe"));
+    }
+
+
+    @Test void sticksAreCraftableFromLogsWithoutATool() {
+        Stock s = new Stock(); s.add("minecraft:oak_log", 1);
+        assertTrue(ConstructionCrafting.take(s, "minecraft:stick"));
+        assertEquals(0, s.count("minecraft:oak_log"));
+        assertEquals(2, s.count("minecraft:oak_planks"));
+        assertEquals(3, s.count("minecraft:stick"));
+        assertNull(ConstructionCrafting.requiredInputs(Map.of(), "minecraft:stick"));
+    }
+
+    @Test void shortfallNamesOnlyWhatIsActuallyMissing() {
+        var plan = java.util.List.of(
+                new Building.BlockPlacement(net.minecraft.core.BlockPos.ZERO,
+                        net.minecraft.world.level.block.Blocks.OAK_PLANKS.defaultBlockState(), "minecraft:oak_planks"),
+                new Building.BlockPlacement(net.minecraft.core.BlockPos.ZERO.above(),
+                        net.minecraft.world.level.block.Blocks.OAK_PLANKS.defaultBlockState(), "minecraft:oak_planks"),
+                new Building.BlockPlacement(net.minecraft.core.BlockPos.ZERO.above(2),
+                        net.minecraft.world.level.block.Blocks.OAK_PLANKS.defaultBlockState(), "minecraft:oak_planks"),
+                new Building.BlockPlacement(net.minecraft.core.BlockPos.ZERO.above(3),
+                        net.minecraft.world.level.block.Blocks.OAK_PLANKS.defaultBlockState(), "minecraft:oak_planks"),
+                new Building.BlockPlacement(net.minecraft.core.BlockPos.ZERO.above(4),
+                        net.minecraft.world.level.block.Blocks.OAK_DOOR.defaultBlockState(), "minecraft:oak_door"),
+                new Building.BlockPlacement(net.minecraft.core.BlockPos.ZERO.above(5),
+                        net.minecraft.world.level.block.Blocks.COBBLESTONE.defaultBlockState(), "minecraft:cobblestone"));
+        assertTrue(ConstructionCrafting.shortfall(Map.of("minecraft:oak_log", 8, "minecraft:cobblestone", 8), plan).isEmpty(),
+                "a colony with logs and cobble must not be told anything is missing");
+        var missing = ConstructionCrafting.shortfall(Map.of("minecraft:oak_log", 1), plan);
+        assertEquals(Map.of("minecraft:oak_door", 1, "minecraft:cobblestone", 1), missing);
+    }
+
+    @Test void shortfallTextStaysShortForChat() {
+        var missing = new java.util.LinkedHashMap<String, Integer>();
+        missing.put("minecraft:oak_planks", 12);
+        missing.put("minecraft:oak_door", 2);
+        missing.put("minecraft:cobblestone", 8);
+        assertEquals("nothing", ConstructionCrafting.describe(Map.of(), 4));
+        assertEquals("12x oak_planks, 2x oak_door, 8x cobblestone", ConstructionCrafting.describe(missing, 4));
+        assertEquals("12x oak_planks, 2x oak_door, +1 more", ConstructionCrafting.describe(missing, 2));
     }
 
 }
