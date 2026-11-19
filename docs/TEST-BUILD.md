@@ -4,7 +4,7 @@ This is an **unfinished test build**, not the completed overhaul. Back up any ex
 
 ## Get the build
 
-1. Open [the releases page](https://github.com/Fierylemming/simple/releases) and download **simplecolonies-1.1.0.jar** from the newest release (tag `v1.1.0`). CI built that commit with its unit tests, standard GameTests and Create-enabled GameTests passing, but navigation still fails intermittently in some runs and everything below still needs in-game verification. If a newer release exists, prefer the newest one.
+1. Open [the releases page](https://github.com/Fierylemming/simple/releases) and download **simplecolonies-1.1.1.jar** from the newest release (tag `v1.1.1`). CI built that commit with its unit tests, standard GameTests and Create-enabled GameTests passing, but navigation still fails intermittently in some runs and everything below still needs in-game verification. If a newer release exists, prefer the newest one.
 2. In Prism Launcher, create a **Minecraft 1.21.1, NeoForge 21.1.265, Java 21** instance. Place the extracted SimpleColonies jar in that instance's `mods` folder; remove any older SimpleColonies jar first. Do not install it alongside another copy. For a server, install the same version on both client and server.
 3. Start a new world with cheats enabled, in the Overworld. No public overhaul release has been made.
 
@@ -82,6 +82,20 @@ Spend your own time where CI is blind: how it **feels** to play, what the screen
 tooltips show, long walks across real terrain, a dedicated server, a week of colony life,
 and anything that only appears with your world's history. That is where the remaining
 problems will be.
+
+## Giving materials to a colony (1.1.1)
+
+`/colony give <item> <count>` now delivers **real items** into the colony's shared
+storage, because builders fetch, craft and place physical stacks. Stand inside the
+colony and run `/colony give oak_logs 150` (or `oak_log`); the chat reply names the
+exact item id and where it went. If the reply says the colony has no shared container,
+share one first by sneak-using the Building Tool on a chest or barrel — otherwise the
+items only reach virtual stock, which no worker can use.
+
+Watch for: the builder saying "the House needs …" exactly once per project; `/colony
+status` listing the same shortfall; and the colony continuing with a second project once
+materials exist. Logs are enough for planks, stairs, slabs, doors, sticks and torches;
+cobblestone, coal and glass panes still have to be supplied.
 
 ## Initial checks
 

@@ -538,7 +538,13 @@ public class Colony {
                 }
             }
             if (!affordable[0] && !affordable[1] && !affordable[2]) {
-                housingReason = "Not enough materials for any house";
+                // Say what the smallest house is actually short of, instead of
+                // "not enough materials" with no way to act on it.
+                Building sample = new Building(BuildingType.HOUSE, center, culture, homeTimber);
+                var missing = com.simplecolonies.building.ConstructionCrafting.shortfall(
+                        stock, sample.getRemainingPlacements());
+                housingReason = missing.isEmpty() ? "Not enough materials for any house"
+                        : "House needs " + com.simplecolonies.building.ConstructionCrafting.describe(missing, 4);
             } else {
                 BlockPos site = findHouseSite(level, affordable);
                 if (site == null) housingReason = "No safe loaded site for an affordable house";

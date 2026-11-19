@@ -24,6 +24,15 @@ Expansion now checks on normal colony ticks, reports blockers and does not stall
 
 ## Latest test status
 
+Fixed from a play-test report (1.1.1): `/colony give` now deposits real items into
+shared storage and validates the id (it used to write a virtual ledger entry for any
+string, e.g. `minecraft:oak_logs`, which no builder could use); builders report the
+materials a plan is missing, once per project and in `/colony status`; sticks are
+craftable from logs like planks and parts; starter plans are refused within 96 blocks
+of a generated structure. Founding content is unchanged by request (hall, farm, starter
+house, workstations).
+
+
 Green in CI run 44359982811 (236 GameTests + 31 unit-test classes,
 including Create): `SettlementLifecycleGameTests` now founds a colony the way a player
 does, crosses three day boundaries and requires the founders, the food and the save/load

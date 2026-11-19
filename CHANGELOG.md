@@ -1,4 +1,11 @@
 # Changelog
+## 1.1.1 — The materials you give actually reach the workers
+- `/colony give` was a trap: it wrote to a legacy virtual ledger that physical builders never read, and it accepted any string, so `/colony give oak_logs 150` invented the item `minecraft:oak_logs` and nothing could ever use it. It now resolves the id against the item registry (accepting the common plural spelling and suggesting real ids when it cannot), puts **real stacks into the colony's shared storage**, and says plainly when a colony has no shared container — in that case the items go to virtual stock, which builders cannot use.
+- Builders announce what they are waiting for: once per project, "Builder: the House needs 12x oak_planks, 2x oak_door", and `/colony status` repeats the shortfall next to the unfinished plan. Automatic expansion reports the same detail instead of "not enough materials".
+- Sticks are now a first-class construction recipe (logs → planks → sticks), so any wood in storage becomes building parts. Planks, stairs, slabs, doors and torches already worked this way.
+- Colonies no longer spawn inside or beside generated structures: a starter plan is refused within 96 blocks of a village, outpost or ruin, confirmed with `StructureManager#getStructureAt` rather than chunk references. `/colony spawn` explains the refusal instead of blaming the terrain.
+- New GameTest for the give path (real deposit, plural id, rejected id, and the log → planks → parts chain) and unit tests for the shortfall text.
+
 ## 1.1.0 — Colonies build with the wood that actually grows there
 - Published as a GitHub release build (tag `v1.1.0`); the internal development sequence before it was 0.1.x.
 - Wooden costs are now *families*, not one species. Research orders, trade offers and trade routes ask for any planks, logs, fences or boats, and the exact species is resolved from what the colony has stored. A Roman colony in a birch forest can research, build and trade instead of waiting for oak that will never arrive.
